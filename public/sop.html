@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NPO CRM — Standard Operating Procedure</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Noto Sans Devanagari", sans-serif; background: #f2f5f9; color: #1a2a3a; line-height: 1.6; font-size: 15px; padding: 16px; }
+.wrap { max-width: 900px; margin: 0 auto; }
+
+.lang-switch { position: sticky; top: 8px; z-index: 100; display: flex; gap: 6px; background: #fff; padding: 8px; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 16px; justify-content: center; }
+.lang-switch button { flex: 1; padding: 10px 14px; border: 2px solid #dce1e8; background: #fff; border-radius: 8px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; transition: all .15s; color: #34495e; white-space: nowrap; }
+.lang-switch button:hover { border-color: #2980b9; color: #2980b9; }
+.lang-switch button.active { background: #2980b9; border-color: #2980b9; color: #fff; }
+
+.lang-panel { display: none; }
+.lang-panel.active { display: block; }
+
+.hero { background: linear-gradient(135deg, #2980b9, #1e6091); color: #fff; padding: 24px 20px; border-radius: 12px; margin-bottom: 16px; }
+.hero h1 { font-size: 24px; margin-bottom: 6px; }
+.hero p { font-size: 14px; opacity: 0.95; }
+.hero a { color: #fff; text-decoration: underline; }
+
+.card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.card h2 { font-size: 17px; color: #2980b9; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e8f4ff; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card h3 { font-size: 15px; margin: 16px 0 8px; color: #1a2a3a; }
+.card p { margin-bottom: 10px; }
+.card ul, .card ol { padding-left: 22px; margin-bottom: 10px; }
+.card li { margin-bottom: 6px; }
+.card code { background: #f2f5f9; padding: 2px 6px; border-radius: 4px; font-size: 13px; font-family: ui-monospace, Menlo, Consolas, monospace; color: #c0392b; }
+
+.sop-step { background: #fff; border-left: 4px solid #2980b9; padding: 14px 16px; border-radius: 6px; margin: 10px 0; font-size: 14px; counter-reset: step; }
+.sop-step > strong { color: #1a2a3a; }
+.sop-step ol { list-style: none; padding: 0; counter-reset: sopstep; }
+.sop-step ol > li { position: relative; padding-left: 34px; margin-bottom: 8px; counter-increment: sopstep; }
+.sop-step ol > li::before { content: counter(sopstep); position: absolute; left: 0; top: 0; width: 24px; height: 24px; background: #2980b9; color: #fff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+
+.rule { background: #fdecea; border-left: 4px solid #e74c3c; padding: 12px 14px; border-radius: 6px; margin: 12px 0; font-size: 14px; }
+.rule::before { content: '🚫 RULE: '; font-weight: 800; color: #c0392b; }
+.tip { background: #fff4e0; border-left: 4px solid #f39c12; padding: 12px 14px; border-radius: 6px; margin: 12px 0; font-size: 14px; }
+.fail { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 12px 14px; border-radius: 6px; margin: 12px 0; font-size: 14px; }
+.fail::before { content: '⚠️ IF IT FAILS: '; font-weight: 800; color: #6d28d9; }
+
+.role-tag { display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 10px; color: #fff; letter-spacing: 0.5px; margin-left: 6px; vertical-align: middle; }
+.rt-agent   { background: #27ae60; }
+.rt-manager { background: #8e44ad; }
+.rt-admin   { background: #e67e22; }
+
+.toc { background: #fff; padding: 16px 20px; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.toc h2 { font-size: 14px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.toc ol { list-style: none; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+.toc a { color: #2980b9; text-decoration: none; font-size: 14px; font-weight: 600; }
+.toc a:hover { text-decoration: underline; }
+.toc .sub { font-size: 12px; color: #7f8c8d; margin-top: 2px; padding-left: 4px; }
+
+.backtop { display: inline-block; margin-top: 8px; font-size: 12px; color: #7f8c8d; text-decoration: none; }
+.backtop:hover { color: #2980b9; }
+.footer { text-align: center; color: #7f8c8d; font-size: 12px; padding: 20px; }
+
+@media print {
+  body { background: #fff; padding: 0; font-size: 11pt; }
+  .hero { background: #2980b9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .card, .toc { box-shadow: none; border: 1px solid #dce1e8; page-break-inside: avoid; }
+  .card h2 { page-break-after: avoid; }
+  .rule, .tip, .sop-step, .fail { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .backtop { display: none; }
+  a { color: #2980b9; text-decoration: none; }
+  .no-print { display: none !important; }
+  .lang-switch { display: none !important; }
+  .lang-panel { display: block !important; page-break-before: always; }
+  .lang-panel:first-of-type { page-break-before: avoid; }
+}
+@media (max-width: 600px) {
+  .toc ol { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 20px; }
+  .card { padding: 16px; }
+  .lang-switch button { font-size: 13px; padding: 8px 6px; }
+  .sop-step { padding: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="lang-switch no-print">
+    <button type="button" data-lang="en" class="active">English</button>
+    <button type="button" data-lang="hi">हिन्दी</button>
+    <button type="button" data-lang="mr">मराठी</button>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- ENGLISH                                                        -->
+  <!-- ============================================================ -->
+  <div class="lang-panel active" data-lang-panel="en">
+
+    <div class="hero">
+      <h1>📋 NPO CRM — Standard Operating Procedure</h1>
+      <p>Non-negotiable steps. Follow exactly. If a situation isn't covered here, escalate — do not improvise.</p>
+      <p style="margin-top:8px;font-size:13px;">
+        🔗 <a href="https://npocrm.propertypoint.online">npocrm.propertypoint.online</a>
+        &nbsp;·&nbsp; SOP v1.0
+      </p>
+    </div>
+
+    <nav class="toc no-print">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#en-a">A. Agent SOP</a>
+            <div class="sub">A1–A11 · Daily work, task handling, escalation</div></li>
+        <li><a href="#en-m">M. Manager SOP</a>
+            <div class="sub">M1–M5 · Daily checks, coaching, escalation</div></li>
+        <li><a href="#en-x">X. Admin SOP</a>
+            <div class="sub">X1–X6 · Routing, hygiene, onboarding, emergencies</div></li>
+      </ol>
+    </nav>
+
+    <!-- ==================== AGENT ==================== -->
+    <section class="card" id="en-a">
+      <h2>🟢 Section A — Agent SOP <span class="role-tag rt-agent">AGENT</span></h2>
+
+      <h3>A1 · Daily Start (First 10 Minutes)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Open the CRM. Log in.</li>
+          <li>Read the greeting card. Note the OVERDUE count.</li>
+          <li>Open the <strong>🚨 OVERDUE</strong> section.</li>
+          <li>Work through it top to bottom until empty.</li>
+          <li>Move to <strong>⏰ DUE SOON</strong>. Clear it.</li>
+          <li>Move to <strong>📅 REST OF TODAY</strong>.</li>
+        </ol>
+      </div>
+      <div class="rule">Do not open email, WhatsApp, or take phone calls before OVERDUE is empty. OVERDUE is the customer you already promised to call back. Breaking this promise costs bookings.</div>
+
+      <h3>A2 · Handling Any Task (The Only Correct Sequence)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Open the task card.</li>
+          <li>Tap <strong>📞 Call</strong> or <strong>💬 WhatsApp</strong> to reach the customer.</li>
+          <li>Have the conversation.</li>
+          <li>Return to the CRM.</li>
+          <li>Tap <strong>✅ Done</strong>.</li>
+          <li>Pick the outcome that <em>actually happened</em>.</li>
+          <li>Write a note — specific, min 3 words. "Wants 3BHK at Raheja under 1.5Cr" not "call done".</li>
+          <li>Save.</li>
+          <li>Verify the task disappeared from the list.</li>
+        </ol>
+      </div>
+      <div class="fail">Task doesn't disappear after saving → refresh the page. If it's still there → note the lead ID and tell your manager within 30 minutes.</div>
+
+      <h3>A3 · Picking an Outcome — Never Break This</h3>
+      <div class="rule">
+        Never pick "Interested" if the customer didn't say they're interested.<br>
+        Never pick an outcome just to clear the task faster.<br>
+        If you're unsure between two outcomes, pick the more conservative one.<br>
+        If nothing matches what happened, pick the closest and add the detail in Notes.
+      </div>
+      <p>Outcomes drive the pipeline. Lying to the CRM means your manager can't help you.</p>
+
+      <h3>A4 · Site Visit — Full Sequence</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Customer agrees to a visit. Outcome: <strong>🏠 Site visit scheduled</strong>.</li>
+          <li>The modal opens a date &amp; time picker. Fill the <em>exact</em> agreed time.</li>
+          <li>Save. Verify 3 followup tasks appear (pre-visit confirm, post-visit feedback, next day).</li>
+          <li>On the visit day, complete the pre-visit confirmation call at the scheduled time.</li>
+          <li>After the visit, complete the post-visit feedback call. Pick the outcome based on what happened.</li>
+        </ol>
+      </div>
+      <div class="tip">If the visit is rescheduled, do NOT just edit the visit time. Complete the current pre-visit task with outcome <code>call_later</code> and note the new time. Then log the visit again.</div>
+
+      <h3>A5 · Booking — Full Sequence</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Customer says yes. Complete the task with outcome <strong>🎉 Booking Confirmed</strong>.</li>
+          <li>Fill ALL booking fields:
+            <ul>
+              <li>Area (sq ft) — required</li>
+              <li>Rate (₹/sq ft) — required</li>
+              <li>Property Value — auto-computes if area + rate filled</li>
+              <li>Unit / Flat No.</li>
+              <li>Payment Mode (Cheque / NEFT / RTGS / UPI / Cash)</li>
+              <li>Booking Date</li>
+            </ul>
+          </li>
+          <li>Confirm brokerage % (default 2% — change only if the deal is different).</li>
+          <li>Add co-broker name if any.</li>
+          <li>Save.</li>
+          <li>Verify lead status now shows <strong>Booking</strong>.</li>
+          <li>Verify a Thank You Call task is scheduled for tomorrow.</li>
+        </ol>
+      </div>
+      <div class="rule">Never log a booking without the property value or (area + rate). The brokerage calculation depends on it. Wrong brokerage = wrong commission = dispute.</div>
+
+      <h3>A6 · Lost Lead — Full Sequence</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Complete the task with outcome <strong>❌ Not Interested</strong> (or the exact lost outcome).</li>
+          <li>The modal shows a mandatory <strong>Lost Reason</strong> field.</li>
+          <li>Write a specific reason. Format: "Budget mismatch — wanted 60L, property is 75L" NOT "Not interested".</li>
+          <li>Save.</li>
+          <li>Verify the lead has moved to <strong>Lost</strong> status.</li>
+        </ol>
+      </div>
+      <div class="tip">Lost leads are re-checked automatically in 90 days. A good reason helps the re-check be useful. A lazy reason makes it waste of time.</div>
+
+      <h3>A7 · Reviving a Lost Lead</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Open the Lost lead.</li>
+          <li>Tap <strong>🔄 Revive Lead</strong>.</li>
+          <li>Pick the resume status (usually Contacted).</li>
+          <li>Write the reason (why is this lead back in play?).</li>
+          <li>Save.</li>
+          <li>A new first-contact task is scheduled. Complete it like any other task.</li>
+        </ol>
+      </div>
+
+      <h3>A8 · Sharing a Lead</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Open the lead. Tap <strong>👥 Assign / Share</strong>.</li>
+          <li>Select the primary agent (if changing).</li>
+          <li>Tick the additional agents to share with.</li>
+          <li>Choose the share type:
+            <ul>
+              <li><strong>👥 Internal co-agent</strong> — the primary agent gets a reminder in 24h</li>
+              <li><strong>🏢 On-site sales team</strong> — YOU get a reminder in 2 days</li>
+            </ul>
+          </li>
+          <li>Reason note is required. Min 5 words. Explain why the customer needs this agent.</li>
+          <li>Save.</li>
+        </ol>
+      </div>
+      <div class="rule">Never share without a reason. The receiving agent needs context. "Customer interested" is not a reason — it's a fact that was already known.</div>
+
+      <h3>A9 · Tagging — Do It Within 24 Hours</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Open the lead. Tap <strong>🏷 Add tags</strong> in the header.</li>
+          <li>Pick ONE tag:
+            <ul>
+              <li>🔥 <strong>Hot</strong> — ready to visit or already visited</li>
+              <li>☀️ <strong>Warm</strong> — interested, no visit yet</li>
+              <li>❄️ <strong>Cold</strong> — not responsive, still trying</li>
+              <li>💀 <strong>Dead</strong> — not interested, no hope</li>
+              <li>⭐ <strong>VIP</strong> — high-value or referral</li>
+              <li>👀 <strong>Watch</strong> — needs monitoring, no action yet</li>
+            </ul>
+          </li>
+          <li>Add at least 2 labels — usually Property Type + Buyer Type.</li>
+          <li>Save.</li>
+        </ol>
+      </div>
+      <div class="rule">Never tag every lead "Hot". Hot means serious buyer. If your Hot list is your whole pipeline, the tag is useless.</div>
+
+      <h3>A10 · Daily End (Last 10 Minutes)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Clear any remaining OVERDUE — no exceptions.</li>
+          <li>Check DUE SOON — if any are due after hours, leave them and note the reason.</li>
+          <li>Check tomorrow's site visits — confirm they're all still on.</li>
+          <li>Log out.</li>
+        </ol>
+      </div>
+
+      <h3>A11 · What to Do When Something Fails</h3>
+      <div class="fail">Task won't disappear after completing → refresh page. Still there → note the lead ID and message manager on WhatsApp within 30 min.</div>
+      <div class="fail">Can't save an outcome (form error) → do NOT retry repeatedly. Send a WhatsApp to manager with: "Couldn't save [customer name] outcome [X]. Error: [text]". Retry once in 5 minutes.</div>
+      <div class="fail">Wrong lead opened by mistake → close it. No harm done. Just don't log anything on the wrong lead.</div>
+      <div class="fail">Customer is angry or abusive → don't log the call. Escalate to your manager immediately. They will handle it.</div>
+      <div class="fail">Customer says something that doesn't fit any outcome → pick the closest outcome, write the exact words in Notes. Manager will clarify later.</div>
+
+      <p><a href="#en-a" class="backtop">↑ back to top</a></p>
+    </section>
+
+    <!-- ==================== MANAGER ==================== -->
+    <section class="card" id="en-m">
+      <h2>🟣 Section M — Team Manager SOP <span class="role-tag rt-manager">MANAGER</span></h2>
+
+      <h3>M1 · Morning Check (First 15 Minutes)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Log in. Open your dashboard.</li>
+          <li>Open <strong>👥 Team Status</strong>.</li>
+          <li>Sort mentally by overdue count.</li>
+          <li>For each agent with 5+ overdue → tap <strong>📱 Nudge</strong> → sends them a WhatsApp with their list.</li>
+          <li>For each agent with 10+ overdue → call them directly. Not WhatsApp. Call.</li>
+          <li>For each silent agent (no activity in 24h+) → message them: "Are you working today?"</li>
+        </ol>
+      </div>
+      <div class="rule">Do not skip the morning check. Skipping it for one day causes a 3-day backlog.</div>
+
+      <h3>M2 · Mid-Day Check (Around 12 PM)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Open <strong>📊 Business Pulse</strong> → <strong>Team Activity Today</strong>.</li>
+          <li>Note agents with 🔴 silent status.</li>
+          <li>Nudge them again if the morning nudge didn't work.</li>
+          <li>Open <strong>Pipeline Aging</strong>.</li>
+          <li>Note stages with leads 7+ days old. Those leads are dying.</li>
+          <li>Assign a followup to the relevant agent. Not a task — a WhatsApp message.</li>
+        </ol>
+      </div>
+
+      <h3>M3 · Evening Review (Before You Leave)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Re-open <strong>Team Status</strong>.</li>
+          <li>Confirm the morning's overdue count dropped. If it grew → the team isn't executing.</li>
+          <li>Open <strong>🔥 Hot Leads</strong> → filter by agent.</li>
+          <li>Anyone hoarding Hot leads without action in 24h → flag them.</li>
+          <li>Open <strong>🏠 Site Visits</strong> for tomorrow → confirm each has a pre-visit task scheduled.</li>
+        </ol>
+      </div>
+
+      <h3>M4 · Weekly Review (Monday Morning)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Open <code>/reports/team</code>.</li>
+          <li>Note last week's conversion per agent.</li>
+          <li>Note average response times.</li>
+          <li>Identify top performer and bottom performer.</li>
+          <li>Top performer → praise in team WhatsApp group.</li>
+          <li>Bottom performer → 15 min private call. Not a public message.</li>
+          <li>Any agent below 60% of team average → formal coaching plan.</li>
+        </ol>
+      </div>
+
+      <h3>M5 · Escalation Rules — When to Involve Admin</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Agent silent for 2+ consecutive days (no login, no activity) → escalate.</li>
+          <li>Agent has 10+ overdue for 2+ consecutive days → escalate.</li>
+          <li>Lead stuck in the same stage for 30+ days → escalate.</li>
+          <li>Booking disputed by customer → escalate immediately.</li>
+          <li>Any customer complaint → escalate immediately.</li>
+          <li>Any error you can't solve within 1 hour → escalate.</li>
+        </ol>
+      </div>
+
+      <p><a href="#en-m" class="backtop">↑ back to top</a></p>
+    </section>
+
+    <!-- ==================== ADMIN ==================== -->
+    <section class="card" id="en-x">
+      <h2>🟠 Section X — Admin SOP <span class="role-tag rt-admin">ADMIN</span></h2>
+
+      <h3>X1 · Daily Start</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Open <code>/reports/crm-health</code>.</li>
+          <li>Check for: orphaned followups, unassigned leads, stuck statuses.</li>
+          <li>If orphans exist → run the cleanup SQL (see below).</li>
+          <li>If unassigned leads exist → check Settings → Project Routing for missing routing.</li>
+        </ol>
+      </div>
+
+      <h3>X2 · New Lead Routing Check</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Open Settings → <strong>🎯 Project Routing</strong>.</li>
+          <li>Every active project must have either a direct agent OR a team routed.</li>
+          <li>Unrouted projects → leads come unassigned → alert fires to admins.</li>
+          <li>Fix by adding a direct agent or a team.</li>
+        </ol>
+      </div>
+      <div class="tip">Check this weekly. Every Monday morning, before the team starts work.</div>
+
+      <h3>X3 · New Agent Onboarding</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Settings → <strong>Agents</strong> → <strong>Add Agent</strong>.</li>
+          <li>Set Name, Email, Phone, Password.</li>
+          <li>Tick the team(s) this agent belongs to.</li>
+          <li>Tick <strong>📞 Telecaller</strong> only if this agent will work Contacts/Dialer.</li>
+          <li>Tick <strong>🏢 On Payroll</strong> only if this agent needs attendance tracking.</li>
+          <li>Save.</li>
+          <li>Give the new agent their login credentials.</li>
+          <li>Ask them to log in and complete the first test task.</li>
+        </ol>
+      </div>
+
+      <h3>X4 · When to Flush Caches</h3>
+      <p>After ANY raw SQL change to the following tables:</p>
+      <ul>
+        <li><code>lead_statuses</code></li>
+        <li><code>lead_status_transitions</code></li>
+        <li><code>call_outcomes</code></li>
+        <li><code>activity_types</code></li>
+        <li><code>followup_action_types</code></li>
+        <li><code>lead_sources</code></li>
+        <li><code>lead_tags</code>, <code>lead_labels</code></li>
+        <li><code>settings</code></li>
+      </ul>
+      <div class="sop-step">
+        <ol>
+          <li>Visit <code>/admin/flush-settings?key=DEV_ROUTE_KEY</code> → should say "✅ Settings cache flushed."</li>
+          <li>Visit <code>/clear-config?key=DEV_ROUTE_KEY</code> → should say "✅ Config + Route + View + App caches cleared."</li>
+        </ol>
+      </div>
+      <div class="rule">Never edit statuses/outcomes/activity types via SQL and forget the flush. Users will see "Invalid transition" errors and won't understand why.</div>
+
+      <h3>X5 · Weekly Data Hygiene</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Run this SQL and verify the count is 0:
+<pre style="background:#f2f5f9;padding:10px;border-radius:6px;font-size:12px;overflow-x:auto;">SELECT COUNT(*) AS orphaned
+FROM followups f
+JOIN leads l ON l.id = f.lead_id
+WHERE f.status = 'pending'
+  AND l.agent_id IS NOT NULL
+  AND f.agent_id != l.agent_id
+  AND NOT EXISTS (
+    SELECT 1 FROM lead_agents la
+    WHERE la.lead_id = f.lead_id
+      AND la.agent_id = f.agent_id
+      AND la.is_active = 1
+  );</pre>
+          </li>
+          <li>Check for unassigned active leads:
+<pre style="background:#f2f5f9;padding:10px;border-radius:6px;font-size:12px;overflow-x:auto;">SELECT COUNT(*) FROM leads
+WHERE agent_id IS NULL
+  AND status NOT IN ('booking', 'lost');</pre>
+          </li>
+          <li>If any count is above 0 → investigate and fix before Monday.</li>
+        </ol>
+      </div>
+
+      <h3>X6 · Emergency Procedures</h3>
+      <div class="fail">CRM shows 500 error on every page → clear caches first (<code>/clear-config</code>). Still broken → check <code>storage/logs/laravel.log</code>. If it's a code error → revert the last deployment.</div>
+      <div class="fail">Data loss (deleted leads or missing records) → restore from last backup. Never try to "fix" missing data by re-entering manually. Restore then merge.</div>
+      <div class="fail">Security breach (suspicious logins, data scraping) → rotate <code>DEV_ROUTE_KEY</code> in <code>.env</code>. Force-logout all users by clearing the sessions table. Reset all agent passwords.</div>
+      <div class="fail">Booking dispute from customer → pull the lead's timeline from CRM. Screenshot all activities. Send to manager + customer within 24h.</div>
+
+      <p><a href="#en-x" class="backtop">↑ back to top</a></p>
+    </section>
+
+    <div class="footer no-print">
+      <p>Print this page (<strong>Ctrl+P</strong> / <strong>Cmd+P</strong>). Keep a copy at the desk.</p>
+      <p style="margin-top:4px;">NPO CRM · SOP v1.0 · This SOP overrides any conflicting instruction</p>
+    </div>
+
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- HINDI                                                         -->
+  <!-- ============================================================ -->
+  <div class="lang-panel" data-lang-panel="hi">
+
+    <div class="hero">
+      <h1>📋 NPO CRM — मानक संचालन प्रक्रिया (SOP)</h1>
+      <p>अनिवार्य चरण। ठीक वैसे ही करें। अगर कोई स्थिति यहाँ नहीं है — manager से पूछें, खुद से कुछ न करें।</p>
+      <p style="margin-top:8px;font-size:13px;">🔗 <a href="https://npocrm.propertypoint.online">npocrm.propertypoint.online</a> &nbsp;·&nbsp; SOP v1.0</p>
+    </div>
+
+    <nav class="toc no-print">
+      <h2>विषय सूची</h2>
+      <ol>
+        <li><a href="#hi-a">A. एजेंट SOP</a><div class="sub">A1–A11 · रोज़ का काम, टास्क, escalation</div></li>
+        <li><a href="#hi-m">M. मैनेजर SOP</a><div class="sub">M1–M5 · दैनिक जाँच, coaching</div></li>
+        <li><a href="#hi-x">X. एडमिन SOP</a><div class="sub">X1–X6 · routing, hygiene, आपातकाल</div></li>
+      </ol>
+    </nav>
+
+    <section class="card" id="hi-a">
+      <h2>🟢 सेक्शन A — एजेंट SOP <span class="role-tag rt-agent">AGENT</span></h2>
+
+      <h3>A1 · दिन की शुरुआत (पहले 10 मिनट)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>CRM खोलें। लॉगिन करें।</li>
+          <li>Greeting card पढ़ें। OVERDUE count देखें।</li>
+          <li><strong>🚨 OVERDUE</strong> सेक्शन खोलें।</li>
+          <li>ऊपर से नीचे तक सब करें — खाली होने तक।</li>
+          <li><strong>⏰ DUE SOON</strong> पर जाएँ। साफ करें।</li>
+          <li>फिर <strong>📅 REST OF TODAY</strong>।</li>
+        </ol>
+      </div>
+      <div class="rule">OVERDUE खाली करने से पहले email, WhatsApp, या फ़ोन कॉल न उठाएँ। OVERDUE वह ग्राहक है जिसे आपने कॉलबैक का वादा किया था।</div>
+
+      <h3>A2 · कोई भी टास्क हैंडल करना</h3>
+      <div class="sop-step">
+        <ol>
+          <li>टास्क कार्ड खोलें।</li>
+          <li><strong>📞 Call</strong> या <strong>💬 WhatsApp</strong> टैप करें।</li>
+          <li>ग्राहक से बात करें।</li>
+          <li>CRM पर वापस आएं।</li>
+          <li><strong>✅ Done</strong> टैप करें।</li>
+          <li>जो सच में हुआ वह outcome चुनें।</li>
+          <li>नोट लिखें — कम से कम 3 शब्द, विशिष्ट।</li>
+          <li>सेव करें।</li>
+          <li>टास्क गायब हुआ verify करें।</li>
+        </ol>
+      </div>
+      <div class="fail">टास्क सेव के बाद गायब नहीं हुआ → पेज refresh करें। अगर फिर भी है → lead ID नोट करें और 30 मिनट में manager को बताएं।</div>
+
+      <h3>A3 · Outcome चुनना — यह कभी न तोड़ें</h3>
+      <div class="rule">
+        अगर ग्राहक ने interested नहीं कहा, तो "Interested" कभी न चुनें।<br>
+        टास्क जल्दी हटाने के लिए कोई outcome न चुनें।<br>
+        दो outcome में उलझन हो → ज़्यादा conservative वाला चुनें।<br>
+        कुछ भी match न हो → सबसे करीब वाला चुनें + Notes में असली बात लिखें।
+      </div>
+
+      <h3>A4 · साइट विजिट — पूरा क्रम</h3>
+      <div class="sop-step">
+        <ol>
+          <li>ग्राहक विजिट के लिए राज़ी → outcome <strong>🏠 Site visit scheduled</strong>।</li>
+          <li>Modal तारीख़-समय पिकर खोलेगा। ग्राहक ने जो <em>सही</em> समय बताया वही भरें।</li>
+          <li>सेव करें। 3 followup tasks आने verify करें।</li>
+          <li>विजिट के दिन pre-visit confirmation call करें।</li>
+          <li>विजिट के बाद post-visit feedback call करें। Outcome चुनें।</li>
+        </ol>
+      </div>
+      <div class="tip">विजिट reschedule हो → सिर्फ़ visit time edit न करें। वर्तमान task को <code>call_later</code> outcome के साथ पूरा करें, नया समय Notes में लिखें। फिर दोबारा visit log करें।</div>
+
+      <h3>A5 · बुकिंग — पूरा क्रम</h3>
+      <div class="sop-step">
+        <ol>
+          <li>ग्राहक ने हाँ कहा → outcome <strong>🎉 Booking Confirmed</strong>।</li>
+          <li>बुकिंग के सभी fields भरें: Area, Rate, Property Value, Unit, Payment Mode, Booking Date।</li>
+          <li>Brokerage % confirm करें (default 2%)।</li>
+          <li>Co-broker नाम अगर हो।</li>
+          <li>सेव करें।</li>
+          <li>Lead status <strong>Booking</strong> हुआ verify करें।</li>
+          <li>Thank You Call कल के लिए तय हुआ verify करें।</li>
+        </ol>
+      </div>
+      <div class="rule">Property value या (Area + Rate) के बिना कभी booking log न करें। Brokerage इसी पर निर्भर है।</div>
+
+      <h3>A6 · Lost Lead</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Outcome <strong>❌ Not Interested</strong> (या सही lost outcome) चुनें।</li>
+          <li>Lost Reason field ज़रूरी है।</li>
+          <li>विशिष्ट कारण लिखें: "Budget mismatch — wanted 60L, property 75L" न कि "Not interested"।</li>
+          <li>सेव करें।</li>
+          <li>Lead <strong>Lost</strong> हुआ verify करें।</li>
+        </ol>
+      </div>
+
+      <h3>A7 · Lost Lead Revive करना</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Lost lead खोलें।</li>
+          <li><strong>🔄 Revive Lead</strong> टैप करें।</li>
+          <li>Resume status चुनें (आमतौर पर Contacted)।</li>
+          <li>कारण लिखें (क्यों यह lead वापस आ रही है?)।</li>
+          <li>सेव करें।</li>
+          <li>नया first-contact task तय होगा। उसे normal task की तरह पूरा करें।</li>
+        </ol>
+      </div>
+
+      <h3>A8 · Lead शेयर करना</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Lead खोलें। <strong>👥 Assign / Share</strong> टैप करें।</li>
+          <li>Primary agent चुनें (अगर बदलना है)।</li>
+          <li>अतिरिक्त agents को tick करें।</li>
+          <li>Share type चुनें:
+            <ul>
+              <li><strong>👥 Internal co-agent</strong> — primary को 24h में reminder</li>
+              <li><strong>🏢 On-site sales team</strong> — आपको 2 दिन में reminder</li>
+            </ul>
+          </li>
+          <li>कारण लिखें — कम से कम 5 शब्द।</li>
+          <li>सेव करें।</li>
+        </ol>
+      </div>
+      <div class="rule">बिना कारण कभी share न करें। Receiving agent को context चाहिए।</div>
+
+      <h3>A9 · टैग करना — 24 घंटे के अंदर</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Lead खोलें। <strong>🏷 Add tags</strong> टैप करें।</li>
+          <li>एक tag चुनें:
+            <ul>
+              <li>🔥 <strong>Hot</strong> — विजिट के लिए तैयार या विजिट हो चुका</li>
+              <li>☀️ <strong>Warm</strong> — interested, विजिट नहीं हुआ</li>
+              <li>❄️ <strong>Cold</strong> — जवाब नहीं, कोशिश जारी</li>
+              <li>💀 <strong>Dead</strong> — interested नहीं, उम्मीद नहीं</li>
+              <li>⭐ <strong>VIP</strong> — high-value या referral</li>
+              <li>👀 <strong>Watch</strong> — नज़र रखनी है, action नहीं</li>
+            </ul>
+          </li>
+          <li>कम से कम 2 labels जोड़ें — Property Type + Buyer Type।</li>
+          <li>सेव करें।</li>
+        </ol>
+      </div>
+      <div class="rule">हर lead को "Hot" कभी न करें। Hot का मतलब serious buyer है।</div>
+
+      <h3>A10 · दिन का अंत (आख़िरी 10 मिनट)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>बाकी OVERDUE साफ करें — कोई अपवाद नहीं।</li>
+          <li>DUE SOON देखें।</li>
+          <li>कल के site visits confirm करें।</li>
+          <li>लॉगआउट करें।</li>
+        </ol>
+      </div>
+
+      <h3>A11 · कुछ फेल हो जाए तो</h3>
+      <div class="fail">टास्क नहीं हटा → refresh। फिर भी → 30 मिनट में manager को WhatsApp करें।</div>
+      <div class="fail">Outcome सेव नहीं हुआ → बार-बार कोशिश न करें। WhatsApp पर manager को बताएं।</div>
+      <div class="fail">गलत lead खोल लिया → बंद करें। कोई नुकसान नहीं।</div>
+      <div class="fail">ग्राहक गुस्से में → कॉल लॉग न करें। तुरंत manager को बताएं।</div>
+      <div class="fail">ग्राहक ने कुछ ऐसा कहा जो किसी outcome में नहीं आता → सबसे करीब वाला चुनें + Notes में असली बात लिखें।</div>
+
+      <p><a href="#hi-a" class="backtop">↑ ऊपर जाएं</a></p>
+    </section>
+
+    <section class="card" id="hi-m">
+      <h2>🟣 सेक्शन M — टीम मैनेजर SOP <span class="role-tag rt-manager">MANAGER</span></h2>
+
+      <h3>M1 · सुबह की जाँच (पहले 15 मिनट)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>लॉगिन करें। Dashboard खोलें।</li>
+          <li><strong>👥 Team Status</strong> खोलें।</li>
+          <li>Overdue count के हिसाब से देखें।</li>
+          <li>5+ overdue वाले agents → <strong>📱 Nudge</strong> टैप करें।</li>
+          <li>10+ overdue वाले → सीधे कॉल करें। WhatsApp नहीं, कॉल।</li>
+          <li>Silent agents (24h से कोई activity नहीं) → message: "आज काम कर रहे हो?"</li>
+        </ol>
+      </div>
+      <div class="rule">सुबह की जाँच कभी skip न करें। एक दिन skip = 3 दिन का backlog।</div>
+
+      <h3>M2 · दोपहर की जाँच (12 बजे)</h3>
+      <div class="sop-step">
+        <ol>
+          <li><strong>📊 Business Pulse</strong> → <strong>Team Activity</strong> खोलें।</li>
+          <li>🔴 silent agents नोट करें।</li>
+          <li>फिर से Nudge करें।</li>
+          <li><strong>Pipeline Aging</strong> खोलें।</li>
+          <li>7+ दिन पुराने leads वाले stages नोट करें।</li>
+          <li>Relevant agent को WhatsApp पर followup दें।</li>
+        </ol>
+      </div>
+
+      <h3>M3 · शाम की समीक्षा (जाने से पहले)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>फिर से <strong>Team Status</strong> देखें।</li>
+          <li>सुबह का overdue घटा या बढ़ा — check करें।</li>
+          <li><strong>🔥 Hot Leads</strong> खोलें → agent filter।</li>
+          <li>Hot leads पर 24h action नहीं → flag करें।</li>
+          <li>कल के <strong>Site Visits</strong> confirm करें।</li>
+        </ol>
+      </div>
+
+      <h3>M4 · साप्ताहिक समीक्षा (सोमवार सुबह)</h3>
+      <div class="sop-step">
+        <ol>
+          <li><code>/reports/team</code> खोलें।</li>
+          <li>पिछले हफ़्ते की conversion देखें।</li>
+          <li>Response times देखें।</li>
+          <li>Top + bottom performer पहचानें।</li>
+          <li>Top performer की तारीफ़ team group में करें।</li>
+          <li>Bottom performer से 15 मिनट private बात करें।</li>
+          <li>Team average से 60% नीचे वाले agent के लिए formal coaching plan।</li>
+        </ol>
+      </div>
+
+      <h3>M5 · Escalation — कब Admin को बताएं</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Agent 2+ दिन silent (लॉगिन नहीं, activity नहीं) → escalate।</li>
+          <li>Agent 10+ overdue 2+ दिन → escalate।</li>
+          <li>Lead 30+ दिन एक stage में → escalate।</li>
+          <li>Booking disputed → तुरंत escalate।</li>
+          <li>ग्राहक complaint → तुरंत escalate।</li>
+          <li>1 घंटे में solve न हुआ error → escalate।</li>
+        </ol>
+      </div>
+
+      <p><a href="#hi-m" class="backtop">↑ ऊपर जाएं</a></p>
+    </section>
+
+    <section class="card" id="hi-x">
+      <h2>🟠 सेक्शन X — एडमिन SOP <span class="role-tag rt-admin">ADMIN</span></h2>
+
+      <h3>X1 · दिन की शुरुआत</h3>
+      <div class="sop-step">
+        <ol>
+          <li><code>/reports/crm-health</code> खोलें।</li>
+          <li>Orphaned followups, unassigned leads, stuck statuses देखें।</li>
+          <li>Orphans → cleanup SQL चलाएँ।</li>
+          <li>Unassigned leads → Project Routing check करें।</li>
+        </ol>
+      </div>
+
+      <h3>X2 · नए Lead Routing की जाँच</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Settings → <strong>🎯 Project Routing</strong>।</li>
+          <li>हर active project पर direct agent या team routed हो।</li>
+          <li>Unrouted → leads unassigned आते हैं → admin को alert।</li>
+          <li>Fix: direct agent या team add करें।</li>
+        </ol>
+      </div>
+      <div class="tip">हर सोमवार सुबह check करें।</div>
+
+      <h3>X3 · नया Agent Onboarding</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Settings → <strong>Agents</strong> → <strong>Add Agent</strong>।</li>
+          <li>Name, Email, Phone, Password।</li>
+          <li>Team(s) tick करें।</li>
+          <li><strong>📞 Telecaller</strong> सिर्फ़ तब tick करें जब वह Contacts/Dialer पर काम करेगा।</li>
+          <li><strong>🏢 On Payroll</strong> सिर्फ़ attendance tracking के लिए।</li>
+          <li>सेव करें। Credentials दें।</li>
+          <li>पहला test task पूरा करवाएं।</li>
+        </ol>
+      </div>
+
+      <h3>X4 · Cache कब flush करें</h3>
+      <p>किसी भी raw SQL update के बाद: <code>lead_statuses</code>, <code>lead_status_transitions</code>, <code>call_outcomes</code>, <code>activity_types</code>, <code>followup_action_types</code>, <code>lead_sources</code>, <code>lead_tags</code>, <code>lead_labels</code>, <code>settings</code>।</p>
+      <div class="sop-step">
+        <ol>
+          <li><code>/admin/flush-settings?key=DEV_ROUTE_KEY</code> → "✅ Settings cache flushed."</li>
+          <li><code>/clear-config?key=DEV_ROUTE_KEY</code> → "✅ Config + Route + View + App caches cleared."</li>
+        </ol>
+      </div>
+      <div class="rule">Raw SQL edit के बाद flush भूल गए → "Invalid transition" errors आएँगे।</div>
+
+      <h3>X5 · साप्ताहिक Data Hygiene</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Orphaned followups count करें — 0 होना चाहिए।</li>
+          <li>Unassigned active leads check करें — 0 होना चाहिए।</li>
+          <li>0 से ऊपर → सोमवार से पहले ठीक करें।</li>
+        </ol>
+      </div>
+
+      <h3>X6 · आपातकालीन प्रक्रिया</h3>
+      <div class="fail">हर पेज पर 500 error → पहले cache clear करें। फिर भी → <code>storage/logs/laravel.log</code> देखें। Code error → पिछली deployment revert करें।</div>
+      <div class="fail">Data loss → backup से restore करें। Manual entry न करें।</div>
+      <div class="fail">Security breach → <code>DEV_ROUTE_KEY</code> rotate करें। Sessions table clear करें। सभी agent passwords reset करें।</div>
+      <div class="fail">Booking dispute → lead timeline का screenshot लें। 24h में manager + customer को भेजें।</div>
+
+      <p><a href="#hi-x" class="backtop">↑ ऊपर जाएं</a></p>
+    </section>
+
+    <div class="footer no-print">
+      <p>प्रिंट करने के लिए <strong>Ctrl+P</strong> / <strong>Cmd+P</strong>।</p>
+      <p style="margin-top:4px;">NPO CRM · SOP v1.0 · यह SOP हर विरोधाभासी निर्देश पर भारी है</p>
+    </div>
+
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- MARATHI                                                       -->
+  <!-- ============================================================ -->
+  <div class="lang-panel" data-lang-panel="mr">
+
+    <div class="hero">
+      <h1>📋 NPO CRM — मानक कार्यप्रणाली (SOP)</h1>
+      <p>अनिवार्य पायऱ्या. तंतोतंत पाळा. येथे नसलेली परिस्थिती — manager ला विचारा, स्वतः काही करू नका.</p>
+      <p style="margin-top:8px;font-size:13px;">🔗 <a href="https://npocrm.propertypoint.online">npocrm.propertypoint.online</a> &nbsp;·&nbsp; SOP v1.0</p>
+    </div>
+
+    <nav class="toc no-print">
+      <h2>अनुक्रमणिका</h2>
+      <ol>
+        <li><a href="#mr-a">A. एजंट SOP</a><div class="sub">A1–A11 · रोजचे काम, टास्क, escalation</div></li>
+        <li><a href="#mr-m">M. मॅनेजर SOP</a><div class="sub">M1–M5 · दैनिक तपासणी, coaching</div></li>
+        <li><a href="#mr-x">X. अॅडमिन SOP</a><div class="sub">X1–X6 · routing, hygiene, आपत्कालीन</div></li>
+      </ol>
+    </nav>
+
+    <section class="card" id="mr-a">
+      <h2>🟢 विभाग A — एजंट SOP <span class="role-tag rt-agent">AGENT</span></h2>
+
+      <h3>A1 · दिवसाची सुरुवात (पहिले 10 मिनिटे)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>CRM उघडा. लॉगिन करा.</li>
+          <li>Greeting card वाचा. OVERDUE count पहा.</li>
+          <li><strong>🚨 OVERDUE</strong> विभाग उघडा.</li>
+          <li>वरून खाली सर्व करा — रिकामे होईपर्यंत.</li>
+          <li><strong>⏰ DUE SOON</strong> वर जा. संपवा.</li>
+          <li>नंतर <strong>📅 REST OF TODAY</strong>.</li>
+        </ol>
+      </div>
+      <div class="rule">OVERDUE रिकामे करण्यापूर्वी email, WhatsApp, किंवा फोन कॉल उचलू नका. OVERDUE म्हणजे ज्या ग्राहकाला तुम्ही कॉलबॅकचे वचन दिले आहे.</div>
+
+      <h3>A2 · कोणताही टास्क हाताळणे</h3>
+      <div class="sop-step">
+        <ol>
+          <li>टास्क कार्ड उघडा.</li>
+          <li><strong>📞 Call</strong> किंवा <strong>💬 WhatsApp</strong> टॅप करा.</li>
+          <li>ग्राहकाशी बोला.</li>
+          <li>CRM वर परत या.</li>
+          <li><strong>✅ Done</strong> टॅप करा.</li>
+          <li>खरोखर घडलेला outcome निवडा.</li>
+          <li>नोट लिहा — किमान 3 शब्द, विशिष्ट.</li>
+          <li>सेव्ह करा.</li>
+          <li>टास्क गेला verify करा.</li>
+        </ol>
+      </div>
+      <div class="fail">टास्क सेव्ह केल्यावर गेला नाही → पान refresh करा. तरीही → lead ID नोंदवा आणि 30 मिनिटांत manager ला सांगा.</div>
+
+      <h3>A3 · Outcome निवडणे — हे कधीही मोडू नका</h3>
+      <div class="rule">
+        ग्राहकाने interested म्हटले नसेल तर "Interested" कधीही निवडू नका.<br>
+        टास्क लवकर हटवण्यासाठी outcome निवडू नका.<br>
+        दोन outcome मध्ये गोंधळ → जास्त conservative निवडा.<br>
+        काहीही match नाही → जवळचा निवडा + Notes मध्ये खरे लिहा.
+      </div>
+
+      <h3>A4 · साइट भेट — पूर्ण क्रम</h3>
+      <div class="sop-step">
+        <ol>
+          <li>ग्राहक भेटीला तयार → outcome <strong>🏠 Site visit scheduled</strong>.</li>
+          <li>Modal तारीख-वेळ picker उघडेल. ग्राहकाने दिलेली <em>तंतोतंत</em> वेळ भरा.</li>
+          <li>सेव्ह करा. 3 followup tasks आले verify करा.</li>
+          <li>भेटीच्या दिवशी pre-visit confirmation call करा.</li>
+          <li>भेटीनंतर post-visit feedback call करा. Outcome निवडा.</li>
+        </ol>
+      </div>
+      <div class="tip">भेट reschedule झाली → फक्त visit time edit करू नका. सध्याचा task <code>call_later</code> outcome ने संपवा, नवीन वेळ Notes मध्ये लिहा. नंतर पुन्हा visit log करा.</div>
+
+      <h3>A5 · बुकिंग — पूर्ण क्रम</h3>
+      <div class="sop-step">
+        <ol>
+          <li>ग्राहक हो म्हणाला → outcome <strong>🎉 Booking Confirmed</strong>.</li>
+          <li>सर्व booking fields भरा: Area, Rate, Property Value, Unit, Payment Mode, Booking Date.</li>
+          <li>Brokerage % confirm करा (default 2%).</li>
+          <li>Co-broker नाव असल्यास.</li>
+          <li>सेव्ह करा.</li>
+          <li>Lead status <strong>Booking</strong> verify करा.</li>
+          <li>Thank You Call उद्यासाठी ठरले verify करा.</li>
+        </ol>
+      </div>
+      <div class="rule">Property value किंवा (Area + Rate) शिवाय booking कधीही log करू नका. Brokerage यावर अवलंबून आहे.</div>
+
+      <h3>A6 · Lost Lead</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Outcome <strong>❌ Not Interested</strong> (किंवा योग्य lost outcome).</li>
+          <li>Lost Reason field आवश्यक.</li>
+          <li>विशिष्ट कारण: "Budget mismatch — wanted 60L, property 75L" नाही "Not interested".</li>
+          <li>सेव्ह करा.</li>
+          <li>Lead <strong>Lost</strong> verify करा.</li>
+        </ol>
+      </div>
+
+      <h3>A7 · Lost Lead Revive</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Lost lead उघडा.</li>
+          <li><strong>🔄 Revive Lead</strong> टॅप करा.</li>
+          <li>Resume status निवडा (सामान्यतः Contacted).</li>
+          <li>कारण लिहा.</li>
+          <li>सेव्ह करा.</li>
+          <li>नवीन first-contact task ठरेल. तो सामान्य task सारखा पूर्ण करा.</li>
+        </ol>
+      </div>
+
+      <h3>A8 · Lead शेअर करणे</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Lead उघडा. <strong>👥 Assign / Share</strong>.</li>
+          <li>Primary agent निवडा (बदलायचे असल्यास).</li>
+          <li>अतिरिक्त agents tick करा.</li>
+          <li>Share type:
+            <ul>
+              <li><strong>👥 Internal co-agent</strong> — primary ला 24h मध्ये reminder</li>
+              <li><strong>🏢 On-site sales team</strong> — तुम्हाला 2 दिवसांत reminder</li>
+            </ul>
+          </li>
+          <li>कारण लिहा — किमान 5 शब्द.</li>
+          <li>सेव्ह करा.</li>
+        </ol>
+      </div>
+      <div class="rule">कारणाशिवाय कधीही share करू नका.</div>
+
+      <h3>A9 · टॅग करणे — 24 तासांत</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Lead उघडा. <strong>🏷 Add tags</strong>.</li>
+          <li>एक tag:
+            <ul>
+              <li>🔥 <strong>Hot</strong> — भेटीला तयार किंवा भेट झाली</li>
+              <li>☀️ <strong>Warm</strong> — interested, भेट नाही</li>
+              <li>❄️ <strong>Cold</strong> — प्रतिसाद नाही</li>
+              <li>💀 <strong>Dead</strong> — interested नाही</li>
+              <li>⭐ <strong>VIP</strong> — high-value किंवा referral</li>
+              <li>👀 <strong>Watch</strong> — लक्ष ठेवायचे</li>
+            </ul>
+          </li>
+          <li>किमान 2 labels — Property Type + Buyer Type.</li>
+          <li>सेव्ह करा.</li>
+        </ol>
+      </div>
+      <div class="rule">प्रत्येक lead "Hot" करू नका. Hot म्हणजे serious buyer.</div>
+
+      <h3>A10 · दिवसाचा शेवट (शेवटचे 10 मिनिटे)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>उरलेले OVERDUE संपवा — अपवाद नाही.</li>
+          <li>DUE SOON पहा.</li>
+          <li>उद्याच्या site visits confirm करा.</li>
+          <li>लॉगआउट करा.</li>
+        </ol>
+      </div>
+
+      <h3>A11 · काही fail झाले तर</h3>
+      <div class="fail">टास्क गेला नाही → refresh. तरीही → 30 मिनिटांत manager ला WhatsApp.</div>
+      <div class="fail">Outcome सेव्ह झाला नाही → वारंवार प्रयत्न नका. WhatsApp वर manager ला कळवा.</div>
+      <div class="fail">चुकीचे lead उघडले → बंद करा. काही नुकसान नाही.</div>
+      <div class="fail">ग्राहक रागावला → कॉल log करू नका. तात्काळ manager ला कळवा.</div>
+      <div class="fail">ग्राहकाने काहीतरी सांगितले जे कोणत्याही outcome मध्ये नाही → जवळचा निवडा + Notes मध्ये खरे लिहा.</div>
+
+      <p><a href="#mr-a" class="backtop">↑ वर जा</a></p>
+    </section>
+
+    <section class="card" id="mr-m">
+      <h2>🟣 विभाग M — टीम मॅनेजर SOP <span class="role-tag rt-manager">MANAGER</span></h2>
+
+      <h3>M1 · सकाळची तपासणी (पहिले 15 मिनिटे)</h3>
+      <div class="sop-step">
+        <ol>
+          <li>लॉगिन. Dashboard उघडा.</li>
+          <li><strong>👥 Team Status</strong> उघडा.</li>
+          <li>Overdue count नुसार पहा.</li>
+          <li>5+ overdue → <strong>📱 Nudge</strong> टॅप करा.</li>
+          <li>10+ overdue → थेट कॉल करा.</li>
+          <li>Silent agents (24h activity नाही) → message: "आज काम करत आहात?"</li>
+        </ol>
+      </div>
+      <div class="rule">सकाळची तपासणी कधीही skip करू नका. एक दिवस skip = 3 दिवसांचा backlog.</div>
+
+      <h3>M2 · दुपारची तपासणी (12 वाजता)</h3>
+      <div class="sop-step">
+        <ol>
+          <li><strong>📊 Business Pulse</strong> → <strong>Team Activity</strong>.</li>
+          <li>🔴 silent agents नोंदवा.</li>
+          <li>पुन्हा Nudge करा.</li>
+          <li><strong>Pipeline Aging</strong> उघडा.</li>
+          <li>7+ दिवस जुने leads नोंदवा.</li>
+          <li>Relevant agent ला WhatsApp followup द्या.</li>
+        </ol>
+      </div>
+
+      <h3>M3 · संध्याकाळची समीक्षा</h3>
+      <div class="sop-step">
+        <ol>
+          <li><strong>Team Status</strong> पुन्हा पहा.</li>
+          <li>सकाळचा overdue कमी किंवा जास्त — तपासा.</li>
+          <li><strong>🔥 Hot Leads</strong> → agent filter.</li>
+          <li>24h action नाही → flag करा.</li>
+          <li>उद्याच्या <strong>Site Visits</strong> confirm करा.</li>
+        </ol>
+      </div>
+
+      <h3>M4 · साप्ताहिक समीक्षा (सोमवार सकाळी)</h3>
+      <div class="sop-step">
+        <ol>
+          <li><code>/reports/team</code> उघडा.</li>
+          <li>गेल्या आठवड्याची conversion.</li>
+          <li>Response times.</li>
+          <li>Top + bottom performer.</li>
+          <li>Top performer चे कौतुक team group मध्ये.</li>
+          <li>Bottom performer शी 15 मिनिटे खाजगी बोलणे.</li>
+          <li>Team average च्या 60% पेक्षा कमी → formal coaching plan.</li>
+        </ol>
+      </div>
+
+      <h3>M5 · Escalation — Admin ला कधी कळवायचे</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Agent 2+ दिवस silent → escalate.</li>
+          <li>Agent 10+ overdue 2+ दिवस → escalate.</li>
+          <li>Lead 30+ दिवस एका stage मध्ये → escalate.</li>
+          <li>Booking disputed → तात्काळ escalate.</li>
+          <li>ग्राहक complaint → तात्काळ escalate.</li>
+          <li>1 तासात solve नाही → escalate.</li>
+        </ol>
+      </div>
+
+      <p><a href="#mr-m" class="backtop">↑ वर जा</a></p>
+    </section>
+
+    <section class="card" id="mr-x">
+      <h2>🟠 विभाग X — अॅडमिन SOP <span class="role-tag rt-admin">ADMIN</span></h2>
+
+      <h3>X1 · दिवसाची सुरुवात</h3>
+      <div class="sop-step">
+        <ol>
+          <li><code>/reports/crm-health</code> उघडा.</li>
+          <li>Orphaned followups, unassigned leads, stuck statuses.</li>
+          <li>Orphans → cleanup SQL चालवा.</li>
+          <li>Unassigned → Project Routing तपासा.</li>
+        </ol>
+      </div>
+
+      <h3>X2 · नवीन Lead Routing तपासणी</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Settings → <strong>🎯 Project Routing</strong>.</li>
+          <li>प्रत्येक active project ला direct agent किंवा team routed.</li>
+          <li>Unrouted → unassigned leads → admin alert.</li>
+          <li>Fix: direct agent किंवा team जोडा.</li>
+        </ol>
+      </div>
+      <div class="tip">दर सोमवारी सकाळी तपासा.</div>
+
+      <h3>X3 · नवीन Agent Onboarding</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Settings → <strong>Agents</strong> → <strong>Add Agent</strong>.</li>
+          <li>Name, Email, Phone, Password.</li>
+          <li>Team(s) tick करा.</li>
+          <li><strong>📞 Telecaller</strong> फक्त Contacts/Dialer साठी.</li>
+          <li><strong>🏢 On Payroll</strong> फक्त attendance tracking साठी.</li>
+          <li>सेव्ह करा. Credentials द्या.</li>
+          <li>पहिला test task पूर्ण करवा.</li>
+        </ol>
+      </div>
+
+      <h3>X4 · Cache कधी flush करावे</h3>
+      <p>कोणत्याही raw SQL update नंतर: <code>lead_statuses</code>, <code>lead_status_transitions</code>, <code>call_outcomes</code>, <code>activity_types</code>, <code>followup_action_types</code>, <code>lead_sources</code>, <code>lead_tags</code>, <code>lead_labels</code>, <code>settings</code>.</p>
+      <div class="sop-step">
+        <ol>
+          <li><code>/admin/flush-settings?key=DEV_ROUTE_KEY</code> → "✅ Settings cache flushed."</li>
+          <li><code>/clear-config?key=DEV_ROUTE_KEY</code> → "✅ Config + Route + View + App caches cleared."</li>
+        </ol>
+      </div>
+      <div class="rule">Raw SQL edit नंतर flush विसरला → "Invalid transition" errors येतील.</div>
+
+      <h3>X5 · साप्ताहिक Data Hygiene</h3>
+      <div class="sop-step">
+        <ol>
+          <li>Orphaned followups count — 0 असावे.</li>
+          <li>Unassigned active leads — 0 असावे.</li>
+          <li>0 पेक्षा जास्त → सोमवारपूर्वी दुरुस्त करा.</li>
+        </ol>
+      </div>
+
+      <h3>X6 · आपत्कालीन प्रक्रिया</h3>
+      <div class="fail">प्रत्येक पानावर 500 error → आधी cache clear करा. तरीही → <code>storage/logs/laravel.log</code>. Code error → शेवटचे deployment revert करा.</div>
+      <div class="fail">Data loss → backup मधून restore. Manual entry नको.</div>
+      <div class="fail">Security breach → <code>DEV_ROUTE_KEY</code> rotate करा. Sessions table clear करा. सर्व agent passwords reset करा.</div>
+      <div class="fail">Booking dispute → lead timeline screenshot घ्या. 24h मध्ये manager + customer ला पाठवा.</div>
+
+      <p><a href="#mr-x" class="backtop">↑ वर जा</a></p>
+    </section>
+
+    <div class="footer no-print">
+      <p>प्रिंट करण्यासाठी <strong>Ctrl+P</strong> / <strong>Cmd+P</strong>.</p>
+      <p style="margin-top:4px;">NPO CRM · SOP v1.0 · हा SOP प्रत्येक विरोधाभासी सूचनेवर वरचढ आहे</p>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var STORAGE_KEY = 'npocrm_sop_lang';
+  var buttons    = document.querySelectorAll('.lang-switch button[data-lang]');
+  var panels     = document.querySelectorAll('.lang-panel[data-lang-panel]');
+  if (! buttons.length || ! panels.length) return;
+
+  function setLanguage(lang) {
+    panels.forEach(function (p) { p.classList.remove('active'); });
+    buttons.forEach(function (b) { b.classList.remove('active'); });
+    var panel = document.querySelector('.lang-panel[data-lang-panel="' + lang + '"]');
+    var btn   = document.querySelector('.lang-switch button[data-lang="' + lang + '"]');
+    if (! panel) {
+      panel = document.querySelector('.lang-panel[data-lang-panel="en"]');
+      btn   = document.querySelector('.lang-switch button[data-lang="en"]');
+      lang  = 'en';
+    }
+    if (panel) panel.classList.add('active');
+    if (btn)   btn.classList.add('active');
+    document.documentElement.lang = lang;
+    try { localStorage.setItem(STORAGE_KEY, lang); } catch (e) {}
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { setLanguage(b.getAttribute('data-lang')); });
+  });
+
+  var saved = null;
+  try { saved = localStorage.getItem(STORAGE_KEY); } catch (e) {}
+  if (saved && (saved === 'en' || saved === 'hi' || saved === 'mr')) setLanguage(saved);
+
+  var urlLang = new URLSearchParams(window.location.search).get('lang');
+  if (urlLang && ['en', 'hi', 'mr'].indexOf(urlLang) !== -1) setLanguage(urlLang);
+})();
+</script>
+
+</body>
+</html>

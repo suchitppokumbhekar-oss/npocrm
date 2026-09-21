@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+/* Canonical work navigation: dashboards/task lists find work; lead page performs it. */
+.task-card-work-only .tc-actions { display:none !important; }
+.task-card-work-only .tc-history-row, .task-card-work-only .tc-nudge-link { display:none !important; }
+.tc-work-open { padding: 0 14px 14px; }
+.tc-work-open-btn {
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    min-height:44px; width:100%; border-radius:10px;
+    background:var(--c-primary); color:#fff; text-decoration:none; font-weight:800;
+    box-sizing:border-box;
+}
+.tc-work-open-btn:hover { color:#fff; text-decoration:none; opacity:.94; }
+.task-card-focused { outline:2px solid var(--c-primary); outline-offset:2px; }
+.history-focus-open { display:inline-flex; align-items:center; min-height:40px; padding:8px 12px; border-radius:9px; background:var(--c-primary); color:#fff; text-decoration:none; font-weight:800; }
+@media (max-width: 640px) {
+    .tc-work-open { padding: 0 12px 12px; }
+    .tc-work-open-btn { min-height:48px; font-size:14px; }
+}
+
+/* Canonical work navigation: dashboards/task lists find work; lead page performs it. */
+.task-card-work-only .tc-actions { display:none !important; }
+.task-card-work-only .tc-history-row, .task-card-work-only .tc-nudge-link { display:none !important; }
+.tc-work-open { padding: 0 14px 14px; }
+.tc-work-open-btn { display:flex; align-items:center; justify-content:center; gap:8px; min-height:44px; width:100%; border-radius:10px; background:var(--c-primary); color:#fff; text-decoration:none; font-weight:800; box-sizing:border-box; }
+.tc-work-open-btn:hover { color:#fff; text-decoration:none; opacity:.94; }
+.task-card-focused { outline:2px solid var(--c-primary); outline-offset:2px; }
+.history-focus-open { display:inline-flex; align-items:center; min-height:40px; padding:8px 12px; border-radius:9px; background:var(--c-primary); color:#fff; text-decoration:none; font-weight:800; }
+@media (max-width: 640px) { .tc-work-open { padding:0 12px 12px; } .tc-work-open-btn { min-height:48px; font-size:14px; } }
+
+
+/* Lead page hierarchy: work first, management secondary. */
+.lead-manage-panel { margin: 12px 0; border:1px solid var(--c-border,#e5e7eb); border-radius:12px; background:var(--c-surface,#fff); overflow:hidden; }
+.lead-manage-summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:8px; min-height:48px; padding:10px 13px; font-size:14px; }
+.lead-manage-summary::-webkit-details-marker { display:none; }
+.lead-manage-summary::after { content:'▾'; margin-left:auto; color:var(--c-muted); }
+.lead-manage-panel[open] .lead-manage-summary::after { content:'▴'; }
+.lead-manage-summary span { color:var(--c-muted); font-size:11px; font-weight:500; }
+.lead-manage-panel > .action-bar, .lead-manage-panel > .action-bar-label { margin-top:0; }
+@media (max-width:640px) { .lead-manage-summary { align-items:flex-start; flex-wrap:wrap; } .lead-manage-summary span { flex-basis:100%; padding-left:27px; } }
+
+/* v45 Customer tab — keep the optional customer check-in compact on phones. */
+@media (max-width: 640px) {
+    .lead-wb-summary-grid[style*="repeat(2"] { grid-template-columns: 1fr !important; }
+    .lead-wb-sections { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .lead-wb-sections button { flex: 0 0 auto; }
+    details[data-accordion="customer"] .lead-accordion-body > div[style*="repeat(2"] { grid-template-columns: 1fr !important; }
+}

@@ -1,0 +1,23 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <application android:theme="@style/AppTheme" android:label="NPO CRM Device Bridge" android:allowBackup="false" android:supportsRtl="true">
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="npocrm" android:host="recent-calls"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="npocrm" android:host="phone-contacts"/>
+                <data android:scheme="npocrm" android:host="whatsapp-contact"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/><category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/><data android:mimeType="text/vcard"/><data android:mimeType="text/x-vcard"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

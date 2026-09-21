@@ -1,0 +1,1306 @@
+@extends('layouts.app')
+
+@section('title', $lead->customer_name . ' — NPO CRM')
+
+@php
+    $settings = app(\App\Services\SettingsService::class);
+    $access = app(\App\Services\AccessService::class);
+    $leadStatusKey = $lead->statusKey();
+    $leadStatusLabel = $settings->statusLabel($leadStatusKey);
+    $isAdminUser = session('user_role') === 'admin';
+    $canWorkThisLead = $access->canWorkLead($lead);
+    $canManageThisLead = $access->canManageLead($lead);
+
+    $pendingCount = $pendingTasks->count();
+    $overdueCount = $pendingTasks->filter(fn ($t) => $t->scheduled_for && now()->greaterThan($t->scheduled_for))->count();
+    $dueTasks = $pendingTasks->filter(fn ($t) => ! $t->scheduled_for || $t->scheduled_for->lessThanOrEqualTo(now()))->values();
+    $futureTasks = $pendingTasks->filter(fn ($t) => $t->scheduled_for && $t->scheduled_for->greaterThan(now()))->values();
+    $nextTask = $pendingTasks->sortBy(fn ($t) => $t->scheduled_for?->timestamp ?? 0)->first();
+
+    $returnTo = (string) ($returnTo ?? request()->get('return_to', ''));
+    $backUrl = $returnTo !== '' ? $returnTo : url('/my-leads');
+    $backLabel = $returnTo !== '' ? 'Back' : 'Back to My Leads';
+
+    $isLost = $leadStatusKey === 'lost';
+    $isBooked = $leadStatusKey === 'booking';
+    $isClosed = $isLost || $isBooked;
+    $hasMultipleProjects = $relatedProjectLeads->count() > 1 || $canAddProjectWorkstream;
+    $showSiteVisitTab = (bool) $canRecordSiteVisit;
+
+    if ($dueTasks->isNotEmpty()) {
+        $primaryActionLabel = 'Do this now';
+        $primaryActionSub = $overdueCount > 0 ? $overdueCount . ' task' . ($overdueCount === 1 ? '' : 's') . ' overdue' : 'Action is due now';
+    } elseif ($nextTask) {
+        $primaryActionLabel = 'Next action scheduled';
+        $primaryActionSub = 'Nothing is due yet · next step ' . ($nextTask->scheduled_for?->diffForHumans() ?? 'scheduled');
+    } elseif ($isLost) {
+        $primaryActionLabel = 'Lead is closed';
+        $primaryActionSub = 'Revive only when there is a legitimate new opportunity.';
+    } elseif ($isBooked) {
+        $primaryActionLabel = 'Booking complete';
+        $primaryActionSub = 'Review booking, brokerage and follow-through.';
+    } else {
+        $primaryActionLabel = 'No next action';
+        $primaryActionSub = 'Keep the lead moving with a clear customer action.';
+    }
+@endphp
+
+@section('content')
+<div class="lead-workbench-v2">
+    <div class="lead-workbench-topbar">
+        <a href="{{ $backUrl }}" class="lead-wb-back" onclick="if (window.history.length > 1) { event.preventDefault(); window.history.back(); }" aria-label="{{ $backLabel }}">←</a>
+        <div class="lead-wb-identity">
+            <div class="lead-wb-name">{{ $lead->customer_name }}</div>
+            <div class="lead-wb-subline"><span>{{ $lead->project?->name ?? 'No project' }}</span></div>
+        </div>
+        <button type="button" class="lead-wb-more" data-lead-wb-more aria-expanded="false" aria-controls="lead-wb-more-actions" title="Lead actions">Lead actions <span aria-hidden="true">⋯</span></button>
+    </div>
+
+    <div class="lead-wb-hero card">
+        <div class="lead-wb-hero-main lead-wb-customer-meta">
+            <div class="lead-wb-avatar" aria-hidden="true">{{ strtoupper(mb_substr($lead->customer_name, 0, 1)) }}</div>
+            <div class="lead-wb-customer">
+                <div class="lead-wb-customer-label">CUSTOMER</div>
+                <div class="lead-wb-customer-name">{{ $lead->customer_name }}</div>
+                <a class="lead-wb-contact" href="tel:{{ phone_tel($lead->phone) }}">{{ $lead->phone }}</a>
+                <div class="lead-wb-context"><span class="lead-wb-project-location">📍 {{ $lead->project?->location ?? 'Location not set' }}</span><x-status-badge :status="$leadStatusKey" /> @if ($lead->tag)<x-lead-tag-chip :tag="$lead->tag" />@endif</div>
+            </div>
+            <div class="lead-wb-owner-meta">
+                <div><span>OWNER</span><strong>{{ $lead->agent?->user?->name ?? 'Unassigned' }}</strong></div>
+                <div><span>LAST ACTIVITY</span><strong>{{ $lead->last_activity_at?->diffForHumans() ?? 'Never' }}</strong></div>
+            </div>
+        </div>
+        <div class="lead-wb-primary-work {{ $dueTasks->isNotEmpty() ? 'is-hot' : '' }}">
+            <div class="lead-wb-primary-copy"><div class="lead-wb-kicker">{{ $dueTasks->isNotEmpty() ? 'ACTION REQUIRED' : 'CURRENT STATE' }}</div><strong>{{ $primaryActionLabel }}</strong><span>{{ $primaryActionSub }}</span></div>
+            @if ($dueTasks->isNotEmpty())
+                <button type="button" class="lead-wb-go" data-lead-wb-scroll="pending-tasks">Open task →</button>
+            @elseif ($futureTasks->isNotEmpty())
+                <button type="button" class="lead-wb-go" data-lead-wb-scroll="pending-tasks">See plan →</button>
+            @elseif (!$isClosed && $canWorkThisLead && $isAdminUser)
+                <button type="button" class="lead-wb-go" data-modal="schedule-followup" data-lead="{{ $lead->id }}">Plan next →</button>
+            @endif
+        </div>
+    </div>
+
+    <div id="lead-wb-more-actions" class="lead-wb-more-actions" hidden>
+        <div class="lead-wb-more-actions-title">Lead actions</div>
+        @if ($canManageThisLead)<button type="button" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assignment</button>@endif
+        @if ($isAdminUser)<button type="button" data-modal="change-status" data-lead="{{ $lead->id }}">📊 Change status</button>@endif
+        @if (session('user_role') !== 'agent')<button type="button" data-modal="share-lead" data-lead="{{ $lead->id }}">📤 Share lead</button><button type="button" data-modal="external-share" data-lead="{{ $lead->id }}">↗️ External share</button>@endif
+    </div>
+
+    @if (! $lead->agent_id)
+        <div class="lead-wb-alert"><div><strong>⚠️ No primary agent</strong><span>This lead needs an owner before work can continue.</span></div>@if ($canManageThisLead)<button type="button" class="btn-small" data-modal="assign-agent" data-lead="{{ $lead->id }}">Assign now</button>@endif</div>
+    @endif
+
+    @if ($lead->parent_lead_id || $lead->childLeads()->exists())
+        <div class="lead-wb-related"><strong>🔗 Related project work</strong>@if ($lead->parent_lead_id && $lead->parentLead)<a href="{{ url('/leads/' . $lead->parentLead->id) }}?return_to={{ urlencode(request()->getRequestUri()) }}">← Original lead</a>@endif @foreach ($lead->childLeads as $child)<a href="{{ url('/leads/' . $child->id) }}?return_to={{ urlencode(request()->getRequestUri()) }}">{{ $child->project?->name ?? 'Project' }} →</a>@endforeach</div>
+    @endif
+
+    <section id="pending-tasks" class="lead-wb-work card {{ $overdueCount > 0 ? 'is-overdue' : ($dueTasks->isNotEmpty() ? 'is-due' : '') }}">
+        <div class="lead-wb-section-head"><div><span class="lead-wb-section-kicker">WORK</span><h2>{{ $dueTasks->isNotEmpty() ? 'Do this now' : 'Next action' }}</h2><p>{{ $dueTasks->isNotEmpty() ? 'Finish the customer action, then record the outcome.' : ($futureTasks->isNotEmpty() ? 'Your next step is already scheduled.' : 'Keep this lead moving with a clear next step.') }}</p></div>@if($overdueCount > 0)<span class="lead-wb-count danger">{{ $overdueCount }} overdue</span>@elseif($dueTasks->isNotEmpty())<span class="lead-wb-count">{{ $dueTasks->count() }} due</span>@elseif($futureTasks->isNotEmpty())<span class="lead-wb-count">{{ $futureTasks->count() }} planned</span>@endif</div>
+        @if ($dueTasks->isNotEmpty())<div class="lead-wb-task-stack">@foreach ($dueTasks as $task)<x-task-card :task="$task" :return-to="$returnTo" :focused="$focusWork && $focusedFollowup?->id === $task->id" />@endforeach</div>@endif
+        @if ($futureTasks->isNotEmpty())<div class="lead-wb-future"><div class="lead-wb-mini-heading">UPCOMING</div>@foreach ($futureTasks as $task)<x-task-card :task="$task" :show-actions="true" :return-to="$returnTo" :focused="$focusWork && $focusedFollowup?->id === $task->id" />@endforeach</div>@endif
+        @if ($pendingTasks->isEmpty() && !$isClosed)<div class="lead-wb-no-work"><span>✓</span><div><strong>No pending task</strong><small>Don't leave the lead without a next step. The next customer action should be explicit.</small></div>@if ($isAdminUser && $canWorkThisLead)<button type="button" class="btn-small" data-modal="schedule-followup" data-lead="{{ $lead->id }}">Plan next action</button>@endif</div>@elseif($isClosed)<div class="lead-wb-closed">{{ $isBooked ? '🎉 This lead is booked.' : '🚫 This lead is lost.' }} <span>Review the relevant details below.</span></div>@endif
+    </section>
+
+    @if ($pendingTasks->isNotEmpty())
+        @php
+            $mobileFocusTask = $dueTasks->first() ?: $nextTask;
+            $mobileFocusAction = $mobileFocusTask ? $settings->actionTypeByKey($mobileFocusTask->action_type) : null;
+            $mobileFocusLabel = $mobileFocusAction?->label ?? ($mobileFocusTask?->action_type ?? 'Next action');
+            $mobileFocusDue = $mobileFocusTask?->scheduled_for;
+            $mobileFocusOverdue = $mobileFocusDue && now()->greaterThan($mobileFocusDue);
+        @endphp
+        <div id="lead-mobile-current-work" class="lead-mobile-current-work" data-lead-current-work>
+            <div class="lead-mobile-current-work-copy">
+                <span>{{ $mobileFocusOverdue ? 'OVERDUE' : ($mobileFocusDue && $mobileFocusDue->lessThanOrEqualTo(now()) ? 'DO NOW' : 'NEXT ACTION') }}</span>
+                <strong>{{ $mobileFocusLabel }}</strong>
+                <small>{{ $mobileFocusOverdue ? $mobileFocusDue->diffForHumans(null, true) . ' overdue' : ($mobileFocusDue ? $mobileFocusDue->diffForHumans() : 'Scheduled') }}</small>
+            </div>
+            @if ($mobileFocusTask && ! $mobileFocusTask->scheduled_for?->isFuture())
+                <button type="button" class="lead-mobile-current-work-done" data-modal="complete-task" data-followup-id="{{ $mobileFocusTask->id }}" data-lead-id="{{ $lead->id }}" data-return-to="{{ $returnTo }}">✓ Done</button>
+            @else
+                <button type="button" class="lead-mobile-current-work-open" data-lead-wb-scroll="pending-tasks">Open work</button>
+            @endif
+        </div>
+    @endif
+
+    @if ($completionContext)
+        <div class="card lead-wb-completion" id="lead-wb-completion" tabindex="-1" style="border-left:5px solid var(--c-primary);background:#f2fbf5;margin-top:14px;">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+                <div style="font-size:26px;line-height:1;">✅</div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:16px;font-weight:800;color:#176b3a;">
+                        Work completed
+                    </div>
+                    <div style="font-size:14px;font-weight:700;margin-top:4px;">
+                        {{ $completionContext['completed_label'] }} completed.
+                    </div>
+                    @if ($completionContext['next'])
+                        @php $completedNextTask = $completionContext['next']; @endphp
+                        <div class="muted" style="font-size:13px;margin-top:5px;">
+                            Next follow-up: {{ $completionContext['next_label'] }}
+                            @if($completedNextTask?->scheduled_for)
+                                · <x-relative-date :date="$completedNextTask->scheduled_for" :show-time="true" />
+                            @endif
+                        </div>
+                    @else
+                        <div class="muted" style="font-size:13px;margin-top:5px;">
+                            No new follow-up was required by the selected outcome.
+                        </div>
+                    @endif
+                    <a href="{{ $backUrl }}" class="lead-wb-return-work" id="lead-wb-return-work" tabindex="0">
+                        ← Back to Work
+                    </a>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($canWorkThisLead)
+        @php
+            // Timeline Intelligence exposes Customer Information as a
+            // list of keyed readiness items. Key it here so the saved values
+            // populate both ALREADY KNOWN and the update form.
+            $entryFields = collect($customerInformationProfile['customer_information'] ?? [])
+                ->keyBy('key')
+                ->all();
+            // Only capture information that is NOT already represented by
+            // the existing controlled Tags & Labels system. Configuration,
+            // buyer type/purpose, payment/funding and property status stay
+            // in Labels; this panel handles the remaining customer-specific
+            // requirements and evidence.
+            $customerFieldMeta = [
+                'budget' => ['label' => 'Customer budget range'],
+                'location' => ['label' => 'Customer preferred area'],
+                'possession' => ['label' => 'Possession requirement'],
+                'timeline' => ['label' => 'Purchase / decision timeline'],
+                'decision_criteria' => ['label' => 'Decision criteria'],
+                'objections' => ['label' => 'Concerns / objections'],
+            ];
+            $knownCustomerFields = [];
+            $confirmCustomerFields = [];
+            $missingCustomerFields = [];
+            foreach ($customerFieldMeta as $key => $meta) {
+                $item = $entryFields[$key] ?? [];
+                $value = is_array($item) ? trim((string) ($item['value'] ?? '')) : '';
+                $state = is_array($item) ? (string) ($item['state'] ?? 'UNKNOWN') : 'UNKNOWN';
+                if ($value !== '') {
+                    if (in_array($state, ['NEEDS_CONFIRMATION','ASKED_NO_RESPONSE','AMBIGUOUS'], true)) {
+                        $confirmCustomerFields[$key] = [$meta, $item];
+                    } else {
+                        $knownCustomerFields[$key] = [$meta, $item];
+                    }
+                } else {
+                    $missingCustomerFields[$key] = [$meta, $item];
+                }
+            }
+            $currentLabels = $lead->labels->sortBy(fn ($label) => ($label->group_key ?? '') . '|' . ($label->sort_order ?? 0))->values();
+        @endphp
+    @endif
+
+    <nav class="lead-wb-sections {{ $focusWork ? 'lead-wb-task-focus-hidden' : '' }}" aria-label="Lead information" data-lead-secondary-tabs>
+        <button type="button" class="is-active" data-lead-wb-section="history">History</button>@if ($canWorkThisLead)<button type="button" data-lead-wb-section="customer">Customer</button>@endif @if ($showSiteVisitTab)<button type="button" data-lead-wb-section="visits">Visits</button>@endif @if ($hasMultipleProjects)<button type="button" data-lead-wb-section="projects">Projects</button>@endif <button type="button" data-lead-wb-section="pipeline">Pipeline</button><button type="button" data-lead-wb-section="more">More</button>
+    </nav>
+
+    <div id="lead-secondary-accordion" class="lead-secondary-accordion" aria-label="Lead details">
+
+        @if ($canWorkThisLead)
+        <details class="lead-accordion lead-section-anchor" data-accordion="customer">
+            <summary><span class="lead-accordion-title"><span class="lead-accordion-icon">👤</span><span>Customer</span></span><span class="lead-accordion-chevron" aria-hidden="true">⌄</span></summary>
+            <div class="lead-accordion-body">
+                <div class="card" style="padding:14px;margin:0 0 12px;border-left:4px solid #0ea5e9;background:#f8fcff;">
+                    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:#0369a1;text-transform:uppercase;">OPTIONAL CUSTOMER CHECK-IN</div>
+                            <h3 style="margin:3px 0 4px;font-size:17px;">What do we know — and what should we confirm?</h3>
+                            <div class="muted" style="font-size:12px;line-height:1.45;">The CRM may already know some answers from the enquiry. Confirm them with the customer when you speak, and add only information the customer actually provides.</div>
+                        </div>
+                        <button type="button" class="btn-small btn-ghost" data-modal="edit-tags" data-lead="{{ $lead->id }}">🏷️ Manage tags &amp; labels</button>
+                    </div>
+
+                    @if ($currentLabels->isNotEmpty())
+                        <div style="margin-top:11px;padding-top:10px;border-top:1px solid #dbeafe;">
+                            <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--c-text-2);margin-bottom:6px;">CURRENT LABELS</div>
+                            <x-lead-labels-row :labels="$currentLabels" :max="20" />
+                            <div class="muted" style="font-size:10px;margin-top:6px;">Labels are controlled CRM evidence. Click a label to find similar leads.</div>
+                            <form method="POST" action="{{ route('leads.tags.confirm') }}" style="margin-top:8px;">
+                                @csrf
+                                <input type="hidden" name="lead_id" value="{{ $lead->id }}">
+                                <button type="submit" class="btn-small btn-ghost" @disabled($currentLabels->isEmpty()) title="Record that the current labels were confirmed with the customer">✓ Confirm current labels with customer</button>
+                            </form>
+                        </div>
+                    @else
+                        <div class="muted" style="margin-top:10px;font-size:11px;">No labels are set yet. Use the existing Tags &amp; Labels control for classification.</div>
+                    @endif
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+                    <div class="card" style="padding:12px;margin:0;">
+                        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#166534;">ALREADY KNOWN</div>
+                        @if ($knownCustomerFields)
+                            @foreach ($knownCustomerFields as $key => [$meta, $item])
+                                <div style="display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--c-border,#eee);padding:7px 0;">
+                                    <span style="font-size:11px;color:var(--c-text-2);">{{ $meta['label'] }}</span>
+                                    <strong style="font-size:12px;text-align:right;">{{ $item['value'] }}@if (($item['state'] ?? '') === 'CHANGED') <span class="badge amber" style="font-size:8px;padding:1px 4px;">Changed</span>@endif</strong>
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="muted" style="font-size:11px;margin-top:7px;">No customer requirement is explicitly recorded yet.</div>
+                        @endif
+                    </div>
+
+                    <div class="card" style="padding:12px;margin:0;">
+                        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#92400e;">CONFIRM / ASK</div>
+                        @foreach ($confirmCustomerFields as $key => [$meta, $item])
+                            <div style="padding:7px 0;border-bottom:1px solid var(--c-border,#eee);">
+                                <div style="font-size:11px;font-weight:700;">{{ $meta['label'] }}</div>
+                                <div style="font-size:11px;color:#92400e;margin-top:2px;">{{ $item['value'] }} · confirm with customer</div>
+                            </div>
+                        @endforeach
+                        @foreach ($missingCustomerFields as $key => [$meta, $item])
+                            <div style="padding:7px 0;border-bottom:1px solid var(--c-border,#eee);">
+                                <div style="font-size:11px;font-weight:700;">{{ $meta['label'] }}</div>
+                                <div class="muted" style="font-size:11px;margin-top:2px;">Not recorded — ask if relevant.</div>
+                            </div>
+                        @endforeach
+                        @if (!$confirmCustomerFields && !$missingCustomerFields)
+                            <div style="font-size:11px;color:#166534;margin-top:7px;">Core customer information is currently documented.</div>
+                        @endif
+                    </div>
+                </div>
+
+                <details class="customer-info-editor" style="margin-top:10px;border:1px solid var(--c-border,#ddd);border-radius:9px;background:#fff;">
+                    <summary style="cursor:pointer;padding:10px 12px;font-size:12px;font-weight:800;">✏️ Record or update information after speaking with the customer <span class="muted" style="font-weight:400;">(optional)</span></summary>
+                    <div style="padding:0 12px 12px;">
+                        <p class="muted" style="font-size:11px;margin:0 0 9px;">You do not need to complete every field. Save only what was discussed or confirmed.</p>
+                        <form method="POST" action="{{ route('leads.customerInformation') }}">
+                            @csrf
+                            <input type="hidden" name="lead_id" value="{{ $lead->id }}">
+                            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;">
+                                @php
+                                    $fieldValue = function ($key) use ($entryFields) {
+                                        $item = $entryFields[$key] ?? [];
+                                        return is_array($item) ? trim((string) ($item['value'] ?? '')) : '';
+                                    };
+                                @endphp
+
+                                <div style="padding:9px;border:1px solid #e5e7eb;border-radius:8px;">
+                                    <label for="customer-info-budget" style="display:block;font-size:11px;font-weight:800;">Customer budget range</label>
+                                    @php
+                                        $budgetOptions = ['Below ₹50L', '₹50L–₹1Cr', '₹1Cr–₹1.5Cr', '₹1.5Cr–₹2Cr', '₹2Cr–₹3Cr', '₹3Cr–₹5Cr', '₹5Cr+'];
+                                        $existingBudget = $fieldValue('budget');
+                                    @endphp
+                                    <select id="customer-info-budget" name="budget" style="width:100%;margin-top:6px;">
+                                        <option value="">Not discussed</option>
+                                        @if ($existingBudget !== '' && !in_array($existingBudget, $budgetOptions, true))
+                                            <option value="{{ $existingBudget }}" selected>Existing: {{ $existingBudget }}</option>
+                                        @endif
+                                        @foreach ($budgetOptions as $option)
+                                            <option value="{{ $option }}" @selected(old('budget', $existingBudget) === $option)>{{ $option }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <div style="padding:9px;border:1px solid #e5e7eb;border-radius:8px;">
+                                    <label for="customer-info-location" style="display:block;font-size:11px;font-weight:800;">Customer preferred area</label>
+                                    <input id="customer-info-location" type="text" name="location" value="{{ old('location', $fieldValue('location')) }}" maxlength="120" placeholder="e.g. Nerul to Kharghar / Kharghar Sector 1, 2, 4, 8" style="width:100%;margin-top:6px;">
+                                    <div class="muted" style="font-size:9px;margin-top:4px;">Enter the area exactly as the customer describes it; do not force it into a project/location list.</div>
+                                </div>
+
+                                <div style="padding:9px;border:1px solid #e5e7eb;border-radius:8px;">
+                                    <label for="customer-info-possession" style="display:block;font-size:11px;font-weight:800;">Possession requirement</label>
+                                    <select id="customer-info-possession" name="possession" style="width:100%;margin-top:6px;">
+                                        <option value="">Not discussed</option>
+                                        @foreach (['Ready / immediate','Within 6 months','Within 1 year','1–2 years','2–3 years','3+ years','Flexible'] as $option)
+                                            <option value="{{ $option }}" @selected(old('possession', $fieldValue('possession')) === $option)>{{ $option }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <div style="padding:9px;border:1px solid #e5e7eb;border-radius:8px;">
+                                    <label for="customer-info-timeline" style="display:block;font-size:11px;font-weight:800;">Purchase / decision timeline</label>
+                                    <select id="customer-info-timeline" name="timeline" style="width:100%;margin-top:6px;">
+                                        <option value="">Not discussed</option>
+                                        @foreach (['Immediate','Within 30 days','1–3 months','3–6 months','6–12 months','12+ months','Exploring'] as $option)
+                                            <option value="{{ $option }}" @selected(old('timeline', $fieldValue('timeline')) === $option)>{{ $option }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <div style="padding:9px;border:1px solid #e5e7eb;border-radius:8px;">
+                                    <div style="font-size:11px;font-weight:800;">Decision criteria</div>
+                                    @php
+                                        $criteriaOptions = ['Price','Location','Possession','Configuration','Amenities','Developer','Connectivity','Payment plan','Investment return','Family preference'];
+                                        $existingCriteria = collect(preg_split('/[,;]+/', $fieldValue('decision_criteria')))->map(fn($v) => trim($v))->filter()->values()->all();
+                                        $oldCriteria = old('decision_criteria', $existingCriteria);
+                                        if (!is_array($oldCriteria)) $oldCriteria = $oldCriteria ? [$oldCriteria] : [];
+                                    @endphp
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;">
+                                        @foreach ($criteriaOptions as $option)
+                                            <label style="font-size:10px;display:flex;gap:5px;align-items:center;">
+                                                <input type="checkbox" name="decision_criteria[]" value="{{ $option }}" @checked(in_array($option, $oldCriteria, true))>
+                                                {{ $option }}
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                </div>
+
+                                <div style="padding:9px;border:1px solid #e5e7eb;border-radius:8px;">
+                                    <div style="font-size:11px;font-weight:800;">Concerns / objections</div>
+                                    @php
+                                        $objectionOptions = ['Price','Location','Possession','Configuration','Finance','Family approval','Developer concern','Legal / RERA','Amenities','Other concern'];
+                                        $existingObjections = collect(preg_split('/[,;]+/', $fieldValue('objections')))->map(fn($v) => trim($v))->filter()->values()->all();
+                                        $oldObjections = old('objections', $existingObjections);
+                                        if (!is_array($oldObjections)) $oldObjections = $oldObjections ? [$oldObjections] : [];
+                                    @endphp
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;">
+                                        @foreach ($objectionOptions as $option)
+                                            <label style="font-size:10px;display:flex;gap:5px;align-items:center;">
+                                                <input type="checkbox" name="objections[]" value="{{ $option }}" @checked(in_array($option, $oldObjections, true))>
+                                                {{ $option }}
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                                <button type="submit" class="btn-small btn-primary">Save customer information</button>
+                            </div>
+                        </form>
+                    </div>
+                </details>
+            </div>
+        </details>
+        @endif
+
+        <details class="lead-accordion lead-section-anchor" data-accordion="history">
+            <summary><span class="lead-accordion-title"><span class="lead-accordion-icon">📜</span><span>History</span></span><span class="lead-accordion-chevron" aria-hidden="true">⌄</span></summary>
+            <div class="lead-accordion-body">
+    {{-- ACTIVITY TIMELINE --}}
+    {{-- ============================================================ --}}
+    <div class="card lead-history-card lead-mobile-section" data-mobile-section="history" id="activity-history">
+        @if ($focusHistory && $focusedFollowup)
+            @php
+                $focusedActionModel = $settings->actionTypeByKey($focusedFollowup->action_type);
+                $focusedActionLabel = $focusedActionModel?->label ?? $focusedFollowup->action_type;
+                $focusedOverdue = $focusedFollowup->scheduled_for && now()->greaterThan($focusedFollowup->scheduled_for);
+            @endphp
+            <div class="history-focus-strip">
+                <div class="history-focus-copy">
+                    <span class="history-focus-kicker">CURRENT FOLLOW-UP</span>
+                    <strong>{{ $focusedActionLabel }}</strong>
+                    <span class="history-focus-time {{ $focusedOverdue ? 'is-overdue' : '' }}">
+                        {{ $focusedOverdue ? $focusedFollowup->scheduled_for->diffForHumans(null, true) . ' overdue' : 'Due now' }}
+                    </span>
+                </div>
+                <a href="#pending-tasks" class="history-focus-open">Open current work ↑</a>
+            </div>
+        @endif
+
+        @if (app(\App\Services\SuperAdminService::class)->isSuperAdmin())
+        @php
+            $timelineIntelligence = app(\App\Services\TimelineIntelligenceService::class)->analyze($lead);
+        @endphp
+        <div class="card" style="padding:14px;margin-bottom:14px;border-left:4px solid var(--c-primary);">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                <div>
+                    <div class="muted" style="font-size:10px;text-transform:uppercase;">Super Admin Test · Timeline Intelligence</div>
+                    <strong>🧠 {{ $timelineIntelligence['next_action']['label'] }}</strong>
+                    <div class="muted" style="font-size:12px;margin-top:3px;">{{ $timelineIntelligence['next_action']['reason'] }}</div>
+                </div>
+                <a class="btn-small" href="{{ route('admin.timeline-intelligence.lead', $lead->id) }}">Open intelligence</a>
+            </div>
+        </div>
+    @endif
+
+    <h3>📜 Activity Timeline ({{ $activities->count() }})</h3>
+
+        <?php if ($activities->isEmpty()): ?>
+            <div class="timeline-empty">
+                No activity logged yet.<br>
+                Complete a task above to record the first interaction.
+            </div>
+        <?php else: ?>
+        <?php foreach ($activities->groupBy(fn ($a) => $a->logged_at?->format('Y-m-d') ?? 'unknown') as $date => $dayActivities): ?>
+            <?php
+                if ($date === 'unknown') {
+                    $headerLabel = 'Unknown date';
+                } else {
+                    $dateObj = \Carbon\Carbon::parse($date);
+                    if ($dateObj->isToday()) {
+                        $headerLabel = '📅 Today';
+                    } elseif ($dateObj->isYesterday()) {
+                        $headerLabel = '📅 Yesterday';
+                    } else {
+                        $headerLabel = '📅 ' . $dateObj->format('d M Y');
+                    }
+                }
+            ?>
+
+            <div class="timeline-day-header"><?= e($headerLabel) ?></div>
+
+            <div class="timeline">
+                <?php foreach ($dayActivities as $activity): ?>
+                    <?php
+                        $type = $activity->type;
+                        $activityTypeModel = $settings->activityTypeByKey($type);
+                        $isProjectChangeType = $type === 'project_changed';
+                        $icon = $isProjectChangeType ? '🔧' : ($activityTypeModel?->icon ?? '📝');
+                        $typeLabel = $isProjectChangeType ? 'Project changed' : ($activityTypeModel?->label ?? $type);
+                        $isRevivalEntry = $type === 'status_change' && str_contains((string) $activity->outcome, 'revived');
+                        $cssClass = ($type === 'status_change') ? 'status' : '';
+                        if ($isRevivalEntry) $cssClass .= ' revival';
+                        if ($isRevivalEntry) $icon = '🔄';
+                        $agentName = $activity->agent?->user?->name ?? 'System';
+                        $outcomeDisplay = $activity->outcome;
+                        if ($type === 'status_change') {
+                            $newKey = $activity->outcome_key;
+                            if (! $newKey && $activity->outcome && preg_match('/Changed to ([\w_]+)/i', $activity->outcome, $m)) {
+                                $newKey = $m[1];
+                            }
+                            if ($newKey) $outcomeDisplay = 'Changed to ' . $settings->statusLabel($newKey);
+                        }
+                        $isAssignmentType = in_array($type, ['lead_shared', 'lead_reassigned'], true);
+                    ?>
+                    <div class="timeline-item <?= e($cssClass) ?>">
+                        <div class="icon"><?= e($icon) ?></div>
+                        <div class="content">
+                            <div class="head">
+                                <span class="who">
+                                    <?= e($typeLabel) ?>
+                                    <?php if ($cssClass !== 'status'): ?>
+                                        · <?= e($agentName) ?>
+                                    <?php endif; ?>
+                                </span>
+                                <?php if (!empty($activity->action_source)): ?><span class="badge" style="font-size:9px;padding:1px 5px;margin-left:5px;"><?= e(strtoupper($activity->action_source)) ?></span><?php endif; ?>
+                                <span class="when">
+                                    <?= e($activity->logged_at?->format('H:i')) ?>
+                                    · <?= e($activity->logged_at?->diffForHumans()) ?>
+                                </span>
+                            </div>
+
+                            <?php if ($outcomeDisplay && $type === 'status_change'): ?>
+                                <div class="notes"><strong><?= e($outcomeDisplay) ?></strong></div>
+                            <?php elseif ($outcomeDisplay && $isAssignmentType): ?>
+                                <div class="notes" style="font-size:13px;color:var(--c-text-2);">
+                                    <?= e($outcomeDisplay) ?>
+                                </div>
+                            <?php elseif ($outcomeDisplay && $outcomeDisplay !== 'Logged'): ?>
+                                <div class="notes" style="font-size:13px;color:var(--c-text-2);">
+                                    Outcome: <strong><?= e($outcomeDisplay) ?></strong>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($activity->notes): ?>
+                                <div class="notes" style="margin-top:4px;white-space:pre-wrap;"><?= e($activity->notes) ?></div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+
+
+            </div>
+        </details>
+
+        <details class="lead-accordion" data-accordion="projects">
+            <summary><span class="lead-accordion-title"><span class="lead-accordion-icon">🏗️</span><span>Projects</span></span><span class="lead-accordion-chevron" aria-hidden="true">⌄</span></summary>
+            <div class="lead-accordion-body">
+    {{-- 🏗️ PROJECT WORKSTREAMS --}}
+    {{-- Each project interest is an independent lead/workstream.       --}}
+    {{-- Adding one never overwrites an existing project workstream.    --}}
+    {{-- ============================================================ --}}
+    <div id="project-workstreams" data-mobile-section="projects" class="lead-mobile-section card" style="border-left:4px solid #6366f1;background:#fafbff;">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+                <h3 style="margin:0;">🏗️ Project Workstreams</h3>
+                <div class="muted" style="font-size:12px;margin-top:3px;">
+                    One customer enquiry can have multiple projects, each with its own agent, follow-ups and history.
+                </div>
+            </div>
+            @if ($canAddProjectWorkstream)
+                <button type="button" class="btn-small btn-info" onclick="document.getElementById('add-project-interest-form').scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('project-interest-project').focus();">
+                    ➕ Add Project Interest
+                </button>
+            @endif
+        </div>
+
+        <div style="margin-top:12px;display:grid;gap:8px;">
+            @foreach ($relatedProjectLeads as $workstream)
+                <div data-project-workstream-card style="border:1px solid #dbe2ea;border-radius:10px;padding:10px 12px;background:#fff;">
+                    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <div>
+                            <a href="{{ url('/leads/' . $workstream->id) }}" style="font-weight:800;text-decoration:none;">
+                                {{ $workstream->project?->name ?? 'Project not assigned' }}
+                            </a>
+                            <span class="muted" style="font-size:11px;"> · Lead #{{ $workstream->id }}</span>
+                        </div>
+                        <x-status-badge :status="$workstream->statusKey()" />
+                    </div>
+                    <div style="font-size:12px;margin-top:5px;display:flex;gap:12px;flex-wrap:wrap;">
+                        <span>👤 {{ $workstream->agent?->user?->name ?? 'Unassigned' }}</span>
+                        <span>📅 {{ $workstream->last_activity_at?->diffForHumans() ?? 'No activity yet' }}</span>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+
+        @if ($canAddProjectWorkstream)
+            <form id="add-project-interest-form" method="POST" action="{{ route('leads.addProjectInterest') }}" style="margin-top:14px;border-top:1px solid #e5e7eb;padding-top:14px;">
+                @csrf
+                <input type="hidden" name="lead_id" value="{{ $lead->id }}">
+                <div style="font-weight:800;margin-bottom:8px;">Add another project for this customer</div>
+                <div class="lead-detail-grid" style="margin-bottom:8px;">
+                    <div class="row">
+                        <span class="label">🏗️ Project</span>
+                        <span class="value">
+                            <select id="project-interest-project" name="project_id" required style="width:100%;">
+                                <option value="">Select project…</option>
+                                @foreach ($projects as $projectOption)
+                                    @if (! $relatedProjectLeads->contains('project_id', $projectOption->id))
+                                        <option value="{{ $projectOption->id }}">{{ $projectOption->name }}</option>
+                                    @endif
+                                @endforeach
+                            </select>
+                        </span>
+                    </div>
+                    <div class="row">
+                        <span class="label">👤 Responsible agent</span>
+                        <span class="value">You — {{ session('user_name') }}</span>
+                    </div>
+                </div>
+                <label for="project-interest-reason" style="display:block;font-size:12px;font-weight:800;margin-bottom:5px;">Why is this project being added? *</label>
+                <textarea id="project-interest-reason" name="reason" required maxlength="1000" rows="3" placeholder="Example: Customer visited the earlier project and was introduced to Sai World One Nerul."></textarea>
+                <div style="font-size:11px;color:var(--c-muted);margin-top:5px;">
+                    This creates a separate workstream. It does not change the existing project or ownership.
+                </div>
+                <button type="submit" class="btn-small btn-primary" style="margin-top:10px;">Create Project Workstream</button>
+            </form>
+        @endif
+    </div>
+
+    {{-- ============================================================ --}}
+            </div>
+        </details>
+
+        <?php if ($showSiteVisitTab): ?>
+        <details class="lead-accordion lead-section-anchor" data-accordion="visits">
+            <summary><span class="lead-accordion-title"><span class="lead-accordion-icon">🏠</span><span>Visits</span></span><span class="lead-accordion-chevron" aria-hidden="true">⌄</span></summary>
+            <div class="lead-accordion-body">
+    {{-- 🏠 SITE VISITS — one lead can have many actual visits, and each --}}
+    {{-- visit can contain many projects with independent outcomes.     --}}
+    {{-- ============================================================ --}}
+    <div id="site-visits" data-mobile-section="visits" class="lead-mobile-section card" style="border-left:4px solid #0ea5e9;background:#f8fcff;">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+                <h3 style="margin:0;">🏠 Site Visits</h3>
+                <div class="muted" style="font-size:12px;margin-top:3px;">
+                    Record every actual visit separately. One visit can cover multiple projects and each project gets its own outcome.
+                </div>
+            </div>
+            @if ($canRecordSiteVisit)
+                <button type="button" class="btn-small btn-info" onclick="document.getElementById('record-site-visit-form').scrollIntoView({behavior:'smooth',block:'center'});">
+                    ➕ Record Site Visit
+                </button>
+            @endif
+        </div>
+
+        @if ($lead->visit_scheduled_at)
+            @php
+                $scheduledVisit = $lead->visit_scheduled_at;
+                $scheduledPast  = $scheduledVisit->isPast();
+                $scheduledToday = $scheduledVisit->isToday();
+            @endphp
+            <div style="margin-top:12px;padding:10px 12px;border:1px dashed #93c5fd;border-radius:10px;background:#eff6ff;">
+                <div style="font-size:12px;font-weight:800;color:#1d4ed8;">📅 CURRENT SCHEDULED VISIT</div>
+                <div style="font-size:14px;font-weight:700;margin-top:3px;">
+                    {{ $scheduledVisit->format('l, d M Y · h:i A') }}
+                    @if ($scheduledToday)
+                        <span class="badge amber" style="margin-left:5px;">TODAY</span>
+                    @elseif ($scheduledPast)
+                        <span class="badge red" style="margin-left:5px;">PAST — RECORD ACTUAL VISIT BELOW</span>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        @if ($siteVisits->isNotEmpty())
+            <div style="margin-top:14px;display:grid;gap:10px;">
+                @foreach ($siteVisits as $visit)
+                    @php
+                        $visitRows = $siteVisitProjectRows->get($visit->id, collect());
+                        $visitDate = \Carbon\Carbon::parse($visit->visit_at);
+                    @endphp
+                    <div style="border:1px solid #dbeafe;border-radius:11px;padding:12px;background:#fff;">
+                        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+                            <div>
+                                <div style="font-weight:800;font-size:15px;">Visit #{{ $visit->id }} · {{ $visitDate->format('d M Y, h:i A') }}</div>
+                                <div class="muted" style="font-size:11px;margin-top:3px;">
+                                    Recorded by {{ $visit->recorded_by_name }}
+                                    · {{ $visit->client_attended ? 'Client attended' : 'Client did not attend' }}
+                                    · {{ (int) $visit->project_count }} project{{ (int) $visit->project_count === 1 ? '' : 's' }}
+                                </div>
+                            </div>
+                            <span class="badge {{ $visit->client_attended ? 'green' : 'red' }}">
+                                {{ $visit->client_attended ? 'ATTENDED' : 'NO SHOW' }}
+                            </span>
+                        </div>
+
+                        @if ($visitRows->isNotEmpty())
+                            <div style="margin-top:10px;display:grid;gap:6px;">
+                                @foreach ($visitRows as $row)
+                                    <div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;background:#f8fafc;">
+                                        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                                            <strong style="font-size:13px;">🏢 {{ $row->project_name }}</strong>
+                                            <span style="font-size:12px;font-weight:800;color:#0f766e;">{{ $siteVisitOutcomeOptions[$row->outcome_key] ?? $row->outcome_key }}</span>
+                                        </div>
+                                        @if ($row->notes)
+                                            <div style="font-size:12px;margin-top:4px;color:var(--c-text-2);white-space:pre-wrap;">{{ $row->notes }}</div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+
+                        @if ($visit->notes)
+                            <div style="margin-top:9px;font-size:12px;color:var(--c-text-2);white-space:pre-wrap;"><strong>Visit notes:</strong> {{ $visit->notes }}</div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        @else
+            <div class="muted" style="margin-top:12px;padding:10px;border:1px dashed #cbd5e1;border-radius:9px;background:#fff;">
+                No actual site visits recorded yet.
+            </div>
+        @endif
+
+        @if ($canRecordSiteVisit)
+            <form id="record-site-visit-form" method="POST" action="{{ route('leads.recordSiteVisit') }}" style="margin-top:14px;border-top:1px solid #dbeafe;padding-top:14px;">
+                @csrf
+                <input type="hidden" name="lead_id" value="{{ $lead->id }}">
+                <div style="font-weight:800;margin-bottom:8px;">Record actual visit</div>
+
+                <div class="lead-detail-grid" style="margin-bottom:8px;">
+                    <div class="row">
+                        <span class="label">📅 Visit date & time</span>
+                        <span class="value">
+                            <input type="datetime-local" name="visit_at" value="{{ now()->format('Y-m-d\\TH:i') }}" required style="width:100%;">
+                        </span>
+                    </div>
+                    <div class="row">
+                        <span class="label">👤 Recorded by</span>
+                        <span class="value">{{ session('user_name') }}</span>
+                    </div>
+                    <div class="row">
+                        <span class="label">🤝 Client attended?</span>
+                        <span class="value">
+                            <select id="site-visit-attended" name="client_attended" required style="width:100%;">
+                                <option value="1" selected>Yes — actual visit happened</option>
+                                <option value="0">No — client did not attend</option>
+                            </select>
+                        </span>
+                    </div>
+                </div>
+
+                <div id="site-visit-projects" style="display:grid;gap:9px;">
+                    <div class="site-visit-project-row" style="border:1px solid #dbeafe;border-radius:9px;padding:10px;background:#f8fcff;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
+                            <strong style="font-size:13px;">Project shown #1</strong>
+                            <button type="button" class="btn-small" onclick="removeSiteVisitProject(this)" style="display:none;">Remove</button>
+                        </div>
+                        <div style="display:grid;gap:7px;">
+                            <select name="projects[0][project_id]" required style="width:100%;">
+                                <option value="">Select project shown…</option>
+                                @foreach ($siteVisitProjectOptions as $projectOption)
+                                    <option value="{{ $projectOption->id }}">{{ $projectOption->name }} — {{ $projectOption->location }}</option>
+                                @endforeach
+                            </select>
+                            <select name="projects[0][outcome_key]" required style="width:100%;">
+                                <option value="">Outcome for this project…</option>
+                                @foreach ($siteVisitOutcomeOptions as $key => $label)
+                                    <option value="{{ $key }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <textarea name="projects[0][notes]" rows="2" maxlength="1500" placeholder="Project-specific notes (optional)" style="width:100%;"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn-small btn-info" style="margin-top:9px;" onclick="addSiteVisitProject()">＋ Add another project shown</button>
+
+                <div style="margin-top:9px;">
+                    <label for="site-visit-notes" style="display:block;font-size:12px;font-weight:800;margin-bottom:5px;">Overall visit notes</label>
+                    <textarea id="site-visit-notes" name="notes" maxlength="3000" rows="3" placeholder="Example: Client came with spouse. Compared locations and wants final pricing discussion."></textarea>
+                </div>
+
+                <div style="font-size:11px;color:var(--c-muted);margin-top:6px;">
+                    This creates a permanent visit record. It does not overwrite the lead's existing project interests, previous visits, or scheduled-visit history.
+                </div>
+                <button type="submit" class="btn-small btn-primary" style="margin-top:10px;">🏠 Save Site Visit</button>
+            </form>
+        @endif
+    </div>
+
+    <script>
+    (function () {
+        var projectIndex = 1;
+        var projectContainer = document.getElementById('site-visit-projects');
+        var attendedSelect = document.getElementById('site-visit-attended');
+
+        window.addSiteVisitProject = function () {
+            if (!projectContainer) return;
+            var template = projectContainer.querySelector('.site-visit-project-row');
+            if (!template) return;
+            var row = template.cloneNode(true);
+            row.querySelectorAll('select, textarea').forEach(function (el) {
+                var name = el.getAttribute('name') || '';
+                name = name.replace(/projects\[0\]/, 'projects[' + projectIndex + ']');
+                el.setAttribute('name', name);
+                el.value = '';
+            });
+            var title = row.querySelector('strong');
+            if (title) title.textContent = 'Project shown #' + (projectIndex + 1);
+            var remove = row.querySelector('button');
+            if (remove) remove.style.display = 'inline-flex';
+            projectContainer.appendChild(row);
+            projectIndex++;
+        };
+
+        window.removeSiteVisitProject = function (button) {
+            var row = button && button.closest ? button.closest('.site-visit-project-row') : null;
+            if (row && projectContainer && projectContainer.children.length > 1) row.remove();
+        };
+
+        if (attendedSelect) {
+            attendedSelect.addEventListener('change', function () {
+                var required = this.value === '1';
+                document.querySelectorAll('#site-visit-projects select[name$="[project_id]"], #site-visit-projects select[name$="[outcome_key]"]').forEach(function (el) {
+                    el.required = required;
+                });
+                var addButton = document.querySelector('#record-site-visit-form button[onclick="addSiteVisitProject()"]');
+                if (addButton) addButton.disabled = !required;
+            });
+        }
+    })();
+    </script>
+            </div>
+        </details>
+        <?php endif; ?>
+
+        <details class="lead-accordion lead-section-anchor" data-accordion="more">
+            <summary><span class="lead-accordion-title"><span class="lead-accordion-icon">☰</span><span>More</span></span><span class="lead-accordion-chevron" aria-hidden="true">⌄</span></summary>
+            <div class="lead-accordion-body">
+
+    <div class="lead-admin-tools-card">
+        <div class="lead-admin-tools-head"><strong>⚙️ Manage</strong><span>Only actions available to your role are shown.</span></div>
+    <div class="card lead-manage-panel lead-mobile-section" data-mobile-section="manage" style="margin:0 0 18px;">
+        <div class="lead-manage-summary" style="padding:0 0 10px;">
+            ⚙️ <strong>Manage lead</strong><span>Assignment, sharing &amp; admin actions</span>
+        </div>
+
+        @if ($canChangeProject)
+        <div class="action-bar" style="margin-bottom:12px;">
+            <button type="button" class="btn-small" style="background:#e67e22;color:#fff;"
+                    data-modal="assign-project" data-lead="{{ $lead->id }}">
+                🔧 Change Project
+            </button>
+            <div style="flex:1;text-align:left;align-self:center;color:var(--c-muted);font-size:12px;">
+                Correct the existing project assignment. This keeps the lead history and records the reason in the timeline.
+            </div>
+        </div>
+        @endif
+
+    @if ($lead->isLost())
+        <div class="action-bar">
+            <button type="button" class="btn-small"
+                    style="background:var(--c-danger);"
+                    data-modal="revive-lead" data-lead="{{ $lead->id }}">
+                🔄 Revive Lead
+            </button>
+
+            @if (session('user_role') === 'admin')
+            <button type="button" class="btn-small btn-info" data-modal="edit-lost-reason" data-lead="{{ $lead->id }}">✏️ Edit Lost Reason</button>
+            @endif
+
+            @if (session('user_role') === 'agent')
+            <button type="button" class="btn-small btn-agent" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assign Lead</button>
+            @else
+            <button type="button" class="btn-small btn-agent" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assign Lead</button>
+            @endif
+
+            @if (session('user_role') !== 'agent')
+            <button type="button" class="btn-small" style="background:#25D366;color:#fff;" data-modal="share-lead" data-lead="{{ $lead->id }}">📤 Share on WhatsApp</button>
+            <button type="button" class="btn-small" style="background:#0ea5e9;color:#fff;" data-modal="external-share" data-lead="{{ $lead->id }}">📤 Share Externally</button>
+            @endif
+
+            <div style="flex:1;text-align:right;align-self:center;color:var(--c-muted);font-size:12px;">
+                ⚠️ Lead is Lost — revive to enable full actions.
+            </div>
+        </div>
+
+    @elseif ($lead->isWon())
+        <div class="action-bar">
+
+            @if (session('user_role') === 'admin')
+                <button type="button" class="btn-small" style="background:#e67e22;color:#fff;"
+                        data-modal="schedule-followup" data-lead="{{ $lead->id }}">
+                    ⏰ Schedule (admin)
+                </button>
+            @endif
+
+            @if (session('user_role') === 'agent')
+            <button type="button" class="btn-small btn-agent" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assign Lead</button>
+            @else
+            <button type="button" class="btn-small btn-agent" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assign Lead</button>
+            @endif
+
+            @if (session('user_role') !== 'agent')
+            <button type="button" class="btn-small" style="background:#25D366;color:#fff;" data-modal="share-lead" data-lead="{{ $lead->id }}">📤 Share on WhatsApp</button>
+            <button type="button" class="btn-small" style="background:#0ea5e9;color:#fff;" data-modal="external-share" data-lead="{{ $lead->id }}">📤 Share Externally</button>
+            @endif
+
+            <div style="flex:1;text-align:right;align-self:center;color:var(--c-primary);font-size:12px;">
+                🎉 Booked — manage referrals &amp; brokerage.
+            </div>
+        </div>
+
+    @else
+        <div class="action-bar">
+            @if (session('user_role') === 'admin')
+                <button type="button" class="btn-small" style="background:#e67e22;color:#fff;"
+                        data-modal="schedule-followup" data-lead="{{ $lead->id }}">
+                    ⏰ Schedule (admin)
+                </button>
+            @endif
+
+            @if (session('user_role') === 'agent')
+            <button type="button" class="btn-small btn-agent" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assign Lead</button>
+            @else
+            <button type="button" class="btn-small btn-agent" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assign Lead</button>
+            @endif
+
+            @if (session('user_role') !== 'agent')
+            <button type="button" class="btn-small" style="background:#25D366;color:#fff;" data-modal="share-lead" data-lead="{{ $lead->id }}">📤 Share on WhatsApp</button>
+            <button type="button" class="btn-small" style="background:#0ea5e9;color:#fff;" data-modal="external-share" data-lead="{{ $lead->id }}">📤 Share Externally</button>
+            @endif
+        </div>
+    @endif
+
+        </div>
+    </div>
+
+
+
+    {{-- ============================================================ --}}
+    {{-- LOST REASON --}}
+    {{-- ============================================================ --}}
+    @if ($leadStatusKey === 'lost')
+        <div class="card lead-mobile-section" data-mobile-section="more" style="border-left:4px solid var(--c-danger);">
+            <h3>🚫 Lost Reason</h3>
+            @if ($lead->lost_reason_key)
+                <p style="margin:0 0 8px;"><strong>Reason:</strong> {{ \App\Services\LeadStatusService::lostReasonLabel($lead->lost_reason_key) ?? $lead->lost_reason_key }}</p>
+            @endif
+            @if ($lead->lost_reason_key)
+                @if (\App\Services\LeadStatusService::isNurtureEligible($lead->lost_reason_key))
+                    <p style="margin:0 0 8px;color:#166534;font-size:12px;">🔄 <strong>Nurture eligible</strong> — future re-contact only when explicitly scheduled.</p>
+                @else
+                    <p style="margin:0 0 8px;color:#9f1239;font-size:12px;">🚫 <strong>Permanently closed</strong> — no future reactivation.</p>
+                @endif
+            @endif
+            @if ($lead->lost_reason)
+                <p style="white-space:pre-wrap;margin-top:0;">{{ $lead->lost_reason }}</p>
+            @else
+                <p class="muted">
+                    <em>No reason recorded (this lead was marked lost before reason capture was added).</em>
+                </p>
+            @endif
+            @if ($lead->previous_status)
+                <p class="muted" style="margin-top:6px;font-size:12px;">
+                    Last pipeline stage: <strong>{{ $settings->statusLabel($lead->previous_status) }}</strong>
+                </p>
+            @endif
+        </div>
+    @endif
+
+    {{-- ============================================================ --}}
+    {{-- BOOKING CARD (closed-won) --}}
+    {{-- ============================================================ --}}
+    @if ($leadStatusKey === 'booking' && ! $lead->hasBooking())
+        <div class="card lead-mobile-section" data-mobile-section="more" style="border-left:4px solid var(--c-warn);background:#fffaf0;">
+            <h3>🎉 Booking</h3>
+            <p class="muted">
+                Booking recorded but details are missing. Click below to add area, rate, amount and brokerage.
+            </p>
+            @if ($canChangeBooking)
+                <button type="button" class="btn-small btn-info" style="margin-top:var(--s-2);"
+                        data-modal="edit-booking" data-lead="{{ $lead->id }}">
+                    ✏️ Add Booking Details
+                </button>
+            @else
+                <p class="muted" style="font-size:12px;margin-top:8px;">Booking details are locked after approval. Only an unrestricted Admin can edit them.</p>
+            @endif
+        </div>
+    @elseif ($lead->hasBooking())
+        <div class="card lead-mobile-section" data-mobile-section="more" style="border-left:4px solid var(--c-primary);background:#f6fdf9;">
+            <h3>🎉 Booking</h3>
+
+            @if ($bookingControl)
+                @php
+                    $controlBadge = [
+                        'pending' => ['label' => 'Pending Admin approval', 'bg' => '#fff3cd'],
+                        'approved' => ['label' => 'Approved & locked', 'bg' => '#dff7e8'],
+                        'rejected' => ['label' => 'Rejected — correction required', 'bg' => '#fde2e1'],
+                        'cancelled' => ['label' => 'Cancelled', 'bg' => '#eee'],
+                    ][$bookingControl->status] ?? ['label' => ucfirst($bookingControl->status), 'bg' => '#eee'];
+                @endphp
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+                    <span style="display:inline-block;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;background:{{ $controlBadge['bg'] }};">{{ $controlBadge['label'] }}</span>
+                    @if($bookingControl->requestedBy)<span class="muted" style="font-size:11px;">Requested by {{ $bookingControl->requestedBy->name }}</span>@endif
+                </div>
+                @if($bookingControl->status === 'rejected' && $bookingControl->decision_note)
+                    <div style="padding:9px 10px;border-radius:8px;background:#fff8f8;border:1px solid #f1c5c3;font-size:12px;margin-bottom:12px;">
+                        <strong>Correction note:</strong> {{ $bookingControl->decision_note }}
+                    </div>
+                @elseif($bookingControl->status === 'pending')
+                    <div class="muted" style="font-size:12px;margin-bottom:12px;">This booking is recorded, but it is not yet approved. Correct details if needed, then an unrestricted Admin can approve it from Booking Control.</div>
+                @elseif($bookingControl->status === 'approved' && ! $canChangeBooking)
+                    <div class="muted" style="font-size:12px;margin-bottom:12px;">Booking details are locked after approval. Only an unrestricted Admin can edit them.</div>
+                @endif
+
+            @if ($lead->property_area_sqft && $lead->rate_per_sqft)
+                <div class="lead-detail-grid">
+                    <div class="row">
+                        <span class="label">📐 Area</span>
+                        <span class="value">{{ inr_num($lead->property_area_sqft, 0) }} sq ft</span>
+                    </div>
+                    <div class="row">
+                        <span class="label">💵 Rate</span>
+                        <span class="value">{{ inr($lead->rate_per_sqft, 0) }} / sq ft</span>
+                    </div>
+                </div>
+                <hr style="border:0;border-top:1px dashed var(--c-border);margin:var(--s-2) 0;">
+            @endif
+
+            <div class="lead-detail-grid">
+                <div class="row">
+                    <span class="label">💰 Property Value</span>
+                    <span class="value">
+                        <strong>{{ inr($lead->booking_amount, 2) }}</strong>
+                    </span>
+                </div>
+                @if ($lead->booking_unit)
+                    <div class="row">
+                        <span class="label">🏢 Unit</span>
+                        <span class="value">{{ $lead->booking_unit }}</span>
+                    </div>
+                @endif
+                @if ($lead->booking_payment_mode)
+                    <div class="row">
+                        <span class="label">💳 Payment</span>
+                        <span class="value">{{ $lead->booking_payment_mode }}</span>
+                    </div>
+                @endif
+                @if ($lead->booking_date)
+                    <div class="row">
+                        <span class="label">📅 Date</span>
+                        <span class="value">{{ $lead->booking_date->format('d M Y') }}</span>
+                    </div>
+                @endif
+            </div>
+
+            @if ($lead->hasBrokerage())
+                <hr style="border:0;border-top:1px dashed var(--c-border);margin:var(--s-3) 0;">
+                <h3 style="margin-top:0;">💼 Brokerage</h3>
+                <div class="lead-detail-grid">
+                    <div class="row">
+                        <span class="label">%</span>
+                        <span class="value">{{ $lead->brokerage_percentage }}%</span>
+                    </div>
+                    <div class="row">
+                        <span class="label">Amount</span>
+                        <span class="value">
+                            <strong>{{ inr($lead->brokerage_amount, 2) }}</strong>
+                        </span>
+                    </div>
+                    <div class="row">
+                        <span class="label">Status</span>
+                        <span class="value">
+                            @php
+                                $bs = $lead->brokerage_status ?? 'pending';
+                                $bc = ['pending'=>'orange','invoiced'=>'blue','received'=>'green','disputed'=>'red'][$bs] ?? 'blue';
+                            @endphp
+                            <span class="badge {{ $bc }}">{{ ucfirst($bs) }}</span>
+                        </span>
+                    </div>
+                    @if ($lead->brokerage_expected_at)
+                        <div class="row">
+                            <span class="label">Expected by</span>
+                            <span class="value">{{ $lead->brokerage_expected_at->format('d M Y') }}</span>
+                        </div>
+                    @endif
+                    @if ($lead->brokerage_received_at)
+                        <div class="row">
+                            <span class="label">Received on</span>
+                            <span class="value">{{ $lead->brokerage_received_at->format('d M Y') }}</span>
+                        </div>
+                    @endif
+                    @if ($lead->co_broker_name)
+                        <div class="row">
+                            <span class="label">Co-broker</span>
+                            <span class="value">{{ $lead->co_broker_name }}</span>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
+            @if ($canChangeBooking)
+                <div style="margin-top:var(--s-3);">
+                    <button type="button" class="btn-small btn-info"
+                            data-modal="edit-booking" data-lead="{{ $lead->id }}">
+                        ✏️ {{ $bookingControl?->status === 'rejected' ? 'Correct & Resubmit Booking' : 'Edit Booking Details' }}
+                    </button>
+                </div>
+            @endif
+        </div>
+    @endif
+
+    @endif
+
+    @if ($isAdminUser && $adminCorrectionLostReasonKey && ! $lead->isLost() && ! $lead->isWon())
+        <div class="card lead-mobile-section" data-mobile-section="more" style="border-left:4px solid var(--c-danger);background:#fff8f8;margin-bottom:12px;">
+            <div style="font-weight:800;color:var(--c-danger);margin-bottom:4px;">⚠️ Closing outcome detected</div>
+            <div style="font-size:13px;line-height:1.45;color:var(--c-text-2);">
+                This lead is still <strong>{{ $leadStatusKey === 'new' ? 'New' : $settings->statusLabel($leadStatusKey) }}</strong>, but its recorded outcome indicates
+                <strong>{{ $adminCorrectionLostReasonLabel }}</strong>.
+            </div>
+            <form method="POST" action="{{ route('leads.correctToLostFromOutcome') }}" style="margin-top:10px;"
+                  onsubmit="return confirm('Correct this lead to Lost with reason: {{ addslashes($adminCorrectionLostReasonLabel) }}?');">
+                @csrf
+                <input type="hidden" name="lead_id" value="{{ $lead->id }}">
+                <input type="hidden" name="lost_reason_key" value="{{ $adminCorrectionLostReasonKey }}">
+                <button type="submit" class="btn-small" style="background:var(--c-danger);color:#fff;">
+                    🚫 Correct to Lost — {{ $adminCorrectionLostReasonLabel }}
+                </button>
+            </form>
+        </div>
+    @endif
+
+    {{-- ============================================================ --}}
+    {{-- ACTION BAR — management actions only. Interaction logging
+         goes through task completion above. --}}
+
+
+    {{-- ============================================================ --}}
+            </div>
+        </details>
+
+    {{-- Pipeline state values are used by the pipeline accordion below. --}}
+    @php
+        $allStatuses   = $settings->statuses();
+        $pipelineOrder = $allStatuses->whereNotIn('key', ['lost', 'external_shared'])->values();
+        $isExternallyShared = ($leadStatusKey === 'external_shared');
+        $isLost   = ($leadStatusKey === 'lost');
+        $isBooked = ($leadStatusKey === 'booking');
+
+        if ($isBooked) {
+            $currentIndex = $pipelineOrder->count() - 1;
+        } elseif ($isLost) {
+            $stallKey = $lead->previous_status ?: 'new';
+            $currentIndex = $pipelineOrder->search(fn ($s) => $s->key === $stallKey);
+            if ($currentIndex === false) $currentIndex = -1;
+        } else {
+            $currentIndex = $pipelineOrder->search(fn ($s) => $s->key === $leadStatusKey);
+            if ($currentIndex === false) $currentIndex = -1;
+        }
+
+        $previousLabel = $lead->previous_status
+            ? $settings->statusLabel($lead->previous_status)
+            : null;
+    @endphp
+
+    <details class="lead-accordion lead-section-anchor" data-accordion="pipeline">
+        <summary><span class="lead-accordion-title"><span class="lead-accordion-icon">📊</span><span>Pipeline</span></span><span class="lead-accordion-chevron" aria-hidden="true">⌄</span></summary>
+        <div class="lead-accordion-body">
+        <div class="card lead-mobile-section" data-mobile-section="pipeline">
+            <h3>📊 Pipeline</h3>
+
+        @if ($isExternallyShared)
+            <div class="pipeline-terminal-banner" style="background:#f3e8ff;color:#6b21a8;border:1px solid #d8b4fe;">
+                📤 <strong>Shared Externally</strong>
+                · awaiting customer-contact work before continuing the normal pipeline
+            </div>
+        @elseif ($isLost)
+            <div class="pipeline-terminal-banner pipeline-terminal-lost">
+                🚫 <strong>Lost</strong>
+                @if ($previousLabel)
+                    · was at <strong>{{ $previousLabel }}</strong>
+                @endif
+            </div>
+        @elseif ($isBooked)
+            <div class="pipeline-terminal-banner pipeline-terminal-booked">
+                🎉 <strong>Booking confirmed</strong>
+            </div>
+        @endif
+
+        <div class="pipeline">
+            @foreach ($pipelineOrder as $index => $step)
+                @php
+                    if ($isBooked) {
+                        $stepClass = 'done';
+                    } elseif ($isLost) {
+                        $stepClass = ($currentIndex >= 0 && $index <= $currentIndex) ? 'done' : '';
+                    } else {
+                        if ($index < $currentIndex)       $stepClass = 'done';
+                        elseif ($index === $currentIndex) $stepClass = 'current';
+                        else                              $stepClass = '';
+                    }
+                @endphp
+                <div class="pipeline-step {{ $stepClass }}">
+                    <div class="step-col">
+                        <div class="dot">{{ $stepClass === 'done' ? '✓' : $index + 1 }}</div>
+                        <span class="step-label">{{ $step->label }}</span>
+                    </div>
+                    <div class="bar"></div>
+                </div>
+            @endforeach
+        </div>
+    </div>
+        </div>
+        </div>
+    </details>
+    </div>
+
+    <script>
+    (function () {
+        function initLeadProductivityNav() {
+            var nav = document.querySelector('.lead-jump-nav');
+            if (!nav || nav.dataset.initialized === '1') return;
+            var buttons = Array.prototype.slice.call(nav.querySelectorAll('[data-lead-jump]'));
+            var commandButtons = Array.prototype.slice.call(document.querySelectorAll('[data-lead-jump]'));
+            function openAccordion(key) {
+                var item = document.querySelector('details[data-accordion="' + key + '"]');
+                if (item && !item.open) item.open = true;
+                return item;
+            }
+            function targetFor(key) {
+                if (key === 'work') return document.getElementById('pending-tasks');
+                if (key === 'history') return openAccordion('history');
+                if (key === 'visits') return openAccordion('visits');
+                if (key === 'pipeline') return openAccordion('pipeline');
+                if (key === 'more') return openAccordion('more');
+                if (key === 'projects') {
+                    var history = openAccordion('history');
+                    var project = document.getElementById('project-workstreams');
+                    return project || history;
+                }
+                return null;
+            }
+            function jump(key) {
+                var target = targetFor(key);
+                if (!target) return;
+                setTimeout(function () { target.scrollIntoView({behavior:'smooth', block:'start'}); }, 20);
+                buttons.forEach(function (b) { b.classList.toggle('is-active', b.getAttribute('data-lead-jump') === key); });
+            }
+            commandButtons.forEach(function (button) {
+                button.addEventListener('click', function () { jump(button.getAttribute('data-lead-jump')); });
+            });
+            nav.dataset.initialized='1';
+        }
+        if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initLeadProductivityNav); else initLeadProductivityNav();
+    })();
+    </script>
+    <script>
+    (function () {
+        function initLeadAccordion() {
+            var root = document.getElementById('lead-secondary-accordion');
+            if (!root || root.dataset.initialized === '1') return;
+            var items = Array.prototype.slice.call(root.querySelectorAll('details[data-accordion]'));
+            items.forEach(function(item){
+                item.addEventListener('toggle', function(){
+                    if (!item.open) return;
+                    items.forEach(function(other){ if(other !== item) other.open = false; });
+                    if(window.history && window.history.replaceState){ var u=new URL(window.location.href); u.searchParams.set('lead_tab',item.getAttribute('data-accordion')); window.history.replaceState({},'',u.toString()); }
+                });
+            });
+            var customerEditor = root.querySelector('.customer-info-editor');
+            if (customerEditor) {
+                var customerSummary = customerEditor.querySelector('summary');
+                if (customerSummary) {
+                    customerSummary.addEventListener('click', function(){
+                        if (window.matchMedia('(min-width: 701px)').matches) {
+                            setTimeout(function(){
+                                customerEditor.scrollIntoView({behavior:'smooth', block:'start'});
+                                try { customerSummary.focus({preventScroll:true}); } catch (_) {}
+                            }, 60);
+                        }
+                    });
+                }
+            }
+            root.dataset.initialized='1';
+            var requested=new URL(window.location.href).searchParams.get('lead_tab');
+            if(requested){ var wanted=root.querySelector('details[data-accordion="'+requested+'"]'); if(wanted) wanted.open=true; }
+        }
+        if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initLeadAccordion); else initLeadAccordion();
+    })();
+    </script>
+    @if ($focusWork)
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var work = document.getElementById('pending-tasks');
+            if (work) setTimeout(function () { work.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+        });
+        </script>
+    @endif
+    @if ($completionContext)
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var completion = document.getElementById('lead-wb-completion');
+            if (!completion) return;
+            // Completion is the immediate result of the just-finished task.
+            // Put keyboard focus and the viewport on that confirmation instead
+            // of leaving the user somewhere inside the History accordion.
+            setTimeout(function () {
+                completion.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                try { completion.focus({ preventScroll: true }); } catch (_) { completion.focus(); }
+            }, 120);
+        });
+        </script>
+    @endif
+
+<script>
+(function(){
+    function initLeadWorkbench(){
+        var more=document.querySelector('[data-lead-wb-more]'), panel=document.getElementById('lead-wb-more-actions');
+        if(more&&panel&&more.dataset.bound!=='1'){
+            more.dataset.bound='1';
+            more.addEventListener('click',function(){var open=panel.hidden;panel.hidden=!open;more.setAttribute('aria-expanded',open?'true':'false');});
+            document.addEventListener('click',function(e){if(!panel.hidden&&!e.target.closest('[data-lead-wb-more]')&&!e.target.closest('#lead-wb-more-actions')){panel.hidden=true;more.setAttribute('aria-expanded','false');}});
+            function closeLeadActions(){if(!panel.hidden){panel.hidden=true;more.setAttribute('aria-expanded','false');}}
+            window.addEventListener('scroll',closeLeadActions,{passive:true});
+            window.addEventListener('resize',closeLeadActions,{passive:true});
+        }
+        document.querySelectorAll('[data-lead-wb-scroll]').forEach(function(btn){if(btn.dataset.bound==='1')return;btn.dataset.bound='1';btn.addEventListener('click',function(){var el=document.getElementById(btn.dataset.leadWbScroll);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});});
+        document.querySelectorAll('[data-lead-wb-section]').forEach(function(btn){if(btn.dataset.bound==='1')return;btn.dataset.bound='1';btn.addEventListener('click',function(){var item=document.querySelector('details[data-accordion="'+btn.dataset.leadWbSection+'"]');if(item){item.open=true;setTimeout(function(){item.scrollIntoView({behavior:'smooth',block:'start'});},20);}document.querySelectorAll('[data-lead-wb-section]').forEach(function(b){b.classList.toggle('is-active',b===btn);});});});
+        var first=document.querySelector('details[data-accordion="history"]');if(first&&!first.open)first.open=true;
+
+        var focusBar=document.querySelector('[data-lead-current-work]');
+        var workSection=document.getElementById('pending-tasks');
+        if(focusBar&&workSection&&'IntersectionObserver' in window){
+            var observer=new IntersectionObserver(function(entries){
+                var visible=entries.some(function(entry){return entry.isIntersecting;});
+                focusBar.classList.toggle('is-visible',!visible);
+            },{threshold:0.12,rootMargin:'-72px 0px -16% 0px'});
+            observer.observe(workSection);
+        } else if(focusBar){
+            focusBar.classList.add('is-visible');
+        }
+    }
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initLeadWorkbench);else initLeadWorkbench();
+})();
+</script>
+@endsection

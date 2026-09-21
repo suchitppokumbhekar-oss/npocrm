@@ -1,0 +1,15 @@
+NPO CRM — Contact Import DND Contacts-Only Correction v1
+Date: 2026-09-20
+
+Changed:
+- app/Services/ContactService.php
+
+Behavior:
+- DND/DNC suppression is checked only against existing Contacts with status=dnc.
+- Leads are not checked for DND during Contact import.
+- Existing normalized Contact duplicates remain skipped as duplicates.
+- Same-file normalized duplicates remain skipped as duplicates.
+- DND is counted separately as skipped DND contacts.
+- No database/schema changes.
+
+This is a surgical correction to remove the incorrect Lead status='dnd' assumption from the previously deployed import hardening.
