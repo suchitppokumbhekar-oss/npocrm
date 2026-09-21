@@ -12,7 +12,7 @@ class VerifyAuditChain extends Command
 
     public function handle(): int
     {
-        $previous = null;
+        $previous = AuditLog::GENESIS_HASH;
         $checked = 0;
         $errors = [];
 
