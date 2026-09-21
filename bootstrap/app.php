@@ -30,7 +30,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('followup:remind')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('followup:escalate')->everyFifteenMinutes();
         $schedule->command('leads:ensure-next-actions')->everyFiveMinutes()->withoutOverlapping();
-        $schedule->command('db:backup')->dailyAt('02:00');
         $schedule->command('notifications:push')->everyMinute()->withoutOverlapping();
     })
     ->create();
