@@ -1,4 +1,4 @@
-/*M!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */
 /*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
 /*!40103 SET TIME_ZONE='+00:00' */;
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
@@ -1477,3 +1477,25 @@ CREATE TABLE `users` (
 /*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
+/*M!999999\- enable the sandbox mode */
+SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, @@AUTOCOMMIT=0;
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (1,'0001_01_01_000000_create_users_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (2,'0001_01_01_000001_create_cache_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (3,'0001_01_01_000002_create_jobs_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (4,'2026_09_15_120000_add_lost_reason_key_to_leads_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (5,'2026_09_16_080000_create_user_whatsapp_accounts_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (6,'2026_09_16_090000_add_action_source_to_activities_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (7,'2026_09_16_100000_harden_lead_lifecycle_attempted_external_shared',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (8,'2026_09_16_110000_harden_automatic_followup_business_hours',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (9,'2026_09_17_010000_create_audit_logs_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (10,'2026_09_17_020000_add_tamper_evident_chain_to_audit_logs',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (11,'2026_09_17_020000_create_managed_files_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (12,'2026_09_17_030000_create_booking_controls_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (13,'2026_09_18_070000_create_push_subscriptions_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (14,'2026_09_20_080000_create_contact_project_assignments_table',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (15,'2026_09_20_090000_expand_activity_action_source',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (16,'2026_09_21_060000_create_contact_call_work_tables',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (17,'2026_09_21_070000_add_completion_fields_to_contact_followups',1);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (18,'2026_09_21_120000_authoritative_contact_work_engine_v1',1);
+COMMIT;
+SET AUTOCOMMIT=@OLD_AUTOCOMMIT;
