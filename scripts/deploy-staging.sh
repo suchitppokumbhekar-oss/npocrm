@@ -49,6 +49,18 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
+echo "Running staging health check..."
+
+HEALTH_URL="https://staging-npocrm.propertypoint.online/login"
+HTTP_CODE="$(curl -L -sS -o /dev/null -w "%{http_code}" --max-time 20 "$HEALTH_URL")"
+
+if [ "$HTTP_CODE" != "200" ]; then
+    echo "ERROR: Health check failed. HTTP status: $HTTP_CODE"
+    exit 1
+fi
+
+echo "Health check passed: HTTP $HTTP_CODE"
+
 echo
 echo "Deployment complete."
 echo "Commit: $(git rev-parse --short HEAD)"
