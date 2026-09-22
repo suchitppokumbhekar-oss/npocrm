@@ -153,6 +153,7 @@ Route::get('/contacts/{id}',                  [\App\Http\Controllers\ContactCont
 Route::post('/contacts/{id}/assign',          [\App\Http\Controllers\ContactController::class, 'assign'])->name('contacts.assign')->where('id', '[0-9]+');
 Route::post('/contacts/{id}/promote',         [\App\Http\Controllers\ContactController::class, 'promote'])->name('contacts.promote')->where('id', '[0-9]+');
 
+Route::post('/contacts/{id}/call-start',       [\App\Http\Controllers\ContactCallController::class, 'startCall'])->name('contacts.call-start')->where('id', '[0-9]+');
 Route::post('/calls/log',                     [\App\Http\Controllers\ContactCallController::class, 'log'])->name('calls.log');
 Route::get('/calls/recent',                   [\App\Http\Controllers\ContactCallController::class, 'recent'])->name('calls.recent');
 

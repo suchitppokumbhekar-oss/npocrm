@@ -36,7 +36,8 @@
     if ($workReturnTo === '' && (request()->is('/') || request()->is('tasks*'))) {
         $workReturnTo = request()->getRequestUri() ?: '/tasks';
     }
-    $workReturnTo = $workReturnTo ?: '/';
+    $hasWorkReturnTo = $workReturnTo !== '';
+$workReturnTo = $workReturnTo ?: '/';
     $workUrl = $leadUrl . '?' . http_build_query([
         'focus_work' => 1,
         'focus_followup_id' => $task->id,
@@ -151,7 +152,7 @@
                                 data-modal="task-share-lead"
                                 data-followup-id="{{ $task->id }}"
                                 data-lead-id="{{ $task->lead_id }}"
-                                @if($workReturnTo !== '/') data-return-to="{{ e($workReturnTo) }}" @endif>
+                                @if($hasWorkReturnTo) data-return-to="{{ e($workReturnTo) }}" @endif>
                             📤 Share Lead
                         </button>
                     @endif
@@ -160,7 +161,7 @@
 
             <div class="tc-done-wrap">
                 <button type="button" class="tc-done-btn"
-                    data-modal="complete-task" data-followup-id="{{ $task->id }}" data-lead-id="{{ $task->lead_id }}" @if($workReturnTo !== '/') data-return-to="{{ e($workReturnTo) }}" @endif>
+                    data-modal="complete-task" data-followup-id="{{ $task->id }}" data-lead-id="{{ $task->lead_id }}" @if($hasWorkReturnTo) data-return-to="{{ e($workReturnTo) }}" @endif>
                 <span class="tc-done-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                         <path d="m5 12 4 4L19 6"/>

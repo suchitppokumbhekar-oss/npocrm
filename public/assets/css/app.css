@@ -2618,3 +2618,24 @@ body.task-execution-active .lead-wb-sections,
 }
 
 .tc-nudge-count{display:inline-flex;align-items:center;margin-left:5px;padding:1px 5px;border-radius:999px;background:rgba(37,99,235,.10);color:#1d4ed8;font-size:10px;font-weight:800;line-height:1.4}.tc-nudge-link{gap:5px}
+
+/* Contacts: keep the contact list visible and horizontally scrollable on mobile. */
+@media (max-width: 700px) {
+    body .table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    body .table-wrap table {
+        display: table;
+    }
+}
+
+/* Contacts list: this page has no separate mobile-card view, so keep its table visible. */
+@media (max-width: 1023px) {
+    body .card .table-wrap {
+        display: block !important;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
