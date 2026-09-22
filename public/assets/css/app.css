@@ -65,6 +65,9 @@ img{max-width:100%;height:auto;display:block}
 .btn-sm{min-height:32px;height:32px;padding:0 var(--s-3);font-size:13px;border-radius:var(--radius-sm)}
 .btn-block{width:100%}
 .btn-small{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:32px;padding:6px 14px;border:0;border-radius:var(--radius-sm);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;transition:background .15s ease,box-shadow .15s ease,transform .08s ease,border-color .15s ease;text-decoration:none;color:#fff;background:var(--c-primary);box-shadow:0 1px 2px rgba(0,0,0,.06);letter-spacing:.01em}
+.notif-push-setup button[hidden] {
+    display: none !important;
+}
 .btn-small:hover{background:var(--c-primary-d);text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,.1)}
 .btn-small:active{transform:translateY(1px);box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .btn-log,.btn-warning{background:#10b981 !important;color:#fff !important}

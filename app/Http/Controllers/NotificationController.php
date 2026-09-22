@@ -249,34 +249,47 @@ class NotificationController extends Controller
        PWA PUSH — send a real end-to-end test to this user's devices
        ============================================================ */
     public function pushTest()
-    {
-        if (! session('user_id')) abort(401);
+{
+    if (! session('user_id')) abort(401);
 
-        $userId = (int) session('user_id');
-        $notification = $this->notifications->notify($userId, 'system_test', '🔔 NPO CRM alert test', [
+    $userId = (int) session('user_id');
+
+    $notification = $this->notifications->notify(
+        $userId,
+        'system_test',
+        '🔔 NPO CRM alert test',
+        [
             'body' => 'If you can hear/see this while the CRM is closed, mobile alerts are working.',
             'icon' => '🔔',
             'action_url' => '/notifications',
             'related_type' => 'system',
             'related_id' => null,
-        ]);
+        ]
+    );
 
-        $subscriptions = PushSubscription::where('user_id', $userId)->get();
-        $sent = 0;
-        foreach ($subscriptions as $subscription) {
-            if ($this->push->sendNotification($subscription, $notification)) {
-                $sent++;
-            }
+    $subscriptions = PushSubscription::where('user_id', $userId)->get();
+
+    $sent = 0;
+
+    foreach ($subscriptions as $subscription) {
+        if ($this->push->sendNotification(
+            $subscription,
+            $notification
+        )) {
+            $sent++;
         }
-
-        return response()->json([
-            'success' => true,
-            'sent' => $sent,
-            'subscriptions' => $subscriptions->count(),
-            'notification_id' => $notification->id,
-            'message' => $sent > 0 ? 'Test alert sent.' : 'Test notification created, but no push was delivered. Check alert status.',
-        ])->withHeaders($this->noCacheHeaders());
     }
+
+    return response()->json([
+        'success' => true,
+        'sent' => $sent,
+        'subscriptions' => $subscriptions->count(),
+        'notification_id' => $notification->id,
+        'message' => $sent > 0
+            ? 'Test alert sent.'
+            : 'Test notification created, but no push was delivered.',
+    ])->withHeaders($this->noCacheHeaders());
+}
 
     /* ============================================================
        PWA PUSH — subscribe current device

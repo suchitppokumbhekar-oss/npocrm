@@ -720,74 +720,508 @@
       }
     });
 
-    // PWA push opt-in. Permission is requested only after the user explicitly
-    // taps the Enable alerts button, as required by browsers.
-    document.addEventListener('click', async function (e) {
-      var enable = e.target.closest('[data-enable-push]');
-      if (! enable) return;
-      e.preventDefault();
-      enable.disabled = true;
-      enable.textContent = 'Enabling…';
-
+    // Reconcile an already-authorized browser subscription automatically.
+    // This is silent: it never requests permission. It keeps the server
+    // synchronized if the browser rotates/replaces the push subscription.
+    async function reconcileExistingPushSubscription() {
       try {
-        if (! ('serviceWorker' in navigator) || ! ('PushManager' in window) || ! ('Notification' in window)) {
-          throw new Error('Push notifications are not supported on this device/browser.');
-        }
-
-        var permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          throw new Error('Notification permission was not granted.');
+        if (!('serviceWorker' in navigator) ||
+            !('PushManager' in window) ||
+            !('Notification' in window) ||
+            Notification.permission !== 'granted') {
+          return;
         }
 
         var registration = await navigator.serviceWorker.ready;
-        var existing = await registration.pushManager.getSubscription();
-        var subscription = existing;
+        var subscription = await registration.pushManager.getSubscription();
 
-        if (! subscription) {
-          var keyResponse = await fetch('/notifications/push-key?_=' + Date.now(), {
-            cache: 'no-store',
-            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
-          });
-          if (! keyResponse.ok) throw new Error('Could not prepare push notifications.');
-          var keyData = await keyResponse.json();
+        if (!subscription) return;
 
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(keyData.publicKey)
-          });
-        }
-
-        var json = subscription.toJSON();
-        var saveResponse = await fetch('/notifications/push-subscribe', {
+        var response = await fetch('/notifications/push-subscribe', {
           method: 'POST',
           cache: 'no-store',
           headers: {
             'X-CSRF-TOKEN': csrf(),
             'X-Requested-With': 'XMLHttpRequest',
             'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
           },
-          body: JSON.stringify(json)
+          body: JSON.stringify(subscription.toJSON())
         });
 
-        if (! saveResponse.ok) throw new Error('Could not save this device for alerts.');
+        if (!response.ok) {
+          console.warn(
+            'NPO CRM: push subscription reconciliation failed',
+            response.status
+          );
+        }
+      } catch (e) {
+        // Push reconciliation must never interfere with the CRM UI.
+      }
+    }
 
-        enable.textContent = '✓ Alerts enabled';
-        var setup = enable.closest('[data-push-setup]');
-        if (setup) setTimeout(function () { setup.hidden = true; }, 800);
+    // Synchronize an already-authorized device without prompting.
+    reconcileExistingPushSubscription();
+
+        // ============================================================
+    // PWA PUSH — device status + subscription reconciliation
+    // ============================================================
+
+    function pushElements(root) {
+      var setup = root ? root.querySelector('[data-push-setup]') : null;
+
+      return {
+        setup: setup,
+        status: setup ? setup.querySelector('[data-push-status]') : null,
+        enable: setup ? setup.querySelector('[data-enable-push]') : null,
+        disable: setup ? setup.querySelector('[data-disable-push]') : null,
+        test: setup ? setup.querySelector('[data-test-push]') : null
+      };
+    }
+
+    function setPushStatus(listEl, state, message) {
+      var el = pushElements(listEl);
+
+      if (el.status) {
+        el.status.textContent = message;
+      }
+
+      if (!el.setup) return;
+
+      if (state === 'enabled') {
+        el.setup.hidden = false;
+        if (el.enable) el.enable.hidden = true;
+        if (el.disable) el.disable.hidden = false;
+        if (el.test) el.test.hidden = false;
+      } else if (state === 'available') {
+        el.setup.hidden = false;
+        if (el.enable) el.enable.hidden = false;
+        if (el.disable) el.disable.hidden = true;
+        if (el.test) el.test.hidden = true;
+      } else {
+        el.setup.hidden = false;
+        if (el.enable) el.enable.hidden = true;
+        if (el.disable) el.disable.hidden = true;
+        if (el.test) el.test.hidden = true;
+      }
+    }
+
+    async function reconcileExistingPushSubscription(listEl) {
+      var el = pushElements(listEl);
+
+      if (!el.setup) return;
+
+      if (
+        !('serviceWorker' in navigator) ||
+        !('PushManager' in window) ||
+        !('Notification' in window)
+      ) {
+        setPushStatus(
+          listEl,
+          'unavailable',
+          'Push alerts are not supported on this device.'
+        );
+        return;
+      }
+
+      if (Notification.permission === 'denied') {
+        setPushStatus(
+          listEl,
+          'unavailable',
+          'Notifications are blocked in this browser.'
+        );
+        return;
+      }
+
+      setPushStatus(
+        listEl,
+        'checking',
+        'Checking this device…'
+      );
+
+      try {
+        var registration = await navigator.serviceWorker.ready;
+        var subscription = await registration.pushManager.getSubscription();
+
+        if (!subscription) {
+          if (Notification.permission === 'granted') {
+            setPushStatus(
+              listEl,
+              'available',
+              'Alerts are permitted, but this device is not registered.'
+            );
+          } else {
+            setPushStatus(
+              listEl,
+              'available',
+              'Enable alerts on this device.'
+            );
+          }
+          return;
+        }
+
+        /*
+         * Permission is already granted, so this is completely silent.
+         * Re-save the current browser subscription so a browser-rotated
+         * endpoint/keys cannot leave the server pointing at an old device.
+         */
+        if (Notification.permission === 'granted') {
+          var response = await fetch('/notifications/push-subscribe', {
+            method: 'POST',
+            cache: 'no-store',
+            headers: {
+              'X-CSRF-TOKEN': csrf(),
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            },
+            body: JSON.stringify(subscription.toJSON())
+          });
+
+          if (!response.ok) {
+            throw new Error('The server could not register this device.');
+          }
+        }
+
+        setPushStatus(
+          listEl,
+          'enabled',
+          '✓ Alerts enabled on this device'
+        );
       } catch (err) {
-        enable.disabled = false;
-        enable.textContent = 'Enable alerts';
-        window.alert(err && err.message ? err.message : 'Could not enable notifications.');
+        console.warn(
+          'NPO CRM push reconciliation failed:',
+          err
+        );
+
+        setPushStatus(
+          listEl,
+          'available',
+          'Could not verify this device. Try Enable alerts again.'
+        );
+      }
+    }
+
+    function showPushSetup(listEl) {
+      if (!listEl) return;
+
+      reconcileExistingPushSubscription(listEl);
+    }
+
+        async function enablePushOnDevice(button) {
+      var setup = button.closest('[data-push-setup]');
+      if (!setup) return;
+
+      var listEl = setup.parentElement || setup;
+
+      button.disabled = true;
+      button.textContent = 'Enabling…';
+
+      try {
+        if (
+          !('serviceWorker' in navigator) ||
+          !('PushManager' in window) ||
+          !('Notification' in window)
+        ) {
+          throw new Error(
+            'Push notifications are not supported on this device/browser.'
+          );
+        }
+
+        var permission = await Notification.requestPermission();
+
+        if (permission !== 'granted') {
+          throw new Error(
+            'Notification permission was not granted.'
+          );
+        }
+
+        var registration = await navigator.serviceWorker.ready;
+
+        var subscription =
+          await registration.pushManager.getSubscription();
+
+        if (!subscription) {
+          var keyResponse = await fetch(
+            '/notifications/push-key?_=' + Date.now(),
+            {
+              method: 'GET',
+              cache: 'no-store',
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+              }
+            }
+          );
+
+          if (!keyResponse.ok) {
+            throw new Error(
+              'Could not prepare push notifications.'
+            );
+          }
+
+          var keyData = await keyResponse.json();
+
+          if (!keyData.publicKey) {
+            throw new Error(
+              'The push server did not return a public key.'
+            );
+          }
+
+          subscription =
+            await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey:
+                urlBase64ToUint8Array(keyData.publicKey)
+            });
+        }
+
+        var saveResponse = await fetch(
+          '/notifications/push-subscribe',
+          {
+            method: 'POST',
+            cache: 'no-store',
+            headers: {
+              'X-CSRF-TOKEN': csrf(),
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            },
+            body: JSON.stringify(
+              subscription.toJSON()
+            )
+          }
+        );
+
+        if (!saveResponse.ok) {
+          var saveText = await saveResponse.text().catch(function () {
+            return '';
+          });
+
+          throw new Error(
+            saveText || 'Could not save this device for alerts.'
+          );
+        }
+
+        setPushStatus(
+          listEl,
+          'enabled',
+          '✓ Alerts enabled on this device'
+        );
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = 'Enable alerts';
+
+        setPushStatus(
+          listEl,
+          'available',
+          err && err.message
+            ? err.message
+            : 'Could not enable notifications.'
+        );
+      }
+    }
+
+
+    async function testPushOnDevice(button) {
+  button.disabled = true;
+  button.textContent = 'Sending…';
+
+  try {
+    var response = await fetch(
+      '/notifications/push-test',
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          'X-CSRF-TOKEN': csrf(),
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      }
+    );
+
+    var data = {};
+
+    try {
+      data = await response.json();
+    } catch (e) {}
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message ||
+        'Could not send the test alert.'
+      );
+    }
+
+    if (Number(data.sent || 0) > 0) {
+      button.textContent = '✓ Test sent';
+    } else {
+      button.textContent = '⚠ No push delivered';
+    }
+
+    setTimeout(function () {
+      button.textContent = 'Send test alert';
+      button.disabled = false;
+    }, 2500);
+
+  } catch (err) {
+    button.disabled = false;
+    button.textContent = 'Send test alert';
+
+    window.alert(
+      err && err.message
+        ? err.message
+        : 'Could not send the test alert.'
+    );
+  }
+}
+
+
+    async function disablePushOnDevice(button) {
+      if (!window.confirm('Disable alerts on this device?')) {
+        return;
+      }
+
+      var setup = button.closest('[data-push-setup]');
+      if (!setup) return;
+
+      var status = setup.querySelector('[data-push-status]');
+      var enable = setup.querySelector('[data-enable-push]');
+      var test = setup.querySelector('[data-test-push]');
+
+      button.disabled = true;
+      button.textContent = 'Disabling…';
+
+      try {
+        if (
+          !('serviceWorker' in navigator) ||
+          !('PushManager' in window)
+        ) {
+          throw new Error(
+            'Push notifications are not supported on this device/browser.'
+          );
+        }
+
+        var registration =
+          await navigator.serviceWorker.ready;
+
+        var subscription =
+          await registration.pushManager.getSubscription();
+
+        if (subscription) {
+          var response = await fetch(
+            '/notifications/push-subscribe',
+            {
+              method: 'DELETE',
+              cache: 'no-store',
+              headers: {
+                'X-CSRF-TOKEN': csrf(),
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+              },
+              body: JSON.stringify({
+                endpoint: subscription.endpoint
+              })
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              'Could not disable alerts on the server.'
+            );
+          }
+
+          await subscription.unsubscribe();
+        }
+
+        if (status) {
+          status.textContent =
+            'Alerts are disabled on this device';
+        }
+
+        if (enable) {
+          enable.hidden = false;
+          enable.disabled = false;
+          enable.textContent = 'Enable alerts';
+        }
+
+        if (test) {
+          test.hidden = true;
+        }
+
+        button.hidden = true;
+        button.disabled = false;
+        button.textContent = 'Disable alerts';
+
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = 'Disable alerts';
+
+        window.alert(
+          err && err.message
+            ? err.message
+            : 'Could not disable alerts.'
+        );
+      }
+    }
+
+
+    document.addEventListener('click', async function (e) {
+      var enable = e.target.closest('[data-enable-push]');
+      if (enable) {
+        e.preventDefault();
+        await enablePushOnDevice(enable);
+        return;
+      }
+
+      var test = e.target.closest('[data-test-push]');
+      if (test) {
+        e.preventDefault();
+        await testPushOnDevice(test);
+        return;
+      }
+
+      var disable = e.target.closest('[data-disable-push]');
+      if (disable) {
+        e.preventDefault();
+        await disablePushOnDevice(disable);
       }
     });
 
+
     function urlBase64ToUint8Array(base64String) {
-      var padding = '='.repeat((4 - base64String.length % 4) % 4);
-      var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      var padding =
+        '='.repeat((4 - base64String.length % 4) % 4);
+
+      var base64 =
+        (base64String + padding)
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+
       var rawData = window.atob(base64);
-      var outputArray = new Uint8Array(rawData.length);
-      for (var i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+
+      var outputArray =
+        new Uint8Array(rawData.length);
+
+      for (var i = 0; i < rawData.length; ++i) {
+        outputArray[i] =
+          rawData.charCodeAt(i);
+      }
+
       return outputArray;
     }
 
@@ -963,7 +1397,9 @@
     // 1. Register service worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/service-worker.js').catch(function () {});
+       navigator.serviceWorker.register('/service-worker.js?v=74', {
+  updateViaCache: 'none'
+}).catch(function () {});
       });
     }
 

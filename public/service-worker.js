@@ -1,47 +1,65 @@
 /* ============================================================
-   NPO CRM — Service Worker v70
-   - Static assets: cache-first
-   - HTML: network-first with cache fallback
-   - CRM notification/API paths: never cached
-   - Web Push: explicit persistent system notifications
+   NPO CRM — Service Worker v74
+   Reliable Web Push
    ============================================================ */
 
-const CACHE_VERSION = 'npo-crm-v7-pwa-cache-hardening';
+const CACHE_VERSION = 'npo-crm-v74-push-final';
+
 const STATIC_ASSETS = [
-  '/',
-  '/assets/css/app.css',
-  '/assets/js/app.js',
   '/icons/icon.svg',
   '/icons/icon-192.png',
   '/manifest.json',
   '/agent-guide.html',
 ];
 
+/* ============================================================
+   INSTALL
+   ============================================================ */
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION)
-      .then((cache) => Promise.all(STATIC_ASSETS.map((url) => cache.add(url).catch(() => null))))
+      .then((cache) => {
+        return Promise.all(
+          STATIC_ASSETS.map((url) =>
+            cache.add(url).catch(() => null)
+          )
+        );
+      })
       .then(() => self.skipWaiting())
   );
 });
 
+/* ============================================================
+   ACTIVATE
+   ============================================================ */
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(
-        keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))
-      ))
+      .then((keys) => {
+        return Promise.all(
+          keys
+            .filter((key) => key !== CACHE_VERSION)
+            .map((key) => caches.delete(key))
+        );
+      })
       .then(() => self.clients.claim())
   );
 });
 
+/* ============================================================
+   FETCH
+   ============================================================ */
+
 self.addEventListener('fetch', (event) => {
-  const { request } = event;
+  const request = event.request;
   const url = new URL(request.url);
 
   if (request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
 
+  // Never cache dynamic CRM endpoints.
   if (
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/webhooks/') ||
@@ -51,31 +69,49 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/admin/') ||
     url.pathname.startsWith('/login') ||
     url.pathname.startsWith('/logout')
-  ) return;
-
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response && response.ok && response.status === 200) {
-            event.waitUntil(
-              caches.open(CACHE_VERSION)
-                .then((cache) => cache.put(request, response.clone()))
-                .catch(() => {})
-            );
-          }
-          return response;
-        })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
-    );
+  ) {
     return;
   }
 
+  // HTML/navigation: network first.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/'))
+    );
+
+    return;
+  }
+
+  // JS/CSS: network first so CRM updates are not trapped
+  // behind an old service-worker cache.
   if (
-    url.pathname.startsWith('/assets/') ||
-    url.pathname.startsWith('/icons/') ||
-    url.pathname.endsWith('.css') ||
     url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css')
+  ) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.ok) {
+            const clone = response.clone();
+
+            event.waitUntil(
+              caches.open(CACHE_VERSION)
+                .then((cache) => cache.put(request, clone))
+                .catch(() => {})
+            );
+          }
+
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+
+    return;
+  }
+
+  // Static assets: cache first.
+  if (
+    url.pathname.startsWith('/icons/') ||
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.png') ||
     url.pathname.endsWith('.woff') ||
@@ -84,9 +120,18 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
+
         return fetch(request).then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(request, clone));
+          if (response && response.ok) {
+            const clone = response.clone();
+
+            event.waitUntil(
+              caches.open(CACHE_VERSION)
+                .then((cache) => cache.put(request, clone))
+                .catch(() => {})
+            );
+          }
+
           return response;
         });
       })
@@ -95,69 +140,109 @@ self.addEventListener('fetch', (event) => {
 });
 
 /* ============================================================
-   WEB PUSH — v70
+   WEB PUSH
    ============================================================ */
+
 self.addEventListener('push', (event) => {
-  // Keep the push event alive for the actual notification promise.
-  // Use a deliberately minimal payload first; Android/Chrome can reject a
-  // notification when an optional field is unsupported or invalid.
-  event.waitUntil((async () => {
-    let data = {};
-    try {
-      if (event.data) {
-        const raw = event.data.text();
-        if (raw) {
-          try { data = JSON.parse(raw); }
-          catch (e) { data = { body: raw }; }
-        }
-      }
-    } catch (e) {}
+  let payload = {};
 
-    const title = String(data.title || 'NPO CRM');
-    const body = String(data.body || 'You have new work in NPO CRM.');
-    const notificationId = data.notification_id || null;
-    const url = String(data.url || '/notifications');
-    const priority = String(data.priority || 'info');
-    const tag = notificationId ? 'npo-crm-' + notificationId : 'npo-crm-' + Date.now();
-
-    try {
-      await self.registration.showNotification(title, {
-        body: body,
-        tag: tag,
-        data: { url: url, notification_id: notificationId, priority: priority }
-      });
-    } catch (e1) {
-      // Second attempt: only the title/body. This is intentionally even more
-      // conservative so the browser cannot fall back to its generic push tile.
-      await self.registration.showNotification('NPO CRM', {
-        body: body || 'You have new work in NPO CRM.'
-      });
+  try {
+    if (event.data) {
+      payload = event.data.json();
     }
-  })());
+  } catch (error) {
+    try {
+      payload = {
+        body: event.data ? event.data.text() : ''
+      };
+    } catch (ignored) {
+      payload = {};
+    }
+  }
+
+  const title =
+    payload.title ||
+    'NPO CRM';
+
+  const body =
+    payload.body ||
+    'You have a new CRM notification.';
+
+  const actionUrl =
+    payload.action_url ||
+    payload.url ||
+    '/notifications';
+
+  const options = {
+    body: body,
+
+    icon:
+      payload.icon_url ||
+      '/icons/icon-192.png',
+
+    badge:
+      payload.badge_url ||
+      '/icons/icon-192.png',
+
+    tag:
+      payload.tag ||
+      (
+        payload.notification_id
+          ? 'npo-crm-' + payload.notification_id
+          : 'npo-crm-notification'
+      ),
+
+    renotify: true,
+
+    data: {
+      url: actionUrl,
+      notification_id:
+        payload.notification_id || null
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(
+      title,
+      options
+    )
+  );
 });
+
+/* ============================================================
+   NOTIFICATION CLICK
+   ============================================================ */
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const data = event.notification.data || {};
-  let url = data.url || '/notifications';
-
-  if (data.notification_id) {
-    const joiner = url.includes('?') ? '&' : '?';
-    url += joiner + 'notification_id=' + encodeURIComponent(data.notification_id);
-  }
+  const targetUrl =
+    (
+      event.notification.data &&
+      event.notification.data.url
+    )
+      ? event.notification.data.url
+      : '/notifications';
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) {
-        try {
-          const target = new URL(url, self.location.origin);
-          if (new URL(w.url).origin === target.origin) {
-            return w.focus().then(() => w.navigate(target.href));
-          }
-        } catch (e) {}
+    clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    }).then((windows) => {
+
+      for (const windowClient of windows) {
+        if ('navigate' in windowClient) {
+          windowClient.navigate(targetUrl);
+        }
+
+        if ('focus' in windowClient) {
+          return windowClient.focus();
+        }
       }
-      return clients.openWindow(url);
+
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
     })
   );
 });
