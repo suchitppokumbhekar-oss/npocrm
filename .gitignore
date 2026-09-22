@@ -43,3 +43,6 @@ Thumbs.db
 
 # Production push notification credentials
 /storage/app/npo-crm-vapid.json
+
+# Local staging environment
+.env.staging
