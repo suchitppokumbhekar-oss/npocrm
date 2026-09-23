@@ -4114,3 +4114,88 @@ body.task-execution-active .lead-wb-sections {
         padding: 12px 14px 14px;
     }
 }
+
+/* ============================================================
+   CONTACT WORKSPACE — DESKTOP UX PASS 1
+   Improve execution focus and reading width without changing
+   caller workflow, permissions, dialer behavior, or mobile UX.
+   ============================================================ */
+
+@media (min-width: 1101px) {
+
+    .contact-exec-header,
+    .contact-exec-rule,
+    .contact-work-console,
+    .contact-context-details,
+    .contact-admin-context,
+    .contact-history-details {
+        max-width: 1180px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .contact-exec-header {
+        padding: 8px 4px 16px;
+        margin-bottom: 12px;
+    }
+
+    .contact-exec-identity h1 {
+        font-size: 28px;
+        line-height: 1.15;
+    }
+
+    .contact-exec-actions {
+        gap: 8px;
+    }
+
+    .contact-exec-actions .btn-small {
+        min-height: 40px;
+        padding-left: 15px;
+        padding-right: 15px;
+        white-space: nowrap;
+    }
+
+    .contact-exec-rule {
+        padding: 10px 12px;
+        margin-bottom: 14px;
+    }
+
+    .contact-work-console {
+        padding: 18px;
+    }
+
+    .contact-work-head {
+        align-items: center;
+    }
+
+    .contact-work-head > div {
+        max-width: 760px;
+    }
+
+    .contact-work-action-row {
+        padding: 16px;
+        margin-top: 16px;
+    }
+
+    .contact-work-action-main {
+        max-width: 760px;
+    }
+
+    .contact-work-primary {
+        min-height: 40px;
+        padding-left: 16px;
+        padding-right: 16px;
+        white-space: nowrap;
+    }
+
+    .contact-work-hint {
+        margin-top: 14px;
+        padding: 11px 13px;
+    }
+
+    .contact-context-details,
+    .contact-history-details {
+        padding-left: 2px;
+        padding-right: 2px;
+    }
+}
