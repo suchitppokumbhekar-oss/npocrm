@@ -11,6 +11,11 @@
     $isAdmin     = ($userRole === 'admin');
     $isManager   = ($userRole === 'team_manager');
     $isAdminOrMgr = $isAdmin || $isManager;
+    $scopeSuffix = $isManager ? "&scope=" . ($workScope ?? "team") : "";
+    $scopeFirst = $isManager ? "?scope=" . ($workScope ?? "team") : "";
+    $scopeLabel = $isManager
+        ? (($workScope ?? "team") === "delegated" ? "All Delegated" : "My Team")
+        : "Team";
 
     $firstName   = explode(' ', $userName)[0] ?? 'User';
 
@@ -31,7 +36,7 @@
             @if ($isAdminOrMgr)
                 @if ($teamOverdueTotal > 0)
                     <p class="greeting-sub urgent">
-                        🚨 Team has <strong>{{ $teamOverdueTotal }}</strong> overdue task{{ $teamOverdueTotal === 1 ? '' : 's' }}.
+                        🚨 {{ $scopeLabel }} has <strong>{{ $teamOverdueTotal }}</strong> overdue task{{ $teamOverdueTotal === 1 ? '' : 's' }}.
                         <strong>Open Team Status to review them.</strong>
                     </p>
                 @elseif ($isManager && $personalOverdueCount > 0)
@@ -46,7 +51,7 @@
                     </p>
                 @else
                     <p class="greeting-sub">
-                        {{ $isAdmin ? '📊 Management overview is ready.' : '✅ Team and your immediate work are on track.' }}
+                        {{ $isAdmin ? '📊 Management overview is ready.' : '✅ ' . $scopeLabel . ' and your personal work are on track.' }}
                     </p>
                 @endif
             @else
@@ -86,28 +91,41 @@
     </div>
 
     @if ($isAdminOrMgr)
+        @if ($isManager)
+            <nav class="task-scope-tabs" aria-label="Dashboard scope">
+                <a href="{{ url('/?scope=team') }}" class="task-scope-tab {{ ($workScope ?? 'team') === 'team' ? 'active' : '' }}">
+                    <strong>My Team</strong>
+                    <small>Direct team responsibility</small>
+                </a>
+                <a href="{{ url('/?scope=delegated') }}" class="task-scope-tab {{ ($workScope ?? 'team') === 'delegated' ? 'active' : '' }}">
+                    <strong>All Delegated</strong>
+                    <small>Other teams &amp; agents in your scope</small>
+                </a>
+            </nav>
+        @endif
+
         {{-- MANAGEMENT DASHBOARD: summaries only. Individual task execution belongs in Team Status / Who Needs Help. --}}
         <div class="mgmt-summary-grid">
-            <a class="mgmt-summary-card mgmt-danger" href="{{ url('/team-status?filter=overdue') }}">
+            <a class="mgmt-summary-card mgmt-danger" href="{{ url('/team-status?filter=overdue' . ($isManager ? '&scope=' . ($workScope ?? 'team') : '')) }}">
                 <span class="msc-icon">🚨</span>
                 <span class="msc-label">Overdue</span>
                 <strong>{{ $teamOverdueTotal }}</strong>
                 <small>Open overdue tasks →</small>
             </a>
-            <a class="mgmt-summary-card mgmt-warn" href="{{ url('/team-status?filter=today') }}">
+            <a class="mgmt-summary-card mgmt-warn" href="{{ url('/team-status?filter=today' . ($isManager ? '&scope=' . ($workScope ?? 'team') : '')) }}">
                 <span class="msc-icon">📅</span>
                 <span class="msc-label">Due today</span>
                 <strong>{{ $agentOverdueSummary->sum('due_soon') }}</strong>
                 <small>Review today's work →</small>
             </a>
-            <a class="mgmt-summary-card mgmt-help" href="{{ url('/team-status?filter=help') }}">
+            <a class="mgmt-summary-card mgmt-help" href="{{ url('/team-status?filter=help' . ($isManager ? '&scope=' . ($workScope ?? 'team') : '')) }}">
                 <span class="msc-icon">👥</span>
                 <span class="msc-label">Needs help</span>
                 <strong>{{ $teamAgentsBehind }}</strong>
                 <small>Open Team Status →</small>
             </a>
             @if ($isManager && $agentId)
-                <a class="mgmt-summary-card mgmt-neutral" href="{{ url('/tasks') }}">
+                <a class="mgmt-summary-card mgmt-neutral" href="{{ url('/tasks?scope=personal') }}">
                     <span class="msc-icon">⚡</span>
                     <span class="msc-label">My Work</span>
                     <strong>{{ $personalOverdueCount + $personalTodayCount }}</strong>
@@ -143,7 +161,7 @@
                         </a>
                     @endforeach
                     @if ($todayVisits->count() > 8)
-                        <a href="{{ url('/leads?preset=visits_today') }}" class="mgmt-more-link">View all {{ $todayVisits->count() }} visits →</a>
+                        <a href="{{ url('/leads?preset=visits_today' . $scopeSuffix) }}" class="mgmt-more-link">View all {{ $todayVisits->count() }} visits →</a>
                     @endif
                 </div>
             </details>
@@ -159,7 +177,7 @@
                 </summary>
                 <div class="dash-section-body">
                     <div class="mgmt-section-note">Future nurture is kept separate from active work. It does not need attention until it becomes due.</div>
-                    <a href="{{ url('/tasks#reactivation-nurture') }}" class="mgmt-more-link">Open Reactivation / Nurture →</a>
+                    <a href="{{ url('/tasks?view=nurture' . $scopeSuffix . '#task-results') }}" class="mgmt-more-link">Open Reactivation / Nurture →</a>
                 </div>
             </details>
         @endif
@@ -295,17 +313,17 @@
     {{-- 3f. SECONDARY ACTIONS --}}
     <div class="work-secondary-actions">
         @if ($isAdminOrMgr)
-            <a href="{{ url('/team-status') }}" class="secondary-action secondary-action-primary">👥 <span>Team Status</span><b>{{ $teamAgentsBehind }}</b></a>
-            <a href="{{ url('/leads') }}" class="secondary-action">🎯 <span>All Leads</span></a>
+            <a href="{{ url('/team-status' . $scopeFirst) }}" class="secondary-action secondary-action-primary">👥 <span>Team Status</span><b>{{ $teamAgentsBehind }}</b></a>
+            <a href="{{ url('/leads' . $scopeFirst) }}" class="secondary-action">🎯 <span>All Leads</span></a>
             @if ($isManager && $agentId)
-                <a href="{{ url('/tasks') }}" class="secondary-action">⚡ <span>My Work</span><b>{{ $personalOverdueCount + $personalTodayCount }}</b></a>
+                <a href="{{ url('/tasks?scope=personal') }}" class="secondary-action">⚡ <span>My Work</span><b>{{ $personalOverdueCount + $personalTodayCount }}</b></a>
             @endif
             <a href="{{ url('/reports') }}" class="secondary-action">📊 <span>Reports</span></a>
             @if ($isAdmin)
                 <button type="button" class="secondary-action" data-modal="add-lead">＋ <span>New Lead</span></button>
             @endif
         @else
-            <a href="{{ url('/leads') }}" class="secondary-action">🎯 <span>All Leads</span></a>
+            <a href="{{ url('/leads' . $scopeFirst) }}" class="secondary-action">🎯 <span>All Leads</span></a>
             <a href="{{ url('/my-leads') }}" class="secondary-action">👤 <span>My Leads</span></a>
             <a href="{{ url('/tasks') }}" class="secondary-action secondary-action-primary">⚡ <span>My Work</span><b>{{ $totalPending }}</b></a>
             @if ($isAdmin)
@@ -323,7 +341,7 @@
             <summary class="dash-section-head">
                 <span class="dsh-arrow">▸</span>
                 <span class="dsh-icon">👥</span>
-                <span class="dsh-title">TEAM STATUS — WHO NEEDS HELP</span>
+                <span class="dsh-title">{{ strtoupper($scopeLabel) }} — WHO NEEDS HELP</span>
                 <span class="dsh-count">{{ $teamAgentsBehind }}</span>
             </summary>
             <div class="dash-section-body">
@@ -350,11 +368,11 @@
                                         💬 Nudge @if(($summary->nudge_count ?? 0) > 0)<span class="npo-nudge-count">({{ $summary->nudge_count }}×)</span>@endif
                                     </button>
                                 @endif
-                                <a class="mgmt-open-agent" href="{{ url('/team-status?filter=all&agent_id=' . $summary->agent_id) }}">View tasks →</a>
+                                <a class="mgmt-open-agent" href="{{ url('/team-status?filter=all&agent_id=' . $summary->agent_id . ($isManager ? '&scope=' . ($workScope ?? 'team') : '')) }}">View tasks →</a>
                             </div>
                         @endforeach
                     </div>
-                    <a href="{{ url('/team-status?filter=help') }}" class="mgmt-more-link">Open full Team Status →</a>
+                    <a href="{{ url('/team-status?filter=help' . ($isManager ? '&scope=' . ($workScope ?? 'team') : '')) }}" class="mgmt-more-link">Open full Team Status →</a>
                 @endif
             </div>
         </details>
@@ -409,7 +427,7 @@
     {{-- 5. ESCALATION HISTORY — what was escalated, to whom, and what happened next. --}}
     @php
         $dashboardEscalations = app(\App\Services\NudgeService::class)->recentEscalationsForAgents(
-            app(\App\Services\NudgeService::class)->visibleAgentIds(),
+            $scopedAgentIds ?? app(\App\Services\NudgeService::class)->visibleAgentIds(),
             10
         );
     @endphp
@@ -492,7 +510,7 @@
                     <summary class="pulse-summary">
                         <div class="pulse-summary-left">
                             <span class="pulse-summary-arrow">▸</span>
-                            <span class="pulse-summary-title">👥 Team Activity Today</span>
+                            <span class="pulse-summary-title">👥 {{ $scopeLabel }} Activity Today</span>
                         </div>
                         <div class="pulse-summary-right">
                             <span class="badge green" style="font-size:11px;">🟢 {{ $teamActiveCount }}</span>
@@ -513,7 +531,7 @@
                                                       : ($a->status === 'idle' ? '🟡' : '🔴');
                                             @endphp
                                             <span class="pulse-dot">{{ $icon }}</span>
-                                            <a href="{{ url('/leads?agent_id=' . $a->agent_id) }}" class="pulse-link">
+                                            <a href="{{ url('/leads?agent_id=' . $a->agent_id . $scopeSuffix) }}" class="pulse-link">
                                                 <strong>{{ $a->name }}</strong>
                                             </a>
                                         </div>
@@ -525,7 +543,7 @@
                                             @else
                                                 <span class="muted" style="font-size:12px;">no activity yet</span>
                                             @endif
-                                            <a href="{{ url('/leads?agent_id=' . $a->agent_id) }}"
+                                            <a href="{{ url('/leads?agent_id=' . $a->agent_id . $scopeSuffix) }}"
                                                class="badge {{ $a->today_count > 0 ? 'green' : 'red' }}"
                                                style="font-size:11px;text-decoration:none;">
                                                 {{ $a->today_count }} today
@@ -585,7 +603,7 @@
                             @endif
                             <div class="pulse-aging-list">
                                 @foreach ($businessPulse['pipeline_aging'] as $s)
-                                    <a href="{{ url('/leads?status=' . urlencode($s->key)) }}"
+                                    <a href="{{ url('/leads?status=' . urlencode($s->key) . $scopeSuffix) }}"
                                        class="pulse-aging-row pulse-link-row">
                                         <div class="pulse-aging-label">
                                             <span class="badge {{ $s->color }}" style="font-size:11px;">
@@ -638,7 +656,7 @@
                         @else
                             <div class="pulse-project-list">
                                 @foreach ($businessPulse['top_projects'] as $p)
-                                    <a href="{{ url('/leads?project=' . $p->id) }}"
+                                    <a href="{{ url('/leads?project=' . $p->id . $scopeSuffix) }}"
                                        class="pulse-project-row pulse-link-row">
                                         <div class="pulse-project-name">🏗️ {{ $p->name }}</div>
                                         <span class="badge blue" style="font-size:11px;">
@@ -674,7 +692,7 @@
                         @else
                             <div class="pulse-project-list">
                                 @foreach ($businessPulse['stale_projects'] as $p)
-                                    <a href="{{ url('/leads?project=' . $p->id) }}"
+                                    <a href="{{ url('/leads?project=' . $p->id . $scopeSuffix) }}"
                                        class="pulse-project-row pulse-link-row">
                                         <div class="pulse-project-name">🏗️ {{ $p->name }}</div>
                                         <div class="pulse-project-meta">
@@ -725,7 +743,7 @@
                     </div>
                 @endforeach
                 @if ($tomorrowCount > 5)
-                    <a href="{{ url('/tasks') }}" style="display:block;text-align:center;margin-top:8px;font-size:13px;">
+                    <a href="{{ url('/tasks?view=upcoming' . $scopeSuffix . '#task-results') }}" style="display:block;text-align:center;margin-top:8px;font-size:13px;">
                         +{{ $tomorrowCount - 5 }} more →
                     </a>
                 @endif
@@ -769,7 +787,7 @@
                     </a>
                 @endforeach
             @endif
-            <a href="{{ url('/leads') }}" style="display:block;text-align:center;margin-top:8px;font-size:13px;">
+            <a href="{{ url('/leads' . $scopeFirst) }}" style="display:block;text-align:center;margin-top:8px;font-size:13px;">
                 See all leads →
             </a>
         </div>
@@ -792,22 +810,22 @@
             <div class="biz-group">
                 <div class="biz-group-head">
                     <span class="biz-group-title">🎯 Leads</span>
-                    <a href="{{ url('/leads') }}" class="biz-group-link">All →</a>
+                    <a href="{{ url('/leads' . $scopeFirst) }}" class="biz-group-link">All →</a>
                 </div>
                 <div class="biz-grid">
-                    <a href="{{ url('/leads') }}" class="biz-tile">
+                    <a href="{{ url('/leads' . $scopeFirst) }}" class="biz-tile">
                         <span class="bt-count">{{ number_format($totalLeads) }}</span>
                         <span class="bt-label">Total</span>
                     </a>
-                    <a href="{{ url('/leads?preset=new_today') }}" class="biz-tile bt-today">
+                    <a href="{{ url('/leads?preset=new_today' . $scopeSuffix) }}" class="biz-tile bt-today">
                         <span class="bt-count">{{ number_format($statNewToday) }}</span>
                         <span class="bt-label">Today</span>
                     </a>
-                    <a href="{{ url('/leads?preset=new_week') }}" class="biz-tile">
+                    <a href="{{ url('/leads?preset=new_week' . $scopeSuffix) }}" class="biz-tile">
                         <span class="bt-count">{{ number_format($statNewWeek) }}</span>
                         <span class="bt-label">This Week</span>
                     </a>
-                    <a href="{{ url('/leads?preset=active') }}" class="biz-tile bt-active">
+                    <a href="{{ url('/leads?preset=active' . $scopeSuffix) }}" class="biz-tile bt-active">
                         <span class="bt-count">{{ number_format($statActive) }}</span>
                         <span class="bt-label">Active</span>
                     </a>
@@ -818,26 +836,26 @@
             <div class="biz-group">
                 <div class="biz-group-head">
                     <span class="biz-group-title">🏠 Site Visits</span>
-                    <a href="{{ url('/leads?preset=visits_scheduled') }}" class="biz-group-link">Scheduled →</a>
+                    <a href="{{ url('/leads?preset=visits_scheduled' . $scopeSuffix) }}" class="biz-group-link">Scheduled →</a>
                 </div>
                 <div class="biz-grid">
-                    <a href="{{ url('/leads?preset=visits_scheduled') }}" class="biz-tile bt-next">
+                    <a href="{{ url('/leads?preset=visits_scheduled' . $scopeSuffix) }}" class="biz-tile bt-next">
                         <span class="bt-count">{{ number_format($statVisitsScheduled) }}</span>
                         <span class="bt-label">Scheduled (current)</span>
                     </a>
-                    <a href="{{ url('/leads?preset=visits_done_actual') }}" class="biz-tile bt-visitdone">
+                    <a href="{{ url('/leads?preset=visits_done_actual' . $scopeSuffix) }}" class="biz-tile bt-visitdone">
                         <span class="bt-count">{{ number_format($statVisitsDoneActual) }}</span>
                         <span class="bt-label">Actually Done (all)</span>
                     </a>
-                    <a href="{{ url('/leads?preset=visits_done_actual_week') }}" class="biz-tile">
+                    <a href="{{ url('/leads?preset=visits_done_actual_week' . $scopeSuffix) }}" class="biz-tile">
                         <span class="bt-count">{{ number_format($statVisitsDoneActualWeek) }}</span>
                         <span class="bt-label">Actually Done This Week</span>
                     </a>
-                    <a href="{{ url('/leads?preset=visits_next_7d') }}" class="biz-tile bt-next">
+                    <a href="{{ url('/leads?preset=visits_next_7d' . $scopeSuffix) }}" class="biz-tile bt-next">
                         <span class="bt-count">{{ number_format($statVisitsNext7d) }}</span>
                         <span class="bt-label">Next 7 Days</span>
                     </a>
-                    <a href="{{ url('/leads?preset=visits_today') }}" class="biz-tile bt-today">
+                    <a href="{{ url('/leads?preset=visits_today' . $scopeSuffix) }}" class="biz-tile bt-today">
                         <span class="bt-count">{{ number_format($statVisitsToday) }}</span>
                         <span class="bt-label">Today</span>
                     </a>
@@ -848,22 +866,22 @@
             <div class="biz-group">
                 <div class="biz-group-head">
                     <span class="biz-group-title">🎉 Bookings &amp; Closing Pipeline</span>
-                    <a href="{{ url('/leads?status=booking') }}" class="biz-group-link">All booked →</a>
+                    <a href="{{ url('/leads?status=booking' . $scopeSuffix) }}" class="biz-group-link">All booked →</a>
                 </div>
                 <div class="biz-grid">
-                    <a href="{{ url('/leads?status=booking') }}" class="biz-tile bt-booked">
+                    <a href="{{ url('/leads?status=booking' . $scopeSuffix) }}" class="biz-tile bt-booked">
                         <span class="bt-count">{{ number_format($statBookedTotal) }}</span>
                         <span class="bt-label">Booked (all)</span>
                     </a>
-                    <a href="{{ url('/leads?preset=bookings_month') }}" class="biz-tile bt-booked">
+                    <a href="{{ url('/leads?preset=bookings_month' . $scopeSuffix) }}" class="biz-tile bt-booked">
                         <span class="bt-count">{{ number_format($statBookedMonth) }}</span>
                         <span class="bt-label">This Month</span>
                     </a>
-                    <a href="{{ url('/leads?status=negotiation') }}" class="biz-tile bt-negotiation">
+                    <a href="{{ url('/leads?status=negotiation' . $scopeSuffix) }}" class="biz-tile bt-negotiation">
                         <span class="bt-count">{{ number_format($statNegotiation) }}</span>
                         <span class="bt-label">Negotiation</span>
                     </a>
-                    <a href="{{ url('/leads?status=visit_done') }}" class="biz-tile bt-visitdone">
+                    <a href="{{ url('/leads?status=visit_done' . $scopeSuffix) }}" class="biz-tile bt-visitdone">
                         <span class="bt-count">{{ number_format($statVisitDone) }}</span>
                         <span class="bt-label">Visit Done (current stage)</span>
                     </a>
@@ -875,7 +893,7 @@
                 <div class="biz-group-head" style="margin-bottom:var(--s-2);">
                     <span class="biz-group-title">📊 Pipeline Breakdown <span class="muted" style="font-size:11px;font-weight:400;">(current lead stage)</span></span>
                 </div>
-                <x-status-chart :counts="$statusCounts" />
+                <x-status-chart :counts="$statusCounts" :scope="$workScope" />
             </div>
 
             {{-- ---------- AGENT COUNT (compact footer) ---------- --}}

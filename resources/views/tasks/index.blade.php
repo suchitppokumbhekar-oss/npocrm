@@ -6,10 +6,13 @@
 
     @php
         $mode = $viewMode ?? 'now';
+        $isTeamManager = session('user_role') === 'team_manager';
+        $scopeQuery = $isTeamManager ? '&scope=' . ($workScope ?? 'team') : '';
+        $scopeLabel = match ($workScope ?? 'team') { 'personal' => 'My Work', 'delegated' => 'All Delegated', default => 'My Team' };
         $modeUrls = [
-            'now'      => url('/tasks?view=now#task-results'),
-            'upcoming' => url('/tasks?view=upcoming#task-results'),
-            'nurture'  => url('/tasks?view=nurture#task-results'),
+            'now'      => url('/tasks?view=now' . $scopeQuery . '#task-results'),
+            'upcoming' => url('/tasks?view=upcoming' . $scopeQuery . '#task-results'),
+            'nurture'  => url('/tasks?view=nurture' . $scopeQuery . '#task-results'),
         ];
         $modeCopy = [
             'now'      => ['label' => 'Do now', 'title' => 'Your work now', 'desc' => 'Only work that needs attention today. Overdue comes first.'],
@@ -33,6 +36,23 @@
                 <small>to do now</small>
             </div>
         </section>
+
+        @if ($isTeamManager)
+            <nav class="task-scope-tabs task-scope-tabs-three" aria-label="Work scope">
+                <a href="{{ url('/tasks?view=' . $mode . '&scope=personal#task-results') }}" class="task-scope-tab {{ ($workScope ?? 'team') === 'personal' ? 'active' : '' }}">
+                    <strong>My Work</strong>
+                    <small>Only your own tasks</small>
+                </a>
+                <a href="{{ url('/tasks?view=' . $mode . '&scope=team#task-results') }}" class="task-scope-tab {{ ($workScope ?? 'team') === 'team' ? 'active' : '' }}">
+                    <strong>My Team</strong>
+                    <small>Direct team responsibility</small>
+                </a>
+                <a href="{{ url('/tasks?view=' . $mode . '&scope=delegated#task-results') }}" class="task-scope-tab {{ ($workScope ?? 'team') === 'delegated' ? 'active' : '' }}">
+                    <strong>All Delegated</strong>
+                    <small>Other teams &amp; agents in your scope</small>
+                </a>
+            </nav>
+        @endif
 
         {{-- Three decisions only: now, next, later. Counts are navigation, not decoration. --}}
         <nav class="task-work-tabs" aria-label="Work queue">

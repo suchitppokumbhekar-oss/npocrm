@@ -38,6 +38,10 @@ class LeadIndexController extends Controller
            ============================================================ */
         $scopedAgentIds = null;   // null = unrestricted user
         $scopedLeadIds  = null;
+        $requestedScope = $request->query("scope", "team");
+        $workScope = $userRole === "team_manager"
+            ? ($requestedScope === "delegated" ? "delegated" : "team")
+            : null;
 
         /*
         |--------------------------------------------------------------------------
@@ -57,7 +61,13 @@ class LeadIndexController extends Controller
                 $scopedAgentIds = [-1];
             }
         } elseif ($userRole === 'team_manager') {
-            $scopedAgentIds = app(TeamService::class)->agentIdsForManager($userId);
+            if ($workScope === 'delegated') {
+                $scopedAgentIds = $this->access->visibleAgentIds();
+            } else {
+                $scopedAgentIds = app(\App\Services\TeamService::class)->agentIdsForManager($userId);
+                $allowedAgentIds = $this->access->visibleAgentIds();
+                $scopedAgentIds = array_values(array_intersect($scopedAgentIds, $allowedAgentIds));
+            }
 
             if (empty($scopedAgentIds)) {
                 $scopedAgentIds = [-1];
@@ -296,7 +306,8 @@ class LeadIndexController extends Controller
             'projectFilter',
             'dateRange', 'createdFrom', 'createdTo', 'sort',
             'tags',
-            'labelsFlat'
+            'labelsFlat',
+            'workScope'
         ));
     }
 

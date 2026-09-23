@@ -31,6 +31,11 @@ class TaskController extends Controller
            ============================================================ */
 
         $scopedAgentIds = null;
+        $workScope = null;
+        $requestedScope = $request->input("scope", "team");
+        $workScope = $userRole === "team_manager"
+            ? (in_array($requestedScope, ["personal", "team", "delegated"], true) ? $requestedScope : "team")
+            : null;
 
         /*
          * Delegated access takes priority over the user's broad role.
@@ -38,7 +43,7 @@ class TaskController extends Controller
          * AJ can therefore give an Admin access to selected users/teams
          * without giving that Admin access to every CRM task.
          */
-        if ($this->delegatedAccess->hasProfile($userId)) {
+        if ($this->delegatedAccess->hasProfile($userId) && ! ($userRole === "team_manager" && $requestedScope !== "delegated")) {
 
             $scopedAgentIds = $this->delegatedAccess->visibleAgentIds($userId);
 
@@ -48,14 +53,19 @@ class TaskController extends Controller
             if (empty($scopedAgentIds)) {
                 $scopedAgentIds = [-1];
             }
-
         } elseif ($userRole === 'team_manager') {
 
             /*
              * Existing Team Manager behaviour.
              */
-            $scopedAgentIds = app(TeamService::class)
-                ->agentIdsForManager($userId);
+            $scopedAgentIds = $workScope === "personal"
+                ? ($agentId ? [(int) $agentId] : [-1])
+                : app(TeamService::class)->agentIdsForManager($userId);
+
+            if ($this->delegatedAccess->hasProfile($userId)) {
+                $allowedAgentIds = $this->delegatedAccess->visibleAgentIds($userId);
+                $scopedAgentIds = array_values(array_intersect($scopedAgentIds, $allowedAgentIds));
+            }
 
             if (empty($scopedAgentIds)) {
                 $scopedAgentIds = [-1];
@@ -219,7 +229,8 @@ class TaskController extends Controller
             'currentWorkCount',
             'nurtureCount',
             'viewMode',
-            'viewCounts'
+            'viewCounts',
+            'workScope'
         ));
     }
 }

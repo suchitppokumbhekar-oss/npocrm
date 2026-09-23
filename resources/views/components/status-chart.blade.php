@@ -1,4 +1,4 @@
-@props(['counts' => []])
+@props(['counts' => [], 'scope' => null])
 
 @php
     $settings   = app(\App\Services\SettingsService::class);
@@ -19,7 +19,7 @@
                 if ($count === 0) continue;
                 $width = ($count / $maxCount) * 100;
             @endphp
-            <a href="{{ url('/leads?status=' . urlencode($status->key)) }}"
+            <a href="{{ url('/leads?status=' . urlencode($status->key) . ($scope ? '&scope=' . urlencode($scope) : '')) }}"
                class="chart-bar chart-bar-link"
                title="See all {{ $count }} {{ $status->label }} lead{{ $count === 1 ? '' : 's' }}">
                 <span class="chart-label">{{ $status->label }}</span>

@@ -9,13 +9,27 @@
 </style>
 
 <div class="ts-wrap">
+    @php $scopeSuffix = session('user_role') === 'team_manager' ? '&scope=' . ($workScope ?? 'team') : ''; @endphp
     <div class="ts-head">
         <div>
             <h2>👥 Team Status — Who Needs Help</h2>
             <p class="ts-sub">Management view. From the Dashboard, an agent opens directly into their current actionable tasks.</p>
         </div>
-        <a href="{{ url('/') }}" class="ts-back">← Back to Dashboard</a>
+        <a href="{{ session('user_role') === 'team_manager' ? url('/?scope=' . ($workScope ?? 'team')) : url('/') }}" class="ts-back">← Back to Dashboard</a>
     </div>
+
+    @if (session('user_role') === 'team_manager')
+        <nav class="task-scope-tabs" aria-label="Team Status scope">
+            <a href="{{ url('/team-status?filter=' . $filter . '&scope=team') }}" class="task-scope-tab {{ ($workScope ?? 'team') === 'team' ? 'active' : '' }}">
+                <strong>My Team</strong>
+                <small>Direct team responsibility</small>
+            </a>
+            <a href="{{ url('/team-status?filter=' . $filter . '&scope=delegated') }}" class="task-scope-tab {{ ($workScope ?? 'team') === 'delegated' ? 'active' : '' }}">
+                <strong>All Delegated</strong>
+                <small>Other teams &amp; agents in your scope</small>
+            </a>
+        </nav>
+    @endif
 
     <div class="ts-summary">
         <div class="ts-card"><span>👥 Agents in scope</span><strong>{{ $totals->agents }}</strong></div>
@@ -31,7 +45,7 @@
             'today' => '📅 Due today',
             'all' => '📋 All current work',
         ] as $key => $label)
-            <a href="{{ url('/team-status?filter=' . $key) }}" class="ts-filter {{ $filter === $key ? 'active' : '' }}">{{ $label }}</a>
+            <a href="{{ url('/team-status?filter=' . $key . $scopeSuffix) }}" class="ts-filter {{ $filter === $key ? 'active' : '' }}">{{ $label }}</a>
         @endforeach
     </div>
 
@@ -42,7 +56,7 @@
                     <h3>📋 {{ $selectedAgent->user?->name ?? 'Agent' }} — Current Tasks</h3>
                     <p class="ts-note">Current actionable work is shown here directly. No second expand/click is required.</p>
                 </div>
-                <a class="ts-filter" href="{{ url('/team-status?filter=' . $filter) }}">← All agents</a>
+                <a class="ts-filter" href="{{ url('/team-status?filter=' . $filter . $scopeSuffix) }}">← All agents</a>
             </div>
             @forelse ($selectedTasks as $task)
                 @php
@@ -112,7 +126,7 @@
                     </summary>
                     <div class="ts-body">
                         <div class="ts-agent-actions">
-                            <a class="ts-open" href="{{ url('/team-status?filter=all&agent_id=' . $row->agent_id) }}">Open this agent's current tasks →</a>
+                            <a class="ts-open" href="{{ url('/team-status?filter=all&agent_id=' . $row->agent_id . $scopeSuffix) }}">Open this agent's current tasks →</a>
                             @if ($row->phone && $row->overdue > 0)
                                 <button type="button" data-npo-nudge data-nudge-target-type="agent" data-nudge-target-id="{{ $row->agent_id }}" class="ts-nudge">💬 Nudge {{ explode(' ', trim($row->name))[0] }} @if($row->nudge_count > 0)<span class="npo-nudge-count">({{ $row->nudge_count }}×)</span>@endif</button>
                             @endif
