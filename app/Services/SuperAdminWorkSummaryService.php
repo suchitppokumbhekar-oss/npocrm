@@ -397,7 +397,7 @@ class SuperAdminWorkSummaryService
 
         $metricEvidence = [];
         foreach ($definitions as $definition) {
-            if ($definition['difference'] === 0) {
+            if ($definition['difference'] === 0 && $definition['metric'] !== 'tasks_completed') {
                 continue;
             }
             $metricEvidence[$definition['metric']] = $this->reconciliationMetricEvidence($agentId, $definition['metric'], $from, $to);
@@ -473,6 +473,29 @@ class SuperAdminWorkSummaryService
                             'at' => Carbon::parse($r->logged_at),
                             'state' => $first ? 'Counted' : 'Repeat',
                             'reason' => $first ? 'First matching activity for this lead; counted once.' : 'Same lead already counted; repeated activity does not increase the distinct-lead report count.',
+                        ];
+                    })->all(),
+                ];
+
+            case 'tasks_completed':
+                $tasks = Followup::with(['lead.project', 'sourceActivity'])
+                    ->where('agent_id', $agentId)->where('status', 'done')
+                    ->whereBetween('updated_at', [$from, $to])
+                    ->orderByDesc('updated_at')->get();
+
+                return [
+                    'mode' => 'tasks',
+                    'title' => 'Completed follow-up history',
+                    'columns' => ['Lead', 'Completed', 'Task', 'CRM provenance'],
+                    'rows' => $tasks->map(function ($task) {
+                        $source = $task->sourceActivity;
+                        $provenance = $task->auto_created ? 'Auto-created task' : 'Manually scheduled task';
+                        $provenance .= $source ? ' · source activity #' . $source->id . ' (' . ($source->outcome_key ?: $source->type ?: 'activity') . ')' : ' · no source activity link';
+                        return [
+                            'lead' => $this->leadRow($task->lead, $task->updated_at, 'Completed: ' . ($task->action_type ?: 'task')),
+                            'at' => Carbon::parse($task->updated_at),
+                            'state' => $task->action_type ?: 'task',
+                            'reason' => $provenance,
                         ];
                     })->all(),
                 ];
