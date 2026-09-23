@@ -233,6 +233,9 @@
                 </tr>
 
                 @foreach ($contacts as $c)
+                    @php
+                        $canWorkCall = ! in_array($c->status, ["converted", "dnc", "invalid"], true);
+                    @endphp
                     <tr>
                         <td>
                             <a href="{{ url('/contacts/'.$c->id) }}"
@@ -298,10 +301,16 @@
                         </td>
 
                         <td>
-                            <a href="{{ url('/contacts/'.$c->id) }}"
-                               class="btn-small btn-info">
-                                View
-                            </a>
+                            <div class="contacts-desktop-actions">
+                                @if ($canWorkCall)
+                                    <a href="{{ route('contacts.dialer', ['contact_id' => $c->id]) }}" class="btn-small btn-info">
+                                        📞 Work Call
+                                    </a>
+                                @endif
+                                <a href="{{ url('/contacts/'.$c->id) }}" class="btn-small contacts-secondary-btn">
+                                    View
+                                </a>
+                            </div>
                         </td>
                     </tr>
                 @endforeach
