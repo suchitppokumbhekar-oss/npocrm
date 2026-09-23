@@ -50,7 +50,9 @@ class AccessService
             return false;
         }
 
-        return (bool) User::where('id', $userId)->value('is_telecaller');
+        $user = User::find($userId);
+
+        return (bool) ($user && ($user->is_telecaller || $user->is_on_payroll));
     }
 
     /** Can the current user import Contacts through the CSV importer? */
