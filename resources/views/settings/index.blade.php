@@ -12,6 +12,7 @@
     $canManageAgents = $access->can('agents.manage');
     $canManageManagers = $access->can('team_managers.manage');
     $canChangeRoles = $access->can('users.manage');
+    $isSuperAdmin = app(\App\Services\SuperAdminService::class)->isSuperAdmin();
 @endphp
 
     <a href="{{ url('/') }}" class="back-link">← Back to Dashboard</a>
@@ -25,13 +26,13 @@
         </div>
 
         <nav class="settings-tabs">
-            <a href="#statuses"       class="tab" data-tab="statuses">🏷️ Statuses</a>
-            <a href="#activity-types" class="tab" data-tab="activity-types">📞 Activity Types</a>
-            <a href="#action-types"   class="tab" data-tab="action-types">✅ Action Types</a>
+            @if($isSuperAdmin)<a href="#statuses" class="tab" data-tab="statuses">🏷️ Statuses</a>@endif
+            @if($isSuperAdmin)<a href="#activity-types" class="tab" data-tab="activity-types">📞 Activity Types</a>@endif
+            @if($isSuperAdmin)<a href="#action-types" class="tab" data-tab="action-types">✅ Action Types</a>@endif
             <a href="#teams"          class="tab" data-tab="teams">👥 Teams</a>
             <a href="#managers"       class="tab" data-tab="managers">🎯 Managers</a>
             <a href="#agents"         class="tab" data-tab="agents">👤 Agents</a>
-            <a href="#outcomes"       class="tab" data-tab="outcomes">🎯 Call Outcomes</a>
+            @if($isSuperAdmin)<a href="#outcomes" class="tab" data-tab="outcomes">🎯 Workflow Outcomes</a>@endif
             <a href="#sources"        class="tab" data-tab="sources">📥 Sources</a>
             <a href="#general"        class="tab" data-tab="general">⚙️ General</a>
             <a href="#website-intake" class="tab" data-tab="website-intake">🌐 Website Intake</a>
@@ -43,6 +44,7 @@
     {{-- ============================================================
          STATUSES
          ============================================================ --}}
+    @if($isSuperAdmin)
     <section class="tab-panel" data-panel="statuses">
         <div class="card">
             <div class="section-head">
@@ -96,6 +98,9 @@
     {{-- ============================================================
          ACTIVITY TYPES
          ============================================================ --}}
+    @endif
+
+    @if($isSuperAdmin)
     <section class="tab-panel" data-panel="activity-types">
         <div class="card">
             <div class="section-head">
@@ -141,6 +146,9 @@
     {{-- ============================================================
          ACTION TYPES
          ============================================================ --}}
+    @endif
+
+    @if($isSuperAdmin)
     <section class="tab-panel" data-panel="action-types">
         <div class="card">
             <div class="section-head">
@@ -180,6 +188,8 @@
     {{-- ============================================================
          TEAMS
          ============================================================ --}}
+    @endif
+
     <section class="tab-panel" data-panel="teams">
         <div class="card">
             <div class="section-head">
@@ -336,6 +346,9 @@
                             <th>Load</th>
                             <th>Teams</th>
                             <th>Status</th>
+                            @if ($isSuperAdmin)
+                                <th>Workflow</th>
+                            @endif
                             <th>Actions</th>
                         </tr>
                         @foreach ($agents as $agent)
@@ -386,6 +399,18 @@
                                         <span class="badge red">Inactive</span>
                                     @endif
                                 </td>
+                                @if ($isSuperAdmin)
+                                    <td>
+                                        @if ($agent->user)
+                                            <a class="btn-small btn-info"
+                                               href="{{ route('settings.workflow-vocabulary.edit', $agent->user->id) }}">
+                                                Vocabulary
+                                            </a>
+                                        @else
+                                            <span class="muted">—</span>
+                                        @endif
+                                    </td>
+                                @endif
                                 <td class="row-actions">
                                     <button class="btn-small btn-info"
                                             data-modal="agent-form" data-agent="{{ $agent->id }}">✏️</button>
@@ -421,10 +446,11 @@
     {{-- ============================================================
          CALL OUTCOMES
          ============================================================ --}}
+    @if($isSuperAdmin)
     <section class="tab-panel" data-panel="outcomes">
         <div class="card">
             <div class="section-head">
-                <h3>🎯 Call Outcomes <span class="muted" style="font-size:12px;font-weight:400;">— this drives the intelligent engine</span></h3>
+                <h3>🎯 Workflow Outcomes <span class="muted" style="font-size:12px;font-weight:400;">— this drives the intelligent engine</span></h3>
                 <button type="button" class="btn-small"
                         data-modal="settings" data-type="outcomes">➕ Add Outcome</button>
             </div>
@@ -478,6 +504,8 @@
     {{-- ============================================================
          SOURCES
          ============================================================ --}}
+    @endif
+
     <section class="tab-panel" data-panel="sources">
         <div class="card">
             <div class="section-head">
@@ -1150,6 +1178,8 @@
        TAB SWITCHING
        ============================================================ */
     function activateTab(name) {
+        if (! name) return;
+
         document.querySelectorAll('.settings-tabs .tab').forEach(function (a) {
             a.classList.toggle('active', a.dataset.tab === name);
         });
@@ -1159,9 +1189,16 @@
     }
 
     function currentTab() {
-        var hash    = window.location.hash.replace('#', '');
-        var fromUrl = new URLSearchParams(window.location.search).get('tab');
-        return hash || fromUrl || 'statuses';
+        var hash      = window.location.hash.replace('#', '');
+        var fromUrl   = new URLSearchParams(window.location.search).get('tab');
+        var requested = hash || fromUrl;
+        var tabs      = Array.from(document.querySelectorAll('.settings-tabs .tab[data-tab]'));
+
+        if (requested && tabs.some(function (tab) { return tab.dataset.tab === requested; })) {
+            return requested;
+        }
+
+        return tabs.length ? tabs[0].dataset.tab : null;
     }
 
     document.querySelectorAll('.settings-tabs .tab').forEach(function (a) {

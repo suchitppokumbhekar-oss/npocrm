@@ -96,14 +96,14 @@
                 'project' => $c->project?->name,
                 'attempts' => $c->attempts,
             ])->toJson();
-            $connectedOutcomes = $outcomes->filter(fn ($o) => (bool) $o->is_connected)->values();
-            $noConnectionOutcomes = $outcomes->filter(fn ($o) => ! (bool) $o->is_connected)->values();
+            $connectedOutcomes = $outcomes->filter(fn ($o) => (bool) $o['is_connected'])->values();
+            $noConnectionOutcomes = $outcomes->filter(fn ($o) => ! (bool) $o['is_connected'])->values();
             $outcomesJson = $outcomes->map(fn ($o) => [
-                'key' => $o->key,
-                'label' => $o->label,
-                'connected' => (bool) $o->is_connected,
-                'requires_visit_datetime' => (bool) ($o->requires_site_visit_datetime ?? false) || $o->key === 'site_visit_scheduled' || in_array((string) ($o->next_action_anchor ?? 'now'), ['visit_before', 'visit_after'], true),
-                'next_action_anchor' => (string) ($o->next_action_anchor ?? 'now'),
+                'key' => $o['key'],
+                'label' => $o['display_label'],
+                'connected' => (bool) $o['is_connected'],
+                'requires_visit_datetime' => (bool) ($o['requires_site_visit_datetime'] ?? false) || $o['key'] === 'site_visit_scheduled' || in_array((string) ($o['next_action_anchor'] ?? 'now'), ['visit_before', 'visit_after'], true),
+                'next_action_anchor' => (string) ($o['next_action_anchor'] ?? 'now'),
             ])->values()->toJson();
         @endphp
 
@@ -147,7 +147,7 @@
                                 <select name="outcome_key" class="input outcome-select" required>
                                     <option value="">— Pick conversation outcome —</option>
                                     @foreach ($connectedOutcomes as $o)
-                                        <option value="{{ $o->key }}">{{ $o->label }}</option>
+                                        <option value="{{ $o['key'] }}">{{ $o['display_label'] }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -184,7 +184,7 @@
                             <select name="outcome_key" class="input outcome-select" required>
                                 <option value="">— Pick reason —</option>
                                 @foreach ($noConnectionOutcomes as $o)
-                                    <option value="{{ $o->key }}">{{ $o->label }}</option>
+                                    <option value="{{ $o['key'] }}">{{ $o['display_label'] }}</option>
                                 @endforeach
                             </select>
                         </div>

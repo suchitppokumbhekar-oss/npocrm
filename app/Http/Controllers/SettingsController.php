@@ -54,6 +54,15 @@ class SettingsController extends Controller
     }
 }
 
+    private function requireWorkflowConfigurationAccess(string $type): void
+    {
+        if (! in_array($type, ['statuses', 'activity-types', 'action-types', 'outcomes'], true)) {
+            return;
+        }
+
+        app(\App\Services\SuperAdminService::class)->requireSuperAdmin();
+    }
+
     /* ============================================================
        MODEL RESOLVER
        ============================================================ */
@@ -102,6 +111,11 @@ class SettingsController extends Controller
                 'key'                     => 'required|string|max:50|alpha_dash',
                 'label'                   => 'required|string|max:100',
                 'category'                => 'required|in:positive,neutral,negative',
+                'is_connected'            => 'nullable|boolean',
+                'activity_scope'           => 'required|in:all,restricted',
+                'activity_type_keys'       => 'nullable|array',
+                'activity_type_keys.*'     => 'string|exists:activity_types,key',
+                'prompts_whatsapp_send'   => 'nullable|boolean',
                 'next_action_type_id'     => 'nullable|integer|exists:followup_action_types,id',
                 'next_action_delay_hours' => 'required|integer|min:0|max:20000',
                 'priority'                => 'required|in:low,normal,high',
@@ -573,6 +587,7 @@ public function index()
     public function save(Request $request, string $type, ?int $id = null)
     {
         $this->requireAdmin();
+        $this->requireWorkflowConfigurationAccess($type);
 
         $model = $this->modelFor($type);
         $rules = $this->rulesFor($type);
@@ -587,6 +602,28 @@ public function index()
         if ($type === 'activity-types') {
             $validated['requires_outcome'] = $request->boolean('requires_outcome', false);
         }
+        if ($type === 'outcomes') {
+            $validated['is_connected'] = $request->boolean('is_connected', false);
+            $validated['requires_site_visit_datetime'] = $request->boolean('requires_site_visit_datetime', false);
+            $validated['prompts_whatsapp_send'] = $request->boolean('prompts_whatsapp_send', false);
+
+            $activityTypeKeys = collect($validated['activity_type_keys'] ?? [])
+                ->map(fn ($key) => trim((string) $key))
+                ->filter()
+                ->unique()
+                ->values();
+
+            $activityScope = $validated['activity_scope'];
+            unset($validated['activity_scope'], $validated['activity_type_keys']);
+
+            if ($activityScope === 'restricted' && $activityTypeKeys->isEmpty()) {
+                return back()->withErrors(['activity_type_keys' => 'Select at least one activity type when the outcome is restricted.'])->withInput();
+            }
+
+            $validated['activity_type_filter'] = $activityScope === 'all'
+                ? null
+                : $activityTypeKeys->implode(',');
+        }
         if (empty($validated['sort_order'])) {
             $validated['sort_order'] = (int) $model::max('sort_order') + 1;
         }
@@ -594,8 +631,11 @@ public function index()
         if ($id) {
             $row = $model::findOrFail($id);
 
-            if ($type === 'activity-types' && $row->is_system && $validated['key'] !== $row->key) {
-                return back()->withErrors(['key' => 'System activity type keys cannot be changed.']);
+            // Configuration keys are canonical identities used by CRM logic,
+            // historical records, automation and reporting. Labels may change;
+            // keys must remain stable after creation.
+            if ($validated['key'] !== $row->key) {
+                return back()->withErrors(['key' => 'Configuration keys cannot be changed after creation. Change the user-facing label instead.']);
             }
 
             $row->update($validated);
@@ -624,6 +664,7 @@ public function index()
     public function toggle(string $type, int $id)
     {
         $this->requireAdmin();
+        $this->requireWorkflowConfigurationAccess($type);
         $model = $this->modelFor($type);
         $row = $model::findOrFail($id);
 
@@ -639,6 +680,7 @@ public function index()
     public function destroy(string $type, int $id)
     {
         $this->requireAdmin();
+        $this->requireWorkflowConfigurationAccess($type);
         $model = $this->modelFor($type);
         $row = $model::findOrFail($id);
 
@@ -659,6 +701,7 @@ public function index()
     public function move(string $type, int $id, string $direction)
     {
         $this->requireAdmin();
+        $this->requireWorkflowConfigurationAccess($type);
 
         if (! in_array($direction, ['up', 'down'], true)) {
             abort(400);

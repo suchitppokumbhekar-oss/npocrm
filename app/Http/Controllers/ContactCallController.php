@@ -121,8 +121,11 @@ class ContactCallController extends Controller
 
             $actionKey = $activeWork?->action_type ?: 'call';
 
-            $outcomes = app(SettingsService::class)
-                ->callOutcomesForContactWork($contact, $actionKey);
+            $outcomes = app(\App\Services\WorkflowPresentationService::class)
+                ->presentOutcomes(
+                    app(SettingsService::class)->callOutcomesForContactWork($contact, $actionKey),
+                    (int) session('user_id')
+                );
 
             return view('contacts.dialer', compact(
                 'queue',
@@ -258,6 +261,9 @@ class ContactCallController extends Controller
         }
 
         try {
+            app(\App\Services\WorkflowPresentationService::class)
+                ->assertOutcomeAllowedForUser($validated['outcome_key']);
+
             $call = $this->calls->log(
                 $agentId,
                 $contact->id,

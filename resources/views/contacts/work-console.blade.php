@@ -70,7 +70,7 @@
                         <select name="outcome_key" class="input" required>
                             <option value="">— Select result —</option>
                             @foreach ($workOutcomes as $outcome)
-                                <option value="{{ $outcome->key }}" data-requires-visit="{{ ($outcome->requires_site_visit_datetime ?? false) || $outcome->key === 'site_visit_scheduled' ? '1' : '0' }}" data-next="{{ $outcome->nextActionType?->label ?? '' }}" data-delay="{{ (int) $outcome->next_action_delay_hours }}">{{ $outcome->label }}</option>
+                                <option value="{{ $outcome['key'] }}" data-requires-visit="{{ ($outcome['requires_site_visit_datetime'] ?? false) || $outcome['key'] === 'site_visit_scheduled' ? '1' : '0' }}" data-next="{{ $outcome['next_action_label'] ?? '' }}" data-delay="{{ (int) $outcome['next_action_delay_hours'] }}">{{ $outcome['display_label'] }}</option>
                             @endforeach
                         </select>
                     </div>

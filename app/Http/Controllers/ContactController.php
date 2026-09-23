@@ -382,7 +382,8 @@ class ContactController extends Controller
         $workOutcomes = collect();
         if ($workFollowups->isNotEmpty()) {
             $actionKey = $workFollowups->first()->action_type;
-            $workOutcomes = $this->settings->callOutcomesForContactWork($contact, $actionKey);
+            $workOutcomes = app(\App\Services\WorkflowPresentationService::class)
+                ->presentOutcomes($this->settings->callOutcomesForContactWork($contact, $actionKey), (int) session('user_id'));
         }
         $pitchAgentIdsByProject = [];
         foreach ($projects as $project) {

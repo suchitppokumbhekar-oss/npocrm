@@ -12,7 +12,7 @@
         <label>Key * <span class="muted" style="font-weight:400;">(lowercase, used in code — immutable after save)</span></label>
         <input type="text" name="key" class="input" required
                value="{{ $row->key ?? '' }}"
-               @if($row && $type === 'activity-types' && $row->is_system) readonly @endif
+               @if($row) readonly @endif
                pattern="[a-z0-9_\-]+"
                placeholder="e.g., hot_lead">
     </div>
@@ -67,6 +67,66 @@
                     <option value="{{ $c }}" @selected(($row->category ?? '') === $c)>{{ ucfirst($c) }}</option>
                 @endforeach
             </select>
+        </div>
+
+        <div class="field">
+            <label style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" name="is_connected" value="1"
+                       @checked(old('is_connected', $row->is_connected ?? false))
+                       style="width:auto;min-height:auto;">
+                Counts as customer connected / contacted
+            </label>
+            <p class="muted" style="font-size:11px;margin-top:4px;">Leave off for ringing, switched off, unreachable and other genuine attempts where the customer was not actually reached.</p>
+        </div>
+
+        @php
+            $selectedActivityTypes = old('activity_type_keys');
+            if ($selectedActivityTypes === null) {
+                $selectedActivityTypes = array_values(array_filter(array_map('trim', explode(',', (string) ($row->activity_type_filter ?? '') ))));
+            }
+            $activityScope = old('activity_scope', empty($row?->activity_type_filter) ? 'all' : 'restricted');
+        @endphp
+        <div class="field">
+            <label>Available For Activity Types</label>
+
+            <label style="display:flex;align-items:flex-start;gap:8px;margin-top:7px;">
+                <input type="radio" name="activity_scope" value="all"
+                       @checked($activityScope === 'all')
+                       style="width:auto;min-height:auto;margin-top:3px;">
+                <span>
+                    <strong>All activity types</strong>
+                    <span class="muted" style="display:block;font-size:11px;font-weight:400;">Offer this outcome wherever its other workflow rules allow it.</span>
+                </span>
+            </label>
+
+            <label style="display:flex;align-items:flex-start;gap:8px;margin-top:9px;">
+                <input type="radio" name="activity_scope" value="restricted"
+                       @checked($activityScope === 'restricted')
+                       style="width:auto;min-height:auto;margin-top:3px;">
+                <span>
+                    <strong>Only selected activity types</strong>
+                    <span class="muted" style="display:block;font-size:11px;font-weight:400;">Choose one or more below. The CRM will reject an empty restricted selection.</span>
+                </span>
+            </label>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:7px 12px;margin-top:10px;padding:10px;border:1px solid var(--c-border);border-radius:8px;">
+                @foreach ($activityTypes as $activityType)
+                    <label style="display:flex;align-items:center;gap:7px;margin:0;">
+                        <input type="checkbox" name="activity_type_keys[]" value="{{ $activityType->key }}"
+                               @checked(in_array($activityType->key, $selectedActivityTypes, true))
+                               style="width:auto;min-height:auto;">
+                        <span>{{ $activityType->icon }} {{ $activityType->label }} <span class="muted">({{ $activityType->key }})</span></span>
+                    </label>
+                @endforeach
+            </div>
+        </div>
+        <div class="field">
+            <label style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" name="prompts_whatsapp_send" value="1"
+                       @checked(old('prompts_whatsapp_send', $row->prompts_whatsapp_send ?? false))
+                       style="width:auto;min-height:auto;">
+                Prompt WhatsApp send when this outcome is used
+            </label>
         </div>
 
         <div class="field">

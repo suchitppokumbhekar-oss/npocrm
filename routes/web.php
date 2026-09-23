@@ -320,6 +320,13 @@ Route::get('/settings/routing/team-members/{teamId}', [\App\Http\Controllers\Pro
 Route::post('/projects/{id}/update',            [\App\Http\Controllers\ProjectController::class,  'update'])->name('projects.update');
 Route::post('/settings/users/{id}/change-role', [\App\Http\Controllers\UserRoleController::class, 'change'])->name('users.changeRole');
 
+Route::get('/settings/workflow-vocabulary/{userId}', [\App\Http\Controllers\WorkflowVocabularyController::class, 'edit'])
+    ->where('userId', '[0-9]+')
+    ->name('settings.workflow-vocabulary.edit');
+Route::post('/settings/workflow-vocabulary/{userId}', [\App\Http\Controllers\WorkflowVocabularyController::class, 'save'])
+    ->where('userId', '[0-9]+')
+    ->name('settings.workflow-vocabulary.save');
+
 // ---- Generic {type} routes (LAST) ----
 Route::post('/settings/{type}/save/{id?}',      [\App\Http\Controllers\SettingsController::class, 'save'])->name('settings.save');
 Route::post('/settings/{type}/{id}/toggle',     [\App\Http\Controllers\SettingsController::class, 'toggle'])->name('settings.toggle');

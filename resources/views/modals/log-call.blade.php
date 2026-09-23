@@ -1,6 +1,14 @@
 @php
     $contact = \App\Models\Contact::findOrFail(request('contact'));
-    $outcomes = \App\Models\Config\CallOutcome::active()->orderBy('sort_order')->get();
+    $activeWork = $contact->followups()
+        ->where('status', 'pending')
+        ->orderBy('scheduled_for')
+        ->first();
+    $actionKey = $activeWork?->action_type ?: 'call';
+    $canonicalOutcomes = app(\App\Services\SettingsService::class)
+        ->callOutcomesForContactWork($contact, $actionKey);
+    $outcomes = app(\App\Services\WorkflowPresentationService::class)
+        ->presentOutcomes($canonicalOutcomes, (int) session('user_id'));
 @endphp
 
 <form method="POST" action="{{ url('/calls/log') }}" data-ajax>
@@ -16,7 +24,7 @@
         <select name="outcome_key" class="input" required>
             <option value="">— Pick outcome —</option>
             @foreach ($outcomes as $o)
-                <option value="{{ $o->key }}">{{ $o->label }}</option>
+                <option value="{{ $o['key'] }}">{{ $o['display_label'] }}</option>
             @endforeach
         </select>
     </div>

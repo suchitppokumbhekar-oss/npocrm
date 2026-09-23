@@ -254,9 +254,17 @@ class SettingsService
                 if (! empty($o->context_action_key) && $o->context_action_key !== $taskContext) {
                     return false;
                 }
-                // Activity type filter
-                if (! empty($o->activity_type_filter) && $o->activity_type_filter !== $activityType) {
-                    return false;
+                // Activity type filter may contain multiple comma-separated canonical types.
+                if (! empty($o->activity_type_filter)) {
+                    $allowedActivityTypes = collect(explode(',', (string) $o->activity_type_filter))
+                        ->map(fn ($type) => trim($type))
+                        ->filter()
+                        ->values()
+                        ->all();
+
+                    if (! in_array((string) $activityType, $allowedActivityTypes, true)) {
+                        return false;
+                    }
                 }
                 return true;
             })

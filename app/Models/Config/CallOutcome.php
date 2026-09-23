@@ -13,7 +13,7 @@ class CallOutcome extends Model
         'next_action_type_id', 'next_action_delay_hours',
         'priority', 'suggested_status_id',
         'context_action_key', 'contact_status_key', 'requires_site_visit_datetime', 'next_action_anchor',
-        'is_active', 'sort_order',
+        'prompts_whatsapp_send', 'is_active', 'sort_order',
     ];
 
     protected $casts = [
@@ -22,6 +22,7 @@ class CallOutcome extends Model
         'sort_order'              => 'integer',
         'requires_site_visit_datetime' => 'boolean',
         'is_connected'             => 'boolean',
+        'prompts_whatsapp_send'     => 'boolean',
     ];
 
     public function nextActionType()  { return $this->belongsTo(FollowupActionType::class, 'next_action_type_id'); }

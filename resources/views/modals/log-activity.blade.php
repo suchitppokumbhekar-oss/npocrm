@@ -3,6 +3,8 @@
 
     $activityTypes = $settings->activityTypes();
     $allOutcomes   = $settings->callOutcomes(true);
+    $presentedOutcomes = app(\App\Services\WorkflowPresentationService::class)
+        ->presentOutcomes($allOutcomes, (int) session("user_id"));
     $allStatuses   = $settings->statuses();
 
     // System-generated activity types must NOT appear in the manual
@@ -36,17 +38,17 @@
     $requiresBookingById = $allStatuses->pluck('requires_booking_details', 'id')->toArray();
 
     // Build a JSON payload of every outcome with its metadata
-    $outcomesJson = $allOutcomes->map(function ($o) {
+    $outcomesJson = $presentedOutcomes->map(function (array $o) {
         return [
-            'key'              => $o->key,
-            'label'            => $o->label,
-            'category'         => $o->category,
-            'context'          => $o->context_action_key,
-            'activity_filter'  => $o->activity_type_filter,
-            'next'             => $o->nextActionType?->label,
-            'delay'            => (int) $o->next_action_delay_hours,
-            'suggested_id'     => $o->suggested_status_id,
-            'prompts_wa'       => (bool) $o->prompts_whatsapp_send,
+            'key'              => $o['key'],
+            'label'            => $o['display_label'],
+            'category'         => $o['category'],
+            'context'          => $o['context_action_key'],
+            'activity_filter'  => $o['activity_type_filter'],
+            'next'             => $o['next_action_label'],
+            'delay'            => $o['next_action_delay_hours'],
+            'suggested_id'     => $o['suggested_status_id'],
+            'prompts_wa'       => $o['prompts_whatsapp_send'],
         ];
     })->values();
 

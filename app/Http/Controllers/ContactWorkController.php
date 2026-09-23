@@ -68,6 +68,13 @@ class ContactWorkController extends Controller
             return back()->withErrors(['followup_id' => 'This action is a call. Use the Call button so the call is recorded correctly.'])->withInput();
         }
 
+        try {
+            app(\App\Services\WorkflowPresentationService::class)
+                ->assertOutcomeAllowedForUser($validated['outcome_key']);
+        } catch (\DomainException $e) {
+            return back()->withErrors(['outcome_key' => $e->getMessage()])->withInput();
+        }
+
         $availableOutcomes = $this->settings->callOutcomesForContactWork($contact, $followup->action_type);
         $outcome = $availableOutcomes->firstWhere('key', $validated['outcome_key']);
         if (! $outcome) {

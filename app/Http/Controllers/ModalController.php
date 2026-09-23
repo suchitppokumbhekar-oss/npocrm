@@ -969,6 +969,10 @@ class ModalController extends Controller
         $type = $request->input('type');
         $id = $request->input('id');
 
+        if (in_array($type, ['statuses', 'activity-types', 'action-types', 'outcomes'], true)) {
+            app(\App\Services\SuperAdminService::class)->requireSuperAdmin();
+        }
+
         $labels = [
             'statuses'       => 'Status',
             'activity-types' => 'Activity Type',
@@ -1012,6 +1016,9 @@ class ModalController extends Controller
         $actions =
             FollowupActionType::ordered()->get();
 
+        $activityTypes =
+            ActivityType::ordered()->get();
+
         return response()
             ->view(
                 'modals.settings-form',
@@ -1019,7 +1026,8 @@ class ModalController extends Controller
                     'type',
                     'row',
                     'statuses',
-                    'actions'
+                    'actions',
+                    'activityTypes'
                 )
             )
             ->header(

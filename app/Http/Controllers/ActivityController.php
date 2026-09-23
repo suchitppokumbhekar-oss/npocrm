@@ -68,6 +68,9 @@ class ActivityController extends Controller
         }
 
         try {
+            app(\App\Services\WorkflowPresentationService::class)
+                ->assertOutcomeAllowedForUser($validated['outcome_key'] ?? null);
+
             $result = $this->processor->process($lead, null, $validated);
         } catch (\DomainException $e) {
             return back()->withErrors(['error' => $e->getMessage()])->withInput();
