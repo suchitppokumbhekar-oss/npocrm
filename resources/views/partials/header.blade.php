@@ -306,6 +306,7 @@
 .npo-wa-choice{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;margin-top:9px;border:1px solid var(--c-border,#ddd);border-radius:11px;background:var(--c-surface-2,#f7f7f7);cursor:pointer;text-align:left;color:inherit}
 .npo-wa-choice:hover{border-color:var(--c-primary,#2563eb)}.npo-wa-choice strong{display:block}.npo-wa-choice small{display:block;margin-top:3px;color:var(--c-muted,#666)}
 .npo-wa-close{margin-top:12px;width:100%;padding:10px;border:1px solid var(--c-border,#ddd);border-radius:10px;background:transparent;cursor:pointer;color:inherit}
+.npo-wa-manage{margin-top:12px;width:100%;padding:10px;border:1px solid var(--c-border,#ddd);border-radius:10px;background:var(--c-surface-2,#f7f7f7);cursor:pointer;color:inherit;font-weight:700}
 .npo-wa-error{padding:10px 12px;background:#fff6e5;border:1px solid #efd79b;border-radius:10px;color:#725719;font-size:12px;line-height:1.45}
 </style>
 <script>
@@ -319,18 +320,19 @@ async function choose(phone,text,onLaunch){
   if(!res.ok||!data.ok)throw new Error(data.message||'Could not load WhatsApp accounts.');
   var accounts=data.accounts||[];
   if(!accounts.length){window.location.href='{{ url('/my-whatsapp') }}';return;}
-  render(accounts,phone,text,onLaunch);
+  render(accounts,data.default_account_type || null,phone,text,onLaunch);
  }catch(e){alert(e.message||'Could not load WhatsApp accounts.');}
 }
-function render(accounts,phone,text,onLaunch){
+function render(accounts,defaultType,phone,text,onLaunch){
  picker=document.createElement('div');picker.className='npo-wa-picker-backdrop';
  var box=document.createElement('div');box.className='npo-wa-picker';
- box.innerHTML='<h3>💬 Choose WhatsApp</h3><p>Select the WhatsApp identity you intend to use for this action.</p><div id="npo-wa-choices"></div><button type="button" class="npo-wa-close">Cancel</button>';
+ box.innerHTML='<h3>💬 Choose WhatsApp</h3><p>Select the WhatsApp identity you intend to use for this action.</p><div id="npo-wa-choices"></div><button type="button" class="npo-wa-manage" onclick="window.location.href=&quot;{{ url('/my-whatsapp') }}&quot;">⚙ Manage numbers / default</button><button type="button" class="npo-wa-close">Cancel</button>';
  picker.appendChild(box);document.body.appendChild(picker);
  var list=box.querySelector('#npo-wa-choices');
+ accounts=accounts.slice().sort(function(a,b){if(a.type===defaultType)return -1;if(b.type===defaultType)return 1;return 0;});
  accounts.forEach(function(a){
   var b=document.createElement('button');b.type='button';b.className='npo-wa-choice';
-  b.innerHTML='<span><strong>'+esc(a.label)+'</strong><small>'+esc(a.phone)+'</small></span><span>→</span>';
+  b.innerHTML='<span><strong>'+esc(a.label)+(a.type===defaultType?' · Default':'')+'</strong><small>'+esc(a.phone)+'</small></span><span>→</span>';
   b.addEventListener('click',function(){openWith(a.type,phone,text,onLaunch);});
   list.appendChild(b);
  });
@@ -386,14 +388,16 @@ async function chooseNudge(targetType,targetId){
   if(!res.ok||!data.ok)throw new Error(data.message||'Could not load WhatsApp accounts.');
   var accounts=data.accounts||[];
   if(!accounts.length){window.location.href='{{ url('/my-whatsapp') }}';return;}
+   var defaultType=data.default_account_type || null;
+   accounts=accounts.slice().sort(function(a,b){if(a.type===defaultType)return -1;if(b.type===defaultType)return 1;return 0;});
   picker=document.createElement('div');picker.className='npo-wa-picker-backdrop';
   var box=document.createElement('div');box.className='npo-wa-picker';
-  box.innerHTML='<h3>💬 Nudge on WhatsApp</h3><p>The CRM will prepare the lead name, reason and action link. Choose the WhatsApp identity to send it from.</p><div id="npo-wa-choices"></div><button type="button" class="npo-wa-close">Cancel</button>';
+  box.innerHTML='<h3>💬 Nudge on WhatsApp</h3><p>The CRM will prepare the lead name, reason and action link. Choose the WhatsApp identity to send it from.</p><div id="npo-wa-choices"></div><button type="button" class="npo-wa-manage" onclick="window.location.href=&quot;{{ url('/my-whatsapp') }}&quot;">⚙ Manage numbers / default</button><button type="button" class="npo-wa-close">Cancel</button>';
   picker.appendChild(box);document.body.appendChild(picker);
   var list=box.querySelector('#npo-wa-choices');
   accounts.forEach(function(a){
    var b=document.createElement('button');b.type='button';b.className='npo-wa-choice';
-   b.innerHTML='<span><strong>'+esc(a.label)+'</strong><small>'+esc(a.phone)+'</small></span><span>→</span>';
+   b.innerHTML='<span><strong>'+esc(a.label)+(a.type===defaultType?' · Default':'')+'</strong><small>'+esc(a.phone)+'</small></span><span>→</span>';
    b.addEventListener('click',function(){openNudgeWith(a.type,targetType,targetId);});
    list.appendChild(b);
   });
