@@ -41,7 +41,7 @@
             @else
                 <div class="contact-work-tools">
                     @if ($isWhatsAppAction || $isSendAction)
-                        <a id="contact-work-external-action" class="btn-small" target="_blank" rel="noopener" href="https://wa.me/{{ preg_replace('/\D+/', '', $contact->phone) }}?text={{ urlencode('Hi '.$contact->name.', as discussed, I am sharing the requested details. Please let me know if you need anything else.') }}">💬 Open WhatsApp</a>
+                        <a id="contact-work-external-action" class="btn-small" target="_blank" rel="noopener" href="https://wa.me/{{ phone_wa($contact->phone) }}?text={{ urlencode('Hi '.$contact->name.', as discussed, I am sharing the requested details. Please let me know if you need anything else.') }}">💬 Open WhatsApp</a>
                     @endif
                     @if ($isEmailAction || $isSendAction)
                         @if ($contact->email)<a id="contact-work-email-action" class="btn-small" href="mailto:{{ $contact->email }}">✉️ Open Email</a>@endif

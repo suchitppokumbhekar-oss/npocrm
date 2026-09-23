@@ -92,7 +92,7 @@
             $queueJson = collect([$contact])->map(fn ($c) => [
                 'id' => $c->id,
                 'name' => $c->name,
-                'phone' => $c->phone,
+                'phone' => phone_tel($c->phone),
                 'project' => $c->project?->name,
                 'attempts' => $c->attempts,
             ])->toJson();
@@ -112,7 +112,7 @@
                 <div class="calling-phone-row">
                     <div>
                         <div class="muted" style="font-size:12px;">Customer phone</div>
-                        <a href="tel:{{ $contact->phone }}" id="contact-phone-link" class="calling-phone">{{ $contact->phone }}</a>
+                        <a href="tel:{{ phone_tel($contact->phone) }}" id="contact-phone-link" class="calling-phone">{{ phone_display($contact->phone) }}</a>
                     </div>
                     <button type="button" id="dial-button" class="btn-small btn-info calling-dial-button">📞 Call customer</button>
                 </div>

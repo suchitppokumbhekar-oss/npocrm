@@ -29,7 +29,7 @@
     <div class="contact-exec-identity">
         <div class="eyebrow">{{ $isTelecaller ? 'TELECALLER WORK' : ($isAgent ? 'CALLER WORK' : 'CONTACT') }}</div>
         <h1>{{ $contact->name }}</h1>
-        <div class="contact-exec-phone"><a href="tel:{{ $contact->phone }}">📱 {{ $contact->phone }}</a></div>
+        <div class="contact-exec-phone"><a href="tel:{{ phone_tel($contact->phone) }}">📱 {{ phone_display($contact->phone) }}</a></div>
         <div class="contact-exec-context">
             <span>{{ $contact->project?->name ?? 'No pitch project' }}</span>
             <span>·</span>
@@ -40,7 +40,7 @@
         </div>
     </div>
     <div class="contact-exec-actions">
-        <a href="tel:{{ $contact->phone }}" class="btn-small btn-info">📞 Call</a>
+        <a href="tel:{{ phone_tel($contact->phone) }}" class="btn-small btn-info">📞 Call</a>
         @if (! $contact->isPromoted())
             @if (!$isTelecaller || in_array($contact->last_outcome_key, ['site_visit_scheduled','visit_booked_spot'], true))
                 <form method="POST" action="{{ url('/contacts/'.$contact->id.'/promote') }}">

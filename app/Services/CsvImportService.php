@@ -278,7 +278,7 @@ class CsvImportService
 
         // Preload existing phones for fast duplicate detection
         $existingPhones = $skipDuplicates
-            ? Lead::pluck('phone')->map(fn ($p) => preg_replace('/\D/', '', (string) $p))->flip()->all()
+            ? Lead::pluck('phone')->map(fn ($p) => phone_canonical((string) $p))->flip()->all()
             : [];
 
         // Preload projects by lowercase name
@@ -306,7 +306,7 @@ class CsvImportService
             }
 
             // Duplicate check
-            $phoneClean = preg_replace('/\D/', '', $phone);
+            $phoneClean = phone_canonical($phone);
             if ($skipDuplicates && isset($existingPhones[$phoneClean])) {
                 $skipped[] = ['row' => $lineNumber, 'reason' => 'Duplicate phone', 'data' => $row];
                 continue;
@@ -341,7 +341,7 @@ class CsvImportService
             $valid[] = [
                 'row'          => $lineNumber,
                 'customer_name'=> mb_substr($name, 0, 255),
-                'phone'        => mb_substr($phone, 0, 20),
+                'phone'        => mb_substr($phoneClean, 0, 20),
                 'phone_clean'  => $phoneClean,
                 'email'        => mb_substr(trim((string) ($this->col($row, $mapping, 'email') ?? '')), 0, 255) ?: null,
                 'source'       => $sourceKey,

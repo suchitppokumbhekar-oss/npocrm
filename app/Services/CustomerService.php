@@ -16,7 +16,13 @@ class CustomerService
         $normalized = Customer::normalizePhone($phone);
         if (strlen($normalized) < 8) return null;
 
-        $customer = Customer::where('phone', $normalized)->first();
+        $phoneVariants = [$normalized];
+        if (strlen($normalized) === 12 && str_starts_with($normalized, '91')) {
+            $local = substr($normalized, 2);
+            $phoneVariants[] = $local;
+            $phoneVariants[] = '0' . $local;
+        }
+        $customer = Customer::whereIn('phone', array_values(array_unique($phoneVariants)))->first();
 
         if ($customer) {
             $updates = ['last_seen_at' => now()];

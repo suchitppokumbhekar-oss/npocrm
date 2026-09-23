@@ -37,14 +37,17 @@ class LeadIntakeService
            0. SPECIAL ACTION — customer denied enquiry
            ============================================================ */
         if (($payload['action'] ?? '') === 'mark_dead') {
-            $phoneClean = preg_replace('/\D/', '', (string) ($payload['phone'] ?? ''));
-            if (str_starts_with($phoneClean, '91') && strlen($phoneClean) === 12) {
-                $phoneClean = substr($phoneClean, 2);
+            $phoneClean = phone_canonical((string) ($payload['phone'] ?? ''), $payload['country_code'] ?? null);
+            $phoneVariants = [$phoneClean];
+            if (strlen($phoneClean) === 12 && str_starts_with($phoneClean, '91')) {
+                $local = substr($phoneClean, 2);
+                $phoneVariants[] = $local;
+                $phoneVariants[] = '0' . $local;
             }
 
             $lead = Lead::whereRaw(
-                'REPLACE(REPLACE(REPLACE(phone, " ", ""), "-", ""), "+", "") = ?',
-                [$phoneClean]
+                'REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, " ", ""), "-", ""), "+", ""), "(", ""), ")", "") IN (' . implode(',', array_fill(0, count(array_unique($phoneVariants)), '?')) . ')',
+                array_values(array_unique($phoneVariants))
             )->whereNotIn('status', ['booking', 'lost'])
               ->orderByDesc('id')
               ->first();
@@ -98,16 +101,14 @@ class LeadIntakeService
            1. VALIDATE CORE FIELDS
            ============================================================ */
         $name  = trim((string) ($payload['name']  ?? ''));
-        $phone = preg_replace('/\D/', '', (string) ($payload['phone'] ?? ''));
-        $cc    = trim((string) ($payload['country_code'] ?? '+91'));
-        if ($cc === '') $cc = '+91';
+        $rawPhone = trim((string) ($payload['phone'] ?? ''));
+        $cc = array_key_exists('country_code', $payload) ? trim((string) $payload['country_code']) : null;
+        $phone = phone_canonical($rawPhone, $cc ?: null);
 
         if ($name === '') {
             $result['errors']['name'] = 'Name is required.';
         }
 
-        if (str_starts_with($phone, '91') && strlen($phone) === 12) $phone = substr($phone, 2);
-        if (str_starts_with($phone, '0')  && strlen($phone) === 11) $phone = substr($phone, 1);
 
         if (strlen($phone) < 8) {
             $result['errors']['phone'] = 'A valid phone number is required.';

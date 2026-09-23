@@ -10,14 +10,12 @@ use Illuminate\Support\Facades\DB;
 
 class ContactService
 {
-    /** Normalize an Indian phone to 10 digits (strip +91, 0, spaces, dashes). */
+    /** Normalize a phone to canonical international digits. */
     public function normalizePhone(string $phone): string
     {
-        $p = preg_replace('/\D/', '', $phone);
-        if (str_starts_with($p, '91') && strlen($p) === 12) $p = substr($p, 2);
-        if (str_starts_with($p, '0')  && strlen($p) === 11) $p = substr($p, 1);
-        return $p;
+        return phone_canonical($phone);
     }
+
 
     /** Import a batch of rows. Returns [imported, skipped, failed, errors]. */
     public function importBatch(array $rows, array $mapping, int $userId, ?int $batchId = null, ?int $pitchProjectId = null, ?int $assignedAgentId = null): array
@@ -182,13 +180,15 @@ class ContactService
             // use the same rule as LeadIntakeService instead of bypassing it with
             // a direct Lead::create().
             $normalizedPhone = $this->normalizePhone((string) $contact->phone);
+            $phoneVariants = [$normalizedPhone, '+' . $normalizedPhone, (string) $contact->phone];
+            if (strlen($normalizedPhone) === 12 && str_starts_with($normalizedPhone, '91')) {
+                $local = substr($normalizedPhone, 2);
+                $phoneVariants[] = $local;
+                $phoneVariants[] = '0' . $local;
+            }
+            $phoneVariants = array_values(array_unique(array_filter($phoneVariants)));
             $existingLead = Lead::where('project_id', $leadProjectId)
-                ->whereIn('phone', array_values(array_unique(array_filter([
-                    $normalizedPhone,
-                    '91' . $normalizedPhone,
-                    '0' . $normalizedPhone,
-                    (string) $contact->phone,
-                ]))))
+                ->whereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, " ", ""), "-", ""), "+", ""), "(", ""), ")", "") IN (' . implode(',', array_fill(0, count($phoneVariants), '?')) . ')', $phoneVariants)
                 ->orderByDesc('id')
                 ->first();
 

@@ -124,9 +124,6 @@ class ContactDuplicateCleanupService
 
     public function normalizePhone(string $phone): string
     {
-        $p = preg_replace('/\D/', '', $phone);
-        if (str_starts_with($p, '91') && strlen($p) === 12) $p = substr($p, 2);
-        if (str_starts_with($p, '0') && strlen($p) === 11) $p = substr($p, 1);
-        return $p;
+        return phone_canonical($phone);
     }
 }

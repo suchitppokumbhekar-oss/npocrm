@@ -20,12 +20,12 @@
                 <h2 style="margin:0 0 6px;">👤 {{ $customer->name }}</h2>
                 <div style="font-size:14px;line-height:1.8;">
                     <div>
-                        📱 <a href="tel:{{ $customer->phone }}" style="font-weight:600;color:inherit;">
-                            {{ $customer->phone }}
+                        📱 <a href="tel:{{ phone_tel($customer->phone) }}" style="font-weight:600;color:inherit;">
+                            {{ phone_display($customer->phone) }}
                         </a>
                         @if ($customer->phone)
                             &nbsp;
-                            <button type="button" data-npo-whatsapp data-whatsapp-phone="{{ preg_replace('/\D/', '', '91' . $customer->phone) }}" data-whatsapp-text="{{ base64_encode('Hi ' . ($customer->name ?? '')) }}"
+                            <button type="button" data-npo-whatsapp data-whatsapp-phone="{{ phone_wa($customer->phone) }}"
                                class="contact-btn contact-btn-wa contact-btn-sm"
                                style="display:inline-flex;vertical-align:middle;margin-left:4px;">
                                 💬 WhatsApp

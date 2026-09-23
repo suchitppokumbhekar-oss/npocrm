@@ -31,12 +31,13 @@ class LeadDuplicateGuard
 
         $phoneVariants = [];
         if ($normalizedPhone !== '') {
-            $phoneVariants = array_values(array_unique([
-                $normalizedPhone,
-                '0' . $normalizedPhone,
-                '91' . $normalizedPhone,
-                '+91' . $normalizedPhone,
-            ]));
+            $phoneVariants = [$normalizedPhone, '+' . $normalizedPhone];
+            if (strlen($normalizedPhone) === 12 && str_starts_with($normalizedPhone, '91')) {
+                $local = substr($normalizedPhone, 2);
+                $phoneVariants[] = $local;
+                $phoneVariants[] = '0' . $local;
+            }
+            $phoneVariants = array_values(array_unique($phoneVariants));
         }
 
         return Lead::query()

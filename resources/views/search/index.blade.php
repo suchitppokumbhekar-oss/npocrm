@@ -309,7 +309,7 @@
                                 </td>
                                 <td class="row-actions">
                                     @if ($c->phone)
-                                        <a href="tel:{{ $c->phone }}" class="contact-btn contact-btn-call contact-btn-sm"
+                                        <a href="tel:{{ phone_tel($c->phone) }}" class="contact-btn contact-btn-call contact-btn-sm"
                                            title="Call">📞</a>
                                     @endif
                                     <a href="{{ url('/contacts/' . $c->id) }}" class="btn-small btn-info">Open</a>
@@ -329,12 +329,12 @@
                             </span>
                         </div>
                         <div class="muted" style="font-size:12px;">
-                            📱 {{ $c->phone }}
+                            📱 {{ phone_display($c->phone) }}
                             @if ($c->project?->name) · 🏗️ {{ $c->project->name }} @endif
                         </div>
                         <div class="search-mobile-actions">
                             @if ($c->phone)
-                                <a href="tel:{{ $c->phone }}" class="contact-btn contact-btn-call contact-btn-lg">📞 Call</a>
+                                <a href="tel:{{ phone_tel($c->phone) }}" class="contact-btn contact-btn-call contact-btn-lg">📞 Call</a>
                             @endif
                             <a href="{{ url('/contacts/' . $c->id) }}" class="contact-btn contact-btn-lg">👁 Open</a>
                         </div>

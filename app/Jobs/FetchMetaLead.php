@@ -103,19 +103,19 @@ class FetchMetaLead
             return;
         }
 
-        // Normalize phone: strip non-digits, then strip country code
-        $phoneClean = preg_replace('/\D/', '', (string) $phone);
-        if (str_starts_with($phoneClean, '91') && strlen($phoneClean) === 12) {
-            $phoneClean = substr($phoneClean, 2);
-        }
-        if (str_starts_with($phoneClean, '0') && strlen($phoneClean) === 11) {
-            $phoneClean = substr($phoneClean, 1);
-        }
+        // Preserve canonical international phone identity; local numbers default to India.
+        $phoneClean = phone_canonical((string) $phone);
 
-        // Duplicate check by phone
+        // Duplicate check by phone, including legacy Indian local-number storage.
+        $phoneVariants = [$phoneClean];
+        if (strlen($phoneClean) === 12 && str_starts_with($phoneClean, '91')) {
+            $phoneVariants[] = substr($phoneClean, 2);
+            $phoneVariants[] = '0' . substr($phoneClean, 2);
+        }
+        $phoneVariants = array_values(array_unique($phoneVariants));
         $existing = Lead::whereRaw(
-            'REPLACE(REPLACE(REPLACE(phone, " ", ""), "-", ""), "+", "") = ?',
-            [$phoneClean]
+            'REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, " ", ""), "-", ""), "+", ""), "(", ""), ")", "") IN (' . implode(',', array_fill(0, count($phoneVariants), '?')) . ')',
+            $phoneVariants
         )->first();
 
         if ($existing) {
