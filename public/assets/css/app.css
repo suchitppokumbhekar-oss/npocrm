@@ -2427,8 +2427,7 @@ a.visit-row.visit-row-link:hover {
 
 /* Task execution focus: secondary Lead View navigation must never compete
    with the completion workflow. It returns automatically when the modal closes. */
-body.task-execution-active .lead-wb-sections,
-.lead-wb-sections.lead-wb-task-focus-hidden {
+body.task-execution-active .lead-wb-sections {
     display: none !important;
     z-index: 0 !important;
     pointer-events: none !important;
@@ -2689,5 +2688,719 @@ body.task-execution-active .lead-wb-sections,
 @media(max-width:600px){
     .task-scope-tabs-three{
         grid-template-columns:1fr;
+/* ============================================================
+   CRM FILTER SYSTEM — shared foundation
+   ============================================================ */
+
+.crm-filter-form {
+    margin-top: var(--s-3);
+}
+
+.crm-filter-search {
+    margin-bottom: var(--s-3);
+}
+
+.crm-filter-search-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.crm-filter-search-row .input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.crm-filter-search-row .btn-small {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.crm-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--s-3);
+    align-items: start;
+}
+
+.crm-filter-field {
+    min-width: 0;
+}
+
+.crm-filter-field > label,
+.crm-filter-search > label {
+    display: block;
+    margin-bottom: 3px;
+    font-weight: 700;
+}
+
+.crm-filter-help {
+    min-height: 28px;
+    margin-bottom: 6px;
+    color: var(--c-muted);
+    font-size: 11px;
+    line-height: 1.3;
+}
+
+.crm-filter-date {
+    margin-top: var(--s-3);
+}
+
+.crm-filter-date .crm-filter-help {
+    min-height: 0;
+}
+
+.crm-filter-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-2);
+    margin-top: var(--s-3);
+    padding-top: var(--s-2);
+    border-top: 1px solid var(--c-border);
+}
+
+/* Keep the reusable project picker compact when used as a filter. */
+.crm-filter-form .project-picker .pp-hint {
+    display: none;
+}
+
+.crm-filter-form .project-picker {
+    position: relative;
+}
+
+/* Mobile filter control stays accessible while scrolling the list. */
+@media (max-width: 700px) {
+    .filter-toggle-label {
+        position: sticky;
+        top: 8px;
+        z-index: 25;
+    }
+
+    .crm-filter-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .crm-filter-help {
+        min-height: 0;
+        margin-bottom: 5px;
+    }
+
+    .crm-filter-search-row .btn-small {
+        min-width: 76px;
+    }
+
+    .crm-filter-footer {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        margin-left: calc(var(--s-3) * -1);
+        margin-right: calc(var(--s-3) * -1);
+        margin-bottom: calc(var(--s-3) * -1);
+        padding: 10px var(--s-3);
+        background: var(--c-surface);
+        box-shadow: 0 -6px 18px rgba(15, 23, 42, .08);
+    }
+
+    .lead-date-quick {
+        gap: 6px;
+    }
+
+    .lead-date-chip {
+        min-height: 38px;
+    }
+}
+
+@media (min-width: 701px) and (max-width: 1100px) {
+    .crm-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* ============================================================
+   CRM ACTION HIERARCHY
+   Clear, consistent action visibility across work surfaces.
+   ============================================================ */
+.crm-action-secondary,
+.tc-share-btn,
+.tc-start-early,
+[data-work-start-early]{
+    min-height:42px;
+    padding:9px 14px;
+    border:1.5px solid #2563eb !important;
+    border-radius:9px;
+    background:#eff6ff !important;
+    color:#1d4ed8 !important;
+    font-family:inherit;
+    font-size:12px;
+    font-weight:800;
+    line-height:1.2;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    box-shadow:0 1px 2px rgba(37,99,235,.08);
+}
+.crm-action-secondary:hover,
+.tc-share-btn:hover,
+.tc-start-early:hover,
+[data-work-start-early]:hover{
+    background:#dbeafe !important;
+    border-color:#1d4ed8 !important;
+    color:#1e40af !important;
+}
+
+.crm-action-destructive,
+.work-actions-unified .btn-danger,
+.task-card .btn-danger{
+    min-height:42px;
+    padding:9px 14px;
+    border:1.5px solid #dc2626 !important;
+    border-radius:9px;
+    background:#fff !important;
+    color:#b91c1c !important;
+    font-size:12px;
+    font-weight:800;
+    line-height:1.2;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+}
+.crm-action-destructive:hover,
+.work-actions-unified .btn-danger:hover,
+.task-card .btn-danger:hover{
+    background:#fef2f2 !important;
+    border-color:#b91c1c !important;
+    color:#991b1b !important;
+}
+
+.work-action-gate,
+.tc-actions{
+    gap:10px;
+}
+
+@media (max-width:700px){
+    .work-actions-unified .tc-share-btn,
+    .work-actions-unified [data-work-start-early],
+    .work-actions-unified .btn-danger,
+    .task-card .tc-start-early,
+    .task-card .btn-danger{
+        min-height:44px;
+    }
+}
+
+/* ============================================================
+   CRM CONTENT CONTAINMENT
+   User/data text must never escape its visual container.
+   ============================================================ */
+.card,
+.lead-accordion-body,
+.timeline-item,
+.timeline-item .content,
+.timeline-item .head,
+.task-card,
+.modal-content,
+.crm-filter-field{
+    min-width:0;
+}
+
+.card p,
+.card small,
+.card strong,
+.card span:not(.badge):not(.status-badge),
+.lead-accordion-body p,
+.lead-accordion-body small,
+.lead-accordion-body strong,
+.lead-accordion-body span:not(.badge):not(.status-badge),
+.timeline-item .content{
+    overflow-wrap:anywhere;
+    word-break:normal;
+}
+
+/* ============================================================
+   LEAD HISTORY — efficient timeline layout
+   ============================================================ */
+.timeline-item .content{
+    min-width:0;
+    width:100%;
+}
+
+.timeline-item .head{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto auto;
+    align-items:center;
+    justify-content:initial;
+    column-gap:8px;
+    row-gap:3px;
+}
+
+.timeline-item .who{
+    min-width:0;
+    overflow-wrap:anywhere;
+}
+
+.timeline-item .head .badge{
+    margin-left:0 !important;
+    white-space:nowrap;
+}
+
+.timeline-item .when{
+    white-space:nowrap;
+    text-align:right;
+}
+
+.timeline-item .notes{
+    width:100%;
+    max-width:none;
+    overflow-wrap:anywhere;
+}
+
+@media (max-width:700px){
+    .timeline-item{
+        gap:8px;
+    }
+
+    .timeline-item .icon{
+        width:30px;
+        height:30px;
+        font-size:14px;
+    }
+
+    .timeline-item .head{
+        grid-template-columns:minmax(0,1fr) auto;
+    }
+
+    .timeline-item .head .badge{
+        grid-column:1;
+        justify-self:start;
+    }
+
+    .timeline-item .when{
+        grid-column:2;
+        grid-row:1;
+    }
+
+    .timeline-item .notes{
+        margin-top:5px;
+    }
+}
+
+/* Customer information — readable responsive data layout */
+.customer-knowledge-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+}
+.customer-known-row{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(120px,1.35fr);
+    gap:10px;
+    align-items:start;
+    padding:8px 0;
+    border-bottom:1px solid var(--c-border,#eee);
+}
+.customer-known-row > span,
+.customer-known-row > strong{
+    min-width:0;
+    overflow-wrap:anywhere;
+}
+.customer-known-row > strong{
+    text-align:right;
+}
+
+@media (max-width:700px){
+    .customer-knowledge-grid{
+        grid-template-columns:1fr;
+    }
+    .customer-known-row{
+        grid-template-columns:1fr;
+        gap:3px;
+    }
+    .customer-known-row > strong{
+        text-align:left !important;
+        font-size:13px !important;
+        line-height:1.4;
+    }
+}
+
+/* ============================================================
+   TAGS & LABELS MODAL — compact mobile working surface
+   ============================================================ */
+#tags-form{
+    min-width:0;
+}
+
+#tags-form .tag-picker{
+    display:flex;
+    flex-wrap:wrap;
+    gap:7px;
+    margin-top:7px;
+}
+
+#tags-form .tag-option{
+    min-height:38px;
+    padding:7px 12px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:999px;
+    cursor:pointer;
+}
+
+#tags-form .label-group{
+    margin-top:7px;
+    border:1px solid var(--c-border);
+    border-radius:9px;
+    background:var(--c-surface);
+    overflow:hidden;
+}
+
+#tags-form .label-group-head{
+    min-height:44px;
+    padding:8px 11px;
+    display:grid;
+    grid-template-columns:16px minmax(0,1fr) auto;
+    align-items:center;
+    gap:7px;
+    cursor:pointer;
+    user-select:none;
+}
+
+#tags-form .label-group-head::-webkit-details-marker{
+    display:none;
+}
+
+#tags-form .lg-arrow{
+    transition:transform .15s ease;
+}
+
+#tags-form .label-group[open] .lg-arrow{
+    transform:rotate(90deg);
+}
+
+#tags-form .lg-title{
+    min-width:0;
+    font-weight:750;
+}
+
+#tags-form .lg-count{
+    min-width:22px;
+    text-align:center;
+    font-weight:800;
+    color:var(--c-primary);
+}
+
+#tags-form .label-group-body{
+    padding:5px 10px 10px;
+    border-top:1px solid var(--c-border);
+}
+
+#tags-form .label-option{
+    min-height:42px;
+    padding:7px 3px;
+    display:flex;
+    align-items:center;
+    gap:9px;
+    cursor:pointer;
+}
+
+#tags-form .label-option input{
+    width:18px;
+    height:18px;
+    flex:0 0 auto;
+}
+
+@media (max-width:700px){
+    #tags-form{
+        padding-bottom:66px;
+    }
+
+    #tags-form > p{
+        margin-bottom:8px !important;
+        font-size:12px;
+    }
+
+    #tags-form .field{
+        margin-bottom:12px;
+    }
+
+    #tags-form .tag-picker{
+        gap:6px;
+    }
+
+    #tags-form .tag-option{
+        min-height:36px;
+        padding:6px 10px;
+        font-size:13px;
+    }
+
+    #tags-form .label-group{
+        margin-top:6px;
+    }
+
+    #tags-form .label-group-head{
+        min-height:42px;
+        padding:7px 10px;
+    }
+
+    #tags-form > button[type="submit"]{
+        position:sticky;
+        bottom:0;
+        z-index:20;
+        min-height:48px;
+        margin-top:12px;
+        font-weight:800;
+        box-shadow:0 -5px 16px rgba(15,23,42,.12);
+    }
+}
+
+/* ============================================================
+   CUSTOMER WORKSPACE — mobile-first actionable information
+   ============================================================ */
+.customer-info-editor{
+    margin-top:12px;
+    border:1.5px solid #2563eb;
+    border-radius:10px;
+    background:#fff;
+    overflow:visible;
+}
+
+.customer-info-editor > summary{
+    min-height:48px;
+    padding:11px 13px !important;
+    display:flex;
+    align-items:center;
+    color:#1d4ed8;
+    background:#eff6ff;
+    cursor:pointer;
+    font-size:13px !important;
+    font-weight:800 !important;
+    list-style:none;
+}
+
+.customer-info-editor > summary::-webkit-details-marker{
+    display:none;
+}
+
+.customer-info-editor > summary::after{
+    content:"›";
+    margin-left:auto;
+    padding-left:10px;
+    font-size:22px;
+    line-height:1;
+    transition:transform .15s ease;
+}
+
+.customer-info-editor[open] > summary::after{
+    transform:rotate(90deg);
+}
+
+.customer-info-editor[open] > summary{
+    border-bottom:1px solid #bfdbfe;
+}
+
+.customer-info-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:9px;
+}
+
+.customer-info-grid > div{
+    min-width:0;
+}
+
+@media (max-width:700px){
+    .customer-info-editor{
+        margin-top:10px;
+        border-radius:10px;
+    }
+
+    .customer-info-editor > summary{
+        min-height:52px;
+        padding:10px 12px !important;
+        line-height:1.35;
+    }
+
+    .customer-info-editor > div{
+        padding:10px 10px 0 !important;
+    }
+
+    .customer-info-grid{
+        grid-template-columns:1fr;
+        gap:8px;
+    }
+
+    .customer-info-grid > div{
+        padding:10px !important;
+    }
+
+    .customer-info-grid select,
+    .customer-info-grid input[type="text"]{
+        min-height:44px;
+        font-size:16px;
+    }
+
+    .customer-info-grid input[type="checkbox"]{
+        width:19px;
+        height:19px;
+        flex:0 0 auto;
+    }
+
+    .customer-info-grid label{
+        line-height:1.35;
+    }
+
+    .customer-info-editor form > div:last-child{
+        position:sticky;
+        bottom:0;
+        z-index:20;
+        margin:10px -10px 0 !important;
+        padding:9px 10px;
+        background:#fff;
+        border-top:1px solid var(--c-border);
+        box-shadow:0 -5px 16px rgba(15,23,42,.10);
+    }
+
+    .customer-info-editor form > div:last-child .btn-primary{
+        width:100%;
+        min-height:46px;
+        justify-content:center;
+        font-size:13px;
+        font-weight:800;
+    }
+}
+
+.customer-info-editor > summary.customer-info-editor-trigger{
+    grid-template-columns:minmax(0,1fr) max-content 18px !important;
+}
+
+.customer-info-optional{
+    display:inline-flex !important;
+    align-items:center;
+    width:max-content !important;
+    min-width:max-content !important;
+    padding:4px 7px;
+    border-radius:999px;
+    background:#dbeafe;
+    color:#1d4ed8 !important;
+    font-size:9px !important;
+    font-weight:800 !important;
+    line-height:1 !important;
+    white-space:nowrap !important;
+    overflow-wrap:normal !important;
+    word-break:keep-all !important;
+}
+
+/* ============================================================
+   MY LEADS — compact mobile workspace
+   Identity first, controls second, leads visible sooner.
+   ============================================================ */
+@media (max-width:700px){
+
+    .lead-desk .back-link{
+        margin-bottom:7px;
+        font-size:12px;
+    }
+
+    .lead-desk-hero{
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        align-items:center;
+        gap:8px;
+        padding:10px 12px;
+        margin-bottom:7px;
+        border-radius:10px;
+    }
+
+    .lead-desk-hero > div{
+        min-width:0;
+    }
+
+    .lead-desk-kicker{
+        margin:0;
+        font-size:9px;
+        letter-spacing:.1em;
+    }
+
+    .lead-desk-hero h2{
+        margin:1px 0 0;
+        font-size:17px;
+        line-height:1.2;
+    }
+
+    .lead-desk-hero p{
+        margin:3px 0 0;
+        font-size:10px;
+        line-height:1.3;
+    }
+
+    .lead-desk-hero .btn-small{
+        width:auto;
+        min-width:74px;
+        min-height:38px;
+        padding:7px 10px;
+        white-space:nowrap;
+    }
+
+    .lead-view-tabs{
+        gap:5px;
+        margin-bottom:7px;
+    }
+
+    .lead-view-tab{
+        min-height:58px;
+        padding:7px 5px;
+        border-radius:9px;
+    }
+
+    .lead-view-tab-label{
+        font-size:10px;
+    }
+
+    .lead-view-tab strong{
+        font-size:18px;
+        margin:1px 0 0;
+    }
+
+    .lead-view-tab small{
+        display:none;
+    }
+
+    .lead-desk-search{
+        padding:9px;
+        margin-bottom:7px;
+        border-radius:10px;
+    }
+
+    .lead-desk-search-label{
+        margin-bottom:5px;
+        font-size:11px;
+    }
+
+    .lead-desk-search-input-wrap{
+        min-height:40px;
+    }
+
+    .lead-desk-search-input-wrap .input{
+        min-height:38px;
+        font-size:16px;
+    }
+
+    .lead-desk-search-btn{
+        min-height:40px;
+        padding:7px 11px;
+    }
+
+    .lead-filter-drawer{
+        margin-top:8px;
+        padding-top:7px;
+    }
+
+    .lead-results-card{
+        margin-top:7px;
     }
 }

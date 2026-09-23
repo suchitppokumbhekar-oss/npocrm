@@ -57,70 +57,191 @@
             </a>
         </nav>
 
-        {{-- SEARCH FIRST. FILTERS ARE SECONDARY. --}}
-        <section class="lead-desk-search card">
-            <form method="GET" action="{{ url('/my-leads') }}#lead-results">
+        {{-- SHARED CRM SEARCH & FILTERS --}}
+        @php
+            $selectedProject = ($projects ?? collect())->firstWhere('id', (int) request('project'));
+
+            $activeFilterCount = collect([
+                $searchFilter,
+                $statusFilter,
+                request('project'),
+                request('tag_id'),
+                request('label_id'),
+                $dateRange !== 'all' ? $dateRange : null,
+                request('date_from'),
+                request('date_to'),
+                request('sort'),
+            ])->filter(fn ($v) => $v !== null && $v !== '')->count();
+        @endphp
+
+        <section class="card lead-desk-search">
+            <input type="checkbox"
+                   id="my-leads-filter-toggle"
+                   class="filter-toggle-input"
+                   @if ($activeFilterCount > 0) checked @endif>
+
+            <label for="my-leads-filter-toggle" class="filter-toggle-label">
+                <span>
+                    🔍 Search & Filters
+                    @if ($activeFilterCount > 0)
+                        <span class="ft-count">({{ $activeFilterCount }})</span>
+                    @endif
+                </span>
+                <span class="ft-arrow">▼</span>
+            </label>
+
+            <form method="GET"
+                  action="{{ url('/my-leads') }}#lead-results"
+                  class="filter-body crm-filter-form"
+                  data-crm-filter-form>
+
                 <input type="hidden" name="view" value="{{ $activeMode }}">
-                <label for="my-leads-search" class="lead-desk-search-label">Find a customer</label>
-                <div class="lead-desk-search-row">
-                    <div class="lead-desk-search-input-wrap">
-                        <span aria-hidden="true">🔍</span>
-                        <input id="my-leads-search" type="search" name="search" class="input" value="{{ $searchFilter }}" placeholder="Name, phone or email" autocomplete="off">
+
+                <div class="crm-filter-search">
+                    <label for="my-leads-search">Search</label>
+                    <div class="crm-filter-help">Find by name, phone, email, tag or label.</div>
+
+                    <div class="crm-filter-search-row">
+                        <input type="search"
+                               id="my-leads-search"
+                               name="search"
+                               class="input"
+                               value="{{ $searchFilter }}"
+                               placeholder="Search leads…"
+                               autocomplete="off">
+
+                        <button type="submit" class="btn-small btn-info">Search</button>
                     </div>
-                    <button type="submit" class="btn lead-desk-search-btn">Search</button>
                 </div>
-            </form>
 
-            <details class="lead-filter-drawer" {{ ($statusFilter || $projectFilter || request('tag_id') || request('label_id') || $dateRange !== 'all' || request('sort')) ? 'open' : '' }}>
-                <summary>⚙️ Filters & sorting <span>Tap only when you need them</span></summary>
-                <form method="GET" action="{{ url('/my-leads') }}#lead-results" class="lead-filter-form">
-                    <input type="hidden" name="view" value="{{ $activeMode }}">
-                    <input type="hidden" name="search" value="{{ $searchFilter }}">
-                    <div class="flex">
-                        <div class="flex-item">
-                            <label>Status</label>
-                            <select name="status" class="input">
-                                <option value="">Use view default</option>
-                                @foreach ($statuses as $st)
-                                    <option value="{{ $st->key }}" @selected($statusFilter === $st->key)>{{ $st->label }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="flex-item">
-                            <label>Sort</label>
-                            <select name="sort" class="input">
-                                <option value="newest" @selected(($sort ?? 'newest') === 'newest')>Newest</option>
-                                <option value="oldest" @selected(($sort ?? '') === 'oldest')>Oldest</option>
-                                <option value="updated" @selected(($sort ?? '') === 'updated')>Recently updated</option>
-                                <option value="active" @selected(($sort ?? '') === 'active')>Recent activity</option>
-                                <option value="visit" @selected(($sort ?? '') === 'visit')>Next visit</option>
-                                <option value="booking" @selected(($sort ?? '') === 'booking')>Booking date</option>
-                            </select>
-                        </div>
-                    </div>
+                <div class="crm-filter-grid">
+                    <div class="crm-filter-field">
+                        <label>Status</label>
+                        <div class="crm-filter-help">Choose a specific stage within this view.</div>
 
-                    <div class="lead-date-filter">
-                        <div class="lead-date-filter-title">📅 Lead created</div>
-                        <div class="lead-date-quick" role="group" aria-label="Quick lead date filters">
-                            @foreach (['all' => 'All time', 'today' => 'Today', '3d' => '3 days', '7d' => '7 days', '30d' => '30 days', '1y' => '1 year', 'custom' => 'Custom'] as $key => $label)
-                                <button type="button" class="lead-date-chip {{ $dateRange === $key ? 'active' : '' }}" data-date-range="{{ $key }}">{{ $label }}</button>
+                        <select name="status" class="input" data-filter-auto-submit>
+                            <option value="">Use {{ ucfirst($activeMode) }} view</option>
+                            @foreach ($statuses as $st)
+                                <option value="{{ $st->key }}"
+                                        @selected($statusFilter === $st->key)>
+                                    {{ $st->label }}
+                                </option>
                             @endforeach
-                        </div>
-                        <input type="hidden" name="date_range" id="my-leads-date-range" value="{{ $dateRange }}">
-                        <div class="lead-date-custom {{ $dateRange === 'custom' ? 'is-open' : '' }}" id="my-leads-date-custom">
-                            <div class="flex-item"><label>From</label><input type="date" name="date_from" value="{{ $createdFrom }}" class="input"></div>
-                            <div class="flex-item"><label>To</label><input type="date" name="date_to" value="{{ $createdTo }}" class="input"></div>
-                        </div>
+                        </select>
                     </div>
 
-                    <div class="lead-filter-actions">
-                        <button type="submit" class="btn">Apply filters</button>
-                        @if ($statusFilter || $searchFilter || $dateRange !== 'all' || request('sort'))
-                            <a href="{{ $modeUrls[$activeMode] }}" class="btn btn-ghost">Reset</a>
-                        @endif
+                    <div class="crm-filter-field">
+                        <label>Project</label>
+                        <div class="crm-filter-help">Search instead of scrolling through projects.</div>
+
+                        <x-project-picker
+                            name="project"
+                            :selected-id="request('project')"
+                            :selected-name="$selectedProject?->name"
+                            :allow-all="true"
+                            all-label="All projects"
+                            :auto-submit="true"
+                            placeholder="Search project…" />
                     </div>
-                </form>
-            </details>
+
+                    <div class="crm-filter-field">
+                        <label>🏷️ Tag</label>
+                        <div class="crm-filter-help">Narrow your lead book using a tag.</div>
+
+                        <select name="tag_id" class="input" data-filter-auto-submit>
+                            <option value="">All tags</option>
+                            @foreach (($tags ?? collect()) as $t)
+                                <option value="{{ $t->id }}"
+                                        @selected((string) request('tag_id') === (string) $t->id)>
+                                    {{ $t->icon }} {{ $t->label }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="crm-filter-field">
+                        <label>📌 Label</label>
+                        <div class="crm-filter-help">Filter by your CRM classification.</div>
+
+                        <select name="label_id" class="input" data-filter-auto-submit>
+                            <option value="">All labels</option>
+                            @foreach (($labelsFlat ?? collect()) as $lbl)
+                                <option value="{{ $lbl->id }}"
+                                        @selected((string) request('label_id') === (string) $lbl->id)>
+                                    {{ $lbl->group_label }} · {{ $lbl->label }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="crm-filter-field">
+                        <label>Sort</label>
+                        <div class="crm-filter-help">Choose how your leads are ordered.</div>
+
+                        <select name="sort" class="input" data-filter-auto-submit>
+                            <option value="newest" @selected(($sort ?? 'newest') === 'newest')>Newest</option>
+                            <option value="oldest" @selected(($sort ?? '') === 'oldest')>Oldest</option>
+                            <option value="updated" @selected(($sort ?? '') === 'updated')>Recently updated</option>
+                            <option value="active" @selected(($sort ?? '') === 'active')>Recent activity</option>
+                            <option value="visit" @selected(($sort ?? '') === 'visit')>Next visit</option>
+                            <option value="booking" @selected(($sort ?? '') === 'booking')>Booking date</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="lead-date-filter crm-filter-date">
+                    <div class="lead-date-filter-title">📅 Lead date</div>
+                    <div class="crm-filter-help">Based on the date the lead was created.</div>
+
+                    <div class="lead-date-quick" role="group" aria-label="Lead created date">
+                        @foreach ([
+                            'all' => 'All',
+                            'today' => 'Today',
+                            '3d' => '3d',
+                            '7d' => '7d',
+                            '30d' => '30d',
+                            '1y' => '1y',
+                            'custom' => 'Custom',
+                        ] as $key => $label)
+                            <button type="button"
+                                    class="lead-date-chip {{ $dateRange === $key ? 'active' : '' }}"
+                                    data-date-range="{{ $key }}">
+                                {{ $label }}
+                            </button>
+                        @endforeach
+                    </div>
+
+                    <input type="hidden"
+                           name="date_range"
+                           id="my-leads-date-range"
+                           value="{{ $dateRange }}">
+
+                    <div class="lead-date-custom {{ $dateRange === 'custom' ? 'is-open' : '' }}"
+                         id="my-leads-date-custom">
+                        <div class="flex-item">
+                            <label>From</label>
+                            <input type="date" name="date_from" value="{{ $createdFrom }}" class="input">
+                        </div>
+
+                        <div class="flex-item">
+                            <label>To</label>
+                            <input type="date" name="date_to" value="{{ $createdTo }}" class="input">
+                        </div>
+                    </div>
+                </div>
+
+                @if ($activeFilterCount > 0)
+                    <div class="crm-filter-footer">
+                        <span class="muted">
+                            {{ $activeFilterCount }} active {{ Str::plural('filter', $activeFilterCount) }}
+                        </span>
+
+                        <a href="{{ $modeUrls[$activeMode] }}" class="btn-small btn-ghost">
+                            Clear all
+                        </a>
+                    </div>
+                @endif
+            </form>
         </section>
 
         {{-- RESULTS --}}
@@ -136,64 +257,39 @@
                 @endif
             </div>
 
-            {{-- DESKTOP DIRECTORY --}}
+            {{-- SAME LEAD DIRECTORY PRESENTATION AS ALL LEADS --}}
             <div class="table-wrap">
-                <table>
+                <table class="leads-table">
                     <tr>
-                        <th>Name</th>
+                        <th class="lead-name-th">Lead</th>
                         <th>Phone</th>
                         <th>Status</th>
-                        <th>Owner / Team</th>
-                        <th>Last activity</th>
-                        <th>Action</th>
+                        <th>Agent</th>
+                        <th>Actions</th>
                     </tr>
                     @forelse ($leads as $lead)
                         <x-lead-row :lead="$lead" />
                     @empty
-                        <tr><td colspan="6" class="lead-desk-empty">No leads match this view.</td></tr>
+                        <tr>
+                            <td colspan="5" style="text-align:center;padding:32px;" class="muted">
+                                No leads match this view.
+                            </td>
+                        </tr>
                     @endforelse
                 </table>
             </div>
 
-            {{-- MOBILE: one decision per card — identify, understand, open. --}}
-            <div class="my-leads-mobile-list">
-                @forelse ($leads as $lead)
-                    @php
-                        $next = $lead->pendingFollowup;
-                        $isOverdue = $next && $next->scheduled_for && $next->scheduled_for->isPast();
-                    @endphp
-                    <article class="my-lead-mobile-card">
-                        <a href="{{ url('/leads/' . $lead->id) }}" class="my-lead-mobile-main">
-                            <div class="my-lead-mobile-top">
-                                <strong>{{ $lead->customer_name }}</strong>
-                                <x-status-badge :status="$lead->statusKey()" />
-                            </div>
-                            <div class="my-lead-mobile-project">🏗️ {{ $lead->project?->name ?? 'No project' }}</div>
-                            @if ($next)
-                                <div class="my-lead-mobile-next {{ $isOverdue ? 'overdue' : '' }}">
-                                    {{ $isOverdue ? '🚨' : '⏰' }}
-                                    <span>{{ $next->action_label ?? ucfirst(str_replace('_', ' ', $next->action_type ?? 'Follow up')) }}</span>
-                                    <time>{{ $next->scheduled_for?->diffForHumans() }}</time>
-                                </div>
-                            @elseif ($lead->latestActivity)
-                                <div class="my-lead-mobile-last">{{ $lead->latestActivity->icon() }} {{ $lead->latestActivity->displayLabel() }} · {{ $lead->latestActivity->logged_at?->diffForHumans() }}</div>
-                            @endif
-                        </a>
-                        <div class="my-lead-mobile-actions">
-                            <a href="{{ url('/leads/' . $lead->id) }}" class="lead-mobile-open">Open lead <span>→</span></a>
-                            <x-contact-buttons :lead="$lead" size="sm" />
-                        </div>
-                    </article>
-                @empty
-                    <div class="my-leads-empty-mobile">
-                        <div class="my-leads-empty-icon">🔎</div>
-                        <strong>No leads here</strong>
-                        <p>Try another view or search for the customer by name, phone or email.</p>
-                        <a href="{{ $modeUrls['working'] }}" class="btn-small btn-ghost">Back to Working</a>
-                    </div>
-                @endforelse
-            </div>
-
+            {{-- MOBILE — shared with All Leads --}}
+            @forelse ($leads as $lead)
+                <x-lead-card :lead="$lead" />
+            @empty
+                <div class="my-leads-empty-mobile">
+                    <div class="my-leads-empty-icon">🔎</div>
+                    <strong>No leads here</strong>
+                    <p>Try another view or search for the customer by name, phone or email.</p>
+                    <a href="{{ $modeUrls[working] }}" class="btn-small btn-ghost">Back to Working</a>
+                </div>
+            @endforelse
             @if ($leads->hasPages())
                 <div class="lead-desk-pagination">
                     <div class="muted">Page {{ $leads->currentPage() }} of {{ $leads->lastPage() }}</div>

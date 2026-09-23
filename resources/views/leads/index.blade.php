@@ -35,110 +35,111 @@
             </div>
         </div>
 
-        {{-- TAG FILTER ROW — quick filter by tag --}}
-        @if (($tags ?? collect())->isNotEmpty())
-            @php
-                $currentTagId = (string) request('tag_id', '');
-                $baseQuery = request()->except('tag_id', 'leads_page');
-                $buildUrl = function ($tagId) use ($baseQuery) {
-                    $params = $baseQuery;
-                    if ($tagId !== '') $params['tag_id'] = $tagId;
-                    return url('/leads' . (empty($params) ? '' : '?' . http_build_query($params)));
-                };
-            @endphp
-
-            <div class="tag-filter-row">
-                <span class="tag-filter-label">🏷️ Quick tag:</span>
-
-                <a href="{{ $buildUrl('') }}"
-                   class="tag-filter-chip {{ $currentTagId === '' ? 'active' : '' }}">
-                    All
-                </a>
-
-                @foreach ($tags as $t)
-                    <a href="{{ $buildUrl((string) $t->id) }}"
-                       class="tag-filter-chip tag-{{ $t->color }} {{ $currentTagId === (string) $t->id ? 'active' : '' }}">
-                        {{ $t->icon }} {{ $t->label }}
-                    </a>
-                @endforeach
-            </div>
-        @endif
-
-    {{-- FILTERS --}}
+        {{-- CRM FILTERS --}}
         @php
+            $selectedProject = ($projects ?? collect())->firstWhere('id', (int) request('project'));
+
             $activeFilterCount = collect([
                 $searchFilter,
                 $statusFilter,
+                request('project'),
                 request('agent_id'),
                 request('tag_id'),
                 request('label_id'),
                 $dateRange !== 'all' ? $dateRange : null,
-                request('date_from'), request('date_to'), request('sort'),
+                request('date_from'),
+                request('date_to'),
+                request('sort'),
             ])->filter(fn ($v) => $v !== null && $v !== '')->count();
         @endphp
 
-        <input type="checkbox" id="leads-filter-toggle" class="filter-toggle-input"
+        <input type="checkbox"
+               id="leads-filter-toggle"
+               class="filter-toggle-input"
                @if ($activeFilterCount > 0) checked @endif>
 
         <label for="leads-filter-toggle" class="filter-toggle-label">
-            <span>🔍 Filters @if ($activeFilterCount > 0)<span class="ft-count">({{ $activeFilterCount }})</span>@endif</span>
+            <span>
+                🔍 Search & Filters
+                @if ($activeFilterCount > 0)
+                    <span class="ft-count">({{ $activeFilterCount }})</span>
+                @endif
+            </span>
             <span class="ft-arrow">▼</span>
         </label>
 
-        <form method="GET" action="{{ url('/leads') }}" class="filter-body">
+        <form method="GET"
+              action="{{ url('/leads') }}"
+              class="filter-body crm-filter-form"
+              data-crm-filter-form>
             @if (session('user_role') === 'team_manager')
                 <input type="hidden" name="scope" value="{{ $workScope ?? 'team' }}">
             @endif
-            <div class="flex" style="margin-top:var(--s-3);">
-                <div class="flex-item">
-                    <label>🔍 Search</label>
-                    <input type="text" name="search" class="input"
-                           value="{{ $searchFilter }}"
-                           placeholder="Name, phone, email, tag, or label">
-                </div>
 
-                <div class="flex-item">
+            <div class="crm-filter-search">
+                <label for="lead-filter-search">Search</label>
+                <div class="crm-filter-help">Find by name, phone, email, tag or label.</div>
+
+                <div class="crm-filter-search-row">
+                    <input type="search"
+                           id="lead-filter-search"
+                           name="search"
+                           class="input"
+                           value="{{ $searchFilter }}"
+                           placeholder="Search leads…">
+
+                    <button type="submit" class="btn-small btn-info">Search</button>
+                </div>
+            </div>
+
+            <div class="crm-filter-grid">
+                <div class="crm-filter-field">
                     <label>Status</label>
-                    <select name="status" class="input">
-                        <option value="">Active leads (default)</option>
+                    <div class="crm-filter-help">Choose the lead stage to show.</div>
+
+                    <select name="status" class="input" data-filter-auto-submit>
+                        <option value="">Active leads</option>
+
                         <optgroup label="Working">
                             @foreach ($statuses->where('is_final', false) as $s)
-                                <option value="{{ $s->key }}" @selected($statusFilter === $s->key)>{{ $s->label }}</option>
+                                <option value="{{ $s->key }}" @selected($statusFilter === $s->key)>
+                                    {{ $s->label }}
+                                </option>
                             @endforeach
                         </optgroup>
+
                         <optgroup label="Closed / Terminal">
                             @foreach ($statuses->where('is_final', true) as $s)
-                                <option value="{{ $s->key }}" @selected($statusFilter === $s->key)>{{ $s->label }}</option>
+                                <option value="{{ $s->key }}" @selected($statusFilter === $s->key)>
+                                    {{ $s->label }}
+                                </option>
                             @endforeach
                         </optgroup>
                     </select>
                 </div>
-            </div>
 
-            <div class="lead-date-filter">
-                <div class="lead-date-filter-title">📅 Lead date</div>
-                <div class="lead-date-quick" role="group" aria-label="Quick lead date filters">
-                    @foreach ([
-                        'all' => 'All time', 'today' => 'Today', '3d' => 'Last 3 days',
-                        '7d' => 'Last 7 days', '30d' => 'Last 30 days', '1y' => 'Last 1 year', 'custom' => 'Custom',
-                    ] as $key => $label)
-                        <button type="button" class="lead-date-chip {{ $dateRange === $key ? 'active' : '' }}" data-date-range="{{ $key }}">{{ $label }}</button>
-                    @endforeach
-                </div>
-                <input type="hidden" name="date_range" id="leads-date-range" value="{{ $dateRange }}">
-                <div class="lead-date-custom {{ $dateRange === 'custom' ? 'is-open' : '' }}" id="leads-date-custom">
-                    <div class="flex-item"><label>From</label><input type="date" name="date_from" value="{{ $createdFrom }}" class="input"></div>
-                    <div class="flex-item"><label>To</label><input type="date" name="date_to" value="{{ $createdTo }}" class="input"></div>
-                </div>
-                <div class="lead-date-help">Quick dates use the lead's <strong>created date</strong>.</div>
-            </div>
+                <div class="crm-filter-field">
+                    <label>Project</label>
+                    <div class="crm-filter-help">Search instead of scrolling through projects.</div>
 
-            <div class="flex" style="margin-top:var(--s-2);">
+                    <x-project-picker
+                        name="project"
+                        :selected-id="request('project')"
+                        :selected-name="$selectedProject?->name"
+                        :allow-all="true"
+                        all-label="All projects"
+                        :auto-submit="true"
+                        placeholder="Search project…" />
+                </div>
+
                 @if (session('user_role') !== 'agent')
-                    <div class="flex-item">
+                    <div class="crm-filter-field">
                         <label>Agent</label>
-                        <select name="agent_id" class="input">
+                        <div class="crm-filter-help">Show leads assigned to one agent.</div>
+
+                        <select name="agent_id" class="input" data-filter-auto-submit>
                             <option value="">All agents</option>
+
                             @foreach (($agents ?? collect()) as $a)
                                 <option value="{{ $a->id }}"
                                         @selected((string) request('agent_id') === (string) $a->id)>
@@ -149,10 +150,13 @@
                     </div>
                 @endif
 
-                <div class="flex-item">
+                <div class="crm-filter-field">
                     <label>🏷️ Tag</label>
-                    <select name="tag_id" class="input">
+                    <div class="crm-filter-help">Narrow the list using a lead tag.</div>
+
+                    <select name="tag_id" class="input" data-filter-auto-submit>
                         <option value="">All tags</option>
+
                         @foreach (($tags ?? collect()) as $t)
                             <option value="{{ $t->id }}"
                                     @selected((string) request('tag_id') === (string) $t->id)>
@@ -162,10 +166,13 @@
                     </select>
                 </div>
 
-                <div class="flex-item">
+                <div class="crm-filter-field">
                     <label>📌 Label</label>
-                    <select name="label_id" class="input">
+                    <div class="crm-filter-help">Filter by your CRM classification.</div>
+
+                    <select name="label_id" class="input" data-filter-auto-submit>
                         <option value="">All labels</option>
+
                         @foreach (($labelsFlat ?? collect()) as $lbl)
                             <option value="{{ $lbl->id }}"
                                     @selected((string) request('label_id') === (string) $lbl->id)>
@@ -176,17 +183,59 @@
                 </div>
             </div>
 
-            <div style="margin-top:var(--s-3);display:flex;gap:var(--s-2);flex-wrap:wrap;">
-                <button type="submit" class="btn">🔍 Apply</button>
-                @if ($activeFilterCount > 0)
-                    <a href="{{ session('user_role') === 'team_manager' ? url('/leads?scope=' . ($workScope ?? 'team')) : url('/leads') }}" class="btn btn-ghost">
-                        Reset
-                    </a>
-                @endif
+            <div class="lead-date-filter crm-filter-date">
+                <div class="lead-date-filter-title">📅 Lead date</div>
+                <div class="crm-filter-help">Based on the date the lead was created.</div>
+
+                <div class="lead-date-quick" role="group" aria-label="Lead created date">
+                    @foreach ([
+                        'all' => 'All',
+                        'today' => 'Today',
+                        '3d' => '3d',
+                        '7d' => '7d',
+                        '30d' => '30d',
+                        '1y' => '1y',
+                        'custom' => 'Custom',
+                    ] as $key => $label)
+                        <button type="button"
+                                class="lead-date-chip {{ $dateRange === $key ? 'active' : '' }}"
+                                data-date-range="{{ $key }}">
+                            {{ $label }}
+                        </button>
+                    @endforeach
+                </div>
+
+                <input type="hidden"
+                       name="date_range"
+                       id="leads-date-range"
+                       value="{{ $dateRange }}">
+
+                <div class="lead-date-custom {{ $dateRange === 'custom' ? 'is-open' : '' }}"
+                     id="leads-date-custom">
+
+                    <div class="flex-item">
+                        <label>From</label>
+                        <input type="date" name="date_from" value="{{ $createdFrom }}" class="input">
+                    </div>
+
+                    <div class="flex-item">
+                        <label>To</label>
+                        <input type="date" name="date_to" value="{{ $createdTo }}" class="input">
+                    </div>
+                </div>
             </div>
+
+            @if ($activeFilterCount > 0)
+                <div class="crm-filter-footer">
+                    <span class="muted">
+                        {{ $activeFilterCount }} active {{ Str::plural('filter', $activeFilterCount) }}
+                    </span>
+
+                    <a href="{{ session('user_role') === 'team_manager' ? url('/leads?scope=' . ($workScope ?? 'team')) : url('/leads') }}" class="btn-small btn-ghost">Clear all</a>
+                </div>
+            @endif
         </form>
     </div>
-
     @if (session('user_role') === 'admin' && $statusFilter === 'lost')
         <div class="card" id="lead-bulk-toolbar" style="display:none;position:sticky;top:12px;z-index:20;border:1px solid var(--c-primary);box-shadow:0 8px 24px rgba(15,23,42,.12);">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">

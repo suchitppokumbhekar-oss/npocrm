@@ -86,32 +86,85 @@ Please call and follow up with this lead." }}</textarea>
         @if (request()->boolean('allow_early'))<input type="hidden" name="allow_early" value="1">@endif
         @if (request()->filled('return_to'))<input type="hidden" name="return_to" value="{{ request('return_to') }}">@endif
 
-        <div class="field">
-            <label>Team member <span class="req">*</span></label>
-            <select name="agent_id" id="task-handover-agent" class="input" required>
-                <option value="">Select team member</option>
-            </select>
+        <input type="hidden" name="agent_id" id="task-handover-agent" required>
+        <input type="hidden" name="project_id" id="task-handover-project" required>
+        <input type="hidden" name="team_id" id="task-handover-team">
+
+        <div class="handover-step" id="handover-agent-step">
+            <div class="handover-step-head">
+                <span class="handover-step-number">1</span>
+                <div>
+                    <strong>Who should receive this lead?</strong>
+                    <small>Search by team member name.</small>
+                </div>
+            </div>
+
+            <div class="handover-search-wrap">
+                <span class="handover-search-icon">⌕</span>
+                <input type="search"
+                       id="handover-agent-search"
+                       class="input handover-search"
+                       placeholder="Search team member…"
+                       autocomplete="off"
+                       spellcheck="false">
+            </div>
+
+            <div id="handover-agent-results" class="handover-results"></div>
+            <div id="handover-agent-selected" class="handover-selected" hidden></div>
         </div>
 
-        <div class="field">
-            <label>Destination team <span class="req">*</span></label>
-            <select name="team_id" id="task-handover-team" class="input" required disabled>
-                <option value="">Select team member first</option>
-            </select>
+        <div class="handover-step" id="handover-project-step" hidden>
+            <div class="handover-step-head">
+                <span class="handover-step-number">2</span>
+                <div>
+                    <strong>Which project?</strong>
+                    <small>Only projects this team member can handle are shown.</small>
+                </div>
+            </div>
 
-            <label style="margin-top:10px;display:block;">Project to hand over for <span class="req">*</span></label>
-            <select name="project_id" id="task-handover-project" class="input" required disabled>
-                <option value="">Select team member first</option>
-            </select>
-            <p class="muted" style="font-size:11px;margin-top:4px;">The selected agent must belong to the selected team and the project must be routed to that team/agent.</p>
+            <div class="handover-search-wrap">
+                <span class="handover-search-icon">⌕</span>
+                <input type="search"
+                       id="handover-project-search"
+                       class="input handover-search"
+                       placeholder="Search project…"
+                       autocomplete="off"
+                       spellcheck="false">
+            </div>
+
+            <div id="handover-project-results" class="handover-results"></div>
+            <div id="handover-project-selected" class="handover-selected" hidden></div>
         </div>
 
-        <div class="field">
-            <label>Reason for handover <span class="req">*</span></label>
-            <textarea name="reason" class="input" rows="3" maxlength="1000" required
-                      placeholder="e.g. Customer is interested in XYZ project, which Rahul handles."></textarea>
+        <div class="handover-step" id="handover-team-step" hidden>
+            <div class="handover-step-head">
+                <span class="handover-step-number">3</span>
+                <div>
+                    <strong>Which team?</strong>
+                    <small>This agent handles the project through more than one team.</small>
+                </div>
+            </div>
+
+            <div id="handover-team-results" class="handover-results"></div>
         </div>
 
+        <div class="handover-step handover-reason-step" id="handover-reason-step" hidden>
+            <div class="handover-step-head">
+                <span class="handover-step-number" id="handover-reason-number">3</span>
+                <div>
+                    <strong>Why are you handing it over?</strong>
+                    <small>A short note helps the receiving agent understand the customer.</small>
+                </div>
+            </div>
+
+            <textarea name="reason"
+                      id="handover-reason"
+                      class="input"
+                      rows="3"
+                      maxlength="1000"
+                      required
+                      placeholder="e.g. Customer wants this project and Rahul handles it."></textarea>
+        </div>
         <div class="task-share-note">🆕 A separate new lead will be created for the receiving agent. It starts at New, gets its own follow-up, and links back to this lead in the timeline. The current follow-up on this lead is completed as the handover action.</div>
 
         <button type="submit" class="task-share-primary is-transfer">
@@ -180,98 +233,365 @@ Please call and follow up with this lead." }}</textarea>
     var agentPanel = document.getElementById('task-share-agent-panel');
     var options = document.querySelectorAll('[data-share-choice]');
     var backs = document.querySelectorAll('[data-share-back]');
-    var agentSel = document.getElementById('task-handover-agent');
-    var projectSel = document.getElementById('task-handover-project');
-    var teamSel = document.getElementById('task-handover-team');
+
+    var agentField = document.getElementById('task-handover-agent');
+    var projectField = document.getElementById('task-handover-project');
+    var teamField = document.getElementById('task-handover-team');
+
+    var agentSearch = document.getElementById('handover-agent-search');
+    var projectSearch = document.getElementById('handover-project-search');
+    var agentResults = document.getElementById('handover-agent-results');
+    var projectResults = document.getElementById('handover-project-results');
+    var teamResults = document.getElementById('handover-team-results');
+
+    var agentSelected = document.getElementById('handover-agent-selected');
+    var projectSelected = document.getElementById('handover-project-selected');
+    var projectStep = document.getElementById('handover-project-step');
+    var teamStep = document.getElementById('handover-team-step');
+    var reasonStep = document.getElementById('handover-reason-step');
+    var reasonNumber = document.getElementById('handover-reason-number');
+
     var handoverLoading = document.getElementById('task-handover-loading');
     var handoverError = document.getElementById('task-handover-error');
     var handoverForm = document.getElementById('task-handover-form');
     var siteBtn = document.getElementById('task-site-share-btn');
     var siteForm = document.getElementById('task-site-share-form');
+
     var handoverLoaded = false;
+    var handoverAgents = [];
+    var projectsByAgent = {};
+    var teamsByAgentProject = {};
+
     if (!sitePanel || !agentPanel) return;
 
+    function esc(value){
+        var el = document.createElement('div');
+        el.textContent = value == null ? '' : String(value);
+        return el.innerHTML;
+    }
+
+    function makeChoice(label, meta, handler){
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'handover-choice';
+
+        var text = document.createElement('span');
+        var strong = document.createElement('strong');
+        strong.textContent = label;
+        text.appendChild(strong);
+
+        if (meta) {
+            var small = document.createElement('small');
+            small.textContent = meta;
+            text.appendChild(small);
+        }
+
+        var arrow = document.createElement('span');
+        arrow.className = 'handover-choice-arrow';
+        arrow.textContent = '›';
+
+        btn.appendChild(text);
+        btn.appendChild(arrow);
+        btn.addEventListener('click', handler);
+        return btn;
+    }
+
+    function showEmpty(container, message){
+        container.innerHTML = '<div class="handover-empty">' + esc(message) + '</div>';
+    }
+
+    function showSelected(container, label, meta, changeHandler){
+        container.innerHTML =
+            '<div class="handover-selected-main">' +
+                '<strong>' + esc(label) + '</strong>' +
+                (meta ? '<small>' + esc(meta) + '</small>' : '') +
+            '</div>';
+
+        var change = document.createElement('button');
+        change.type = 'button';
+        change.className = 'handover-change';
+        change.textContent = 'Change';
+        change.addEventListener('click', changeHandler);
+
+        container.appendChild(change);
+        container.hidden = false;
+    }
+
     function show(which){
-        options.forEach(function(el){ el.style.display='none'; });
+        options.forEach(function(el){ el.style.display = 'none'; });
         sitePanel.hidden = which !== 'site';
         agentPanel.hidden = which !== 'agent';
-        if (which === 'agent' && !handoverLoaded) loadHandoverOptions();
+
+        if (which === 'agent' && !handoverLoaded) {
+            loadHandoverOptions();
+        }
     }
+
     function back(){
-        options.forEach(function(el){ el.style.display='grid'; });
+        options.forEach(function(el){ el.style.display = 'grid'; });
         sitePanel.hidden = true;
         agentPanel.hidden = true;
     }
-    options.forEach(function(el){ el.addEventListener('click', function(){ show(el.dataset.shareChoice); }); });
-    backs.forEach(function(el){ el.addEventListener('click', back); });
 
-    async function loadHandoverOptions(){
-        // The follow-up is already resolved server-side for this modal.
-        // Read it from the hidden canonical field instead of depending on
-        // DOM dataset casing / button attributes.
-        var idField = document.getElementById('task-share-followup-id');
-        var followupId = idField ? String(idField.value || '').trim() : '';
-        if (!followupId) {
-            showHandoverError(['This lead has no active follow-up available for handover. Complete or schedule a follow-up first.']);
+    options.forEach(function(el){
+        el.addEventListener('click', function(){
+            show(el.dataset.shareChoice);
+        });
+    });
+
+    backs.forEach(function(el){
+        el.addEventListener('click', back);
+    });
+
+    function renderAgents(query){
+        var q = String(query || '').trim().toLowerCase();
+        agentResults.innerHTML = '';
+        if (!q) {
+            showEmpty(agentResults, "Type a name to find a team member.");
             return;
         }
+
+
+        var matches = handoverAgents.filter(function(agent){
+            return !q || String(agent.name || '').toLowerCase().indexOf(q) !== -1;
+        });
+
+        if (!matches.length) {
+            showEmpty(agentResults, 'No matching team member.');
+            return;
+        }
+
+        matches.forEach(function(agent){
+            agentResults.appendChild(
+                makeChoice(
+                    agent.name,
+                    '',
+                    function(){ selectAgent(agent); }
+                )
+            );
+        });
+    }
+
+    function resetProjectAndBelow(){
+        projectField.value = '';
+        teamField.value = '';
+        projectSearch.value = '';
+        projectSearch.hidden = false;
+        projectSelected.hidden = true;
+        projectSelected.innerHTML = '';
+        projectResults.innerHTML = '';
+        teamResults.innerHTML = '';
+        teamResults.classList.remove('handover-selected');
+        teamStep.hidden = true;
+        reasonStep.hidden = true;
+        reasonNumber.textContent = '3';
+    }
+
+    function selectAgent(agent){
+        agentField.value = agent.id;
+        agentSearch.value = '';
+        agentSearch.hidden = true;
+        agentResults.innerHTML = '';
+
+        showSelected(
+            agentSelected,
+            agent.name,
+            'Receiving agent',
+            function(){
+                agentField.value = '';
+                agentSelected.hidden = true;
+                agentSelected.innerHTML = '';
+                agentSearch.hidden = false;
+                resetProjectAndBelow();
+                projectStep.hidden = true;
+                agentResults.innerHTML = '<div class="handover-empty">Type a name to find a team member.</div>';
+                agentSearch.focus();
+            }
+        );
+
+        resetProjectAndBelow();
+        projectStep.hidden = false;
+        renderProjects('');
+        projectSearch.focus();
+    }
+
+    agentSearch.addEventListener('input', function(){
+        renderAgents(agentSearch.value);
+    });
+
+    function renderProjects(query){
+        var agentKey = String(agentField.value || '');
+        var projects = projectsByAgent[agentKey] || [];
+        var q = String(query || '').trim().toLowerCase();
+
+        projectResults.innerHTML = '';
+        if (!q) {
+            showEmpty(projectResults, "Type a project name to search.");
+            return;
+        }
+
+
+        var matches = projects.filter(function(project){
+            return !q || String(project.name || '').toLowerCase().indexOf(q) !== -1;
+        });
+
+        if (!matches.length) {
+            showEmpty(projectResults, 'No matching eligible project.');
+            return;
+        }
+
+        matches.forEach(function(project){
+            projectResults.appendChild(
+                makeChoice(project.name, '', function(){
+                    selectProject(project);
+                })
+            );
+        });
+    }
+
+    function selectProject(project){
+        projectField.value = project.id;
+        projectSearch.value = '';
+        projectSearch.hidden = true;
+        projectResults.innerHTML = '';
+
+        showSelected(
+            projectSelected,
+            project.name,
+            'Destination project',
+            function(){
+                projectField.value = '';
+                teamField.value = '';
+                projectSelected.hidden = true;
+                projectSelected.innerHTML = '';
+                projectSearch.hidden = false;
+                teamStep.hidden = true;
+                teamResults.innerHTML = '';
+                teamResults.classList.remove('handover-selected');
+                reasonStep.hidden = true;
+                renderProjects('');
+                projectSearch.focus();
+            }
+        );
+
+        resolveTeam();
+    }
+
+    projectSearch.addEventListener('input', function(){
+        renderProjects(projectSearch.value);
+    });
+
+    function resolveTeam(){
+        var agentKey = String(agentField.value || '');
+        var projectKey = String(projectField.value || '');
+        var teams = (teamsByAgentProject[agentKey] || {})[projectKey] || [];
+
+        teamField.value = '';
+        teamResults.innerHTML = '';
+        teamResults.classList.remove('handover-selected');
+        teamStep.hidden = true;
+        reasonStep.hidden = true;
+
+        if (teams.length === 0) {
+            teamStep.hidden = false;
+            reasonNumber.textContent = '4';
+            showEmpty(
+                teamResults,
+                'No eligible destination team is configured for this person and project.'
+            );
+            return;
+        }
+
+        if (teams.length === 1) {
+            teamField.value = teams[0].id;
+            reasonNumber.textContent = '3';
+            reasonStep.hidden = false;
+            return;
+        }
+
+        reasonNumber.textContent = '4';
+        teamStep.hidden = false;
+
+        teams.forEach(function(team){
+            teamResults.appendChild(
+                makeChoice(team.name, '', function(){
+                    teamField.value = team.id;
+                    teamResults.innerHTML =
+                        '<div class="handover-selected-main">' +
+                            '<strong>' + esc(team.name) + '</strong>' +
+                            '<small>Destination team selected</small>' +
+                        '</div>';
+                    teamResults.classList.add('handover-selected');
+                    reasonStep.hidden = false;
+                })
+            );
+        });
+    }
+
+    async function loadHandoverOptions(){
+        var idField = document.getElementById('task-share-followup-id');
+        var followupId = idField ? String(idField.value || '').trim() : '';
+
+        if (!followupId) {
+            showHandoverError([
+                'This lead has no active follow-up available for handover.'
+            ]);
+            return;
+        }
+
         handoverLoading.hidden = false;
         handoverError.hidden = true;
         handoverForm.hidden = true;
+
         try {
-            var res = await fetch('/modals/task-share-lead/handover-options?followup_id=' + encodeURIComponent(followupId), {
-                headers: {'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
-            });
+            var res = await fetch(
+                '/modals/task-share-lead/handover-options?followup_id=' + encodeURIComponent(followupId),
+                {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                }
+            );
+
             var data = await res.json().catch(function(){ return {}; });
+
             if (!res.ok || !data.ok) {
-                throw new Error(data.message || ('Unable to load handover options (HTTP ' + res.status + ').'));
+                throw new Error(
+                    data.message ||
+                    ('Unable to load handover options (HTTP ' + res.status + ').')
+                );
             }
+
             handoverLoading.hidden = true;
+
             if (!data.available) {
-                showHandoverError(data.reasons && data.reasons.length ? data.reasons : ['No eligible team member is currently routed to another active project.']);
+                showHandoverError(
+                    data.reasons && data.reasons.length
+                        ? data.reasons
+                        : ['No eligible team member is currently routed to another active project.']
+                );
                 handoverLoaded = true;
                 return;
             }
-            agentSel.innerHTML = '<option value="">Select team member</option>';
-            Object.keys(data.projects_by_agent || {}).forEach(function(){ /* preserve returned mapping below */ });
-            (data.agents || []).forEach(function(agent){
-                var opt = document.createElement('option');
-                opt.value = agent.id;
-                opt.textContent = agent.name + (agent.role === 'team_manager' ? ' (Manager)' : '');
-                agentSel.appendChild(opt);
-            });
-            var projectsByAgent = data.projects_by_agent || {};
-            var teamsByAgentProject = data.teams_by_agent_project || {};
-            agentSel.onchange = function(){
-                var agentKey = String(agentSel.value || '');
-                var list = projectsByAgent[agentKey] || [];
-                projectSel.innerHTML = '<option value="">Select project</option>';
-                teamSel.innerHTML = '<option value="">Select project first</option>';
-                teamSel.disabled = true;
-                list.forEach(function(item){
-                    var opt = document.createElement('option'); opt.value = item.id; opt.textContent = item.name; projectSel.appendChild(opt);
-                });
-                projectSel.disabled = list.length === 0;
-            };
-            projectSel.onchange = function(){
-                var agentKey = String(agentSel.value || '');
-                var projectKey = String(projectSel.value || '');
-                var teams = (teamsByAgentProject[agentKey] || {})[projectKey] || [];
-                teamSel.innerHTML = '<option value="">Select destination team</option>';
-                teams.forEach(function(item){
-                    var opt=document.createElement('option'); opt.value=item.id; opt.textContent=item.name; teamSel.appendChild(opt);
-                });
-                teamSel.disabled = teams.length === 0;
-            };
+
+            handoverAgents = data.agents || [];
+            projectsByAgent = data.projects_by_agent || {};
+            teamsByAgentProject = data.teams_by_agent_project || {};
+
             handoverForm.hidden = false;
             handoverLoaded = true;
+            agentResults.innerHTML = '<div class="handover-empty">Type a name to find a team member.</div>';
+
         } catch (err) {
             handoverLoading.hidden = true;
-            showHandoverError(['Could not load handover options.', err.message || 'Please try again.']);
+            showHandoverError([
+                'Could not load handover options.',
+                err.message || 'Please try again.'
+            ]);
             handoverLoaded = false;
         }
     }
-
     function showHandoverError(reasons){
         handoverError.hidden = false;
         handoverError.innerHTML = '<b>Why this is not available:</b>' + reasons.map(function(r){ return '<span>• ' + String(r).replace(/[&<>]/g, function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[ch];}) + '</span>'; }).join('');
@@ -341,3 +661,169 @@ Please call and follow up with this lead." }}</textarea>
     }
 })();
 </script>
+
+<style>
+/* Guided cross-project handover */
+.handover-step{
+    margin:0 0 14px;
+    padding:14px;
+    border:1px solid var(--c-border);
+    border-radius:12px;
+    background:var(--c-surface);
+}
+.handover-step-head{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    margin-bottom:11px;
+}
+.handover-step-number{
+    display:grid;
+    place-items:center;
+    flex:0 0 28px;
+    width:28px;
+    height:28px;
+    border-radius:50%;
+    background:var(--c-primary);
+    color:#fff;
+    font-size:12px;
+    font-weight:800;
+}
+.handover-step-head strong{
+    display:block;
+    font-size:13px;
+    line-height:1.3;
+}
+.handover-step-head small{
+    display:block;
+    margin-top:2px;
+    color:var(--c-muted);
+    font-size:11px;
+    line-height:1.35;
+}
+.handover-search-wrap{
+    position:relative;
+}
+.handover-search-icon{
+    position:absolute;
+    left:11px;
+    top:50%;
+    transform:translateY(-50%);
+    color:var(--c-muted);
+    pointer-events:none;
+}
+.handover-search{
+    width:100%;
+    padding-left:34px!important;
+}
+.handover-results{
+    display:grid;
+    gap:6px;
+    margin-top:8px;
+    max-height:230px;
+    overflow:auto;
+}
+.handover-choice{
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    min-height:44px;
+    padding:10px 12px;
+    border:1px solid var(--c-border);
+    border-radius:9px;
+    background:var(--c-surface);
+    color:var(--c-text);
+    font:600 12.5px inherit;
+    text-align:left;
+    cursor:pointer;
+}
+.handover-choice:hover,
+.handover-choice:focus{
+    border-color:var(--c-primary);
+    background:var(--c-surface-2);
+    outline:none;
+}
+.handover-choice-arrow{
+    color:var(--c-muted);
+    font-size:17px;
+}
+.handover-selected{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:10px 12px;
+    border:1px solid #b9ddc8;
+    border-radius:10px;
+    background:#f2fbf5;
+}
+.handover-selected-main{
+    min-width:0;
+}
+.handover-selected-main strong{
+    display:block;
+    font-size:13px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.handover-selected-main small{
+    display:block;
+    margin-top:2px;
+    color:var(--c-muted);
+    font-size:10.5px;
+}
+.handover-change{
+    flex:0 0 auto;
+    border:0;
+    background:transparent;
+    color:var(--c-primary);
+    font:700 11px inherit;
+    cursor:pointer;
+    padding:6px;
+}
+.handover-empty{
+    padding:10px;
+    color:var(--c-muted);
+    font-size:11.5px;
+    text-align:center;
+}
+.handover-team-auto{
+    margin:-4px 0 14px;
+    padding:8px 11px;
+    border-radius:9px;
+    background:var(--c-surface-2);
+    color:var(--c-text-2);
+    font-size:11px;
+}
+.handover-reason-step textarea{
+    width:100%;
+    resize:vertical;
+    min-height:86px;
+}
+@media(max-width:600px){
+    .handover-step{
+        padding:12px;
+        margin-bottom:10px;
+    }
+    .handover-results{
+        max-height:190px;
+    }
+    .handover-choice{
+        min-height:46px;
+    }
+}
+</style>
+
+<style>
+/* Share Lead modal: hidden state must always win over component display rules. */
+.task-share-missing[hidden],
+.task-share-loading[hidden],
+.handover-step[hidden],
+.handover-selected[hidden],
+#task-handover-form[hidden]{
+    display:none !important;
+}
+</style>

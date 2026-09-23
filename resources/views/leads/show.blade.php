@@ -201,7 +201,7 @@
     @endif
 
     <nav class="lead-wb-sections {{ $focusWork ? 'lead-wb-task-focus-hidden' : '' }}" aria-label="Lead information" data-lead-secondary-tabs>
-        <button type="button" class="is-active" data-lead-wb-section="history">History</button>@if ($canWorkThisLead)<button type="button" data-lead-wb-section="customer">Customer</button>@endif @if ($showSiteVisitTab)<button type="button" data-lead-wb-section="visits">Visits</button>@endif @if ($hasMultipleProjects)<button type="button" data-lead-wb-section="projects">Projects</button>@endif <button type="button" data-lead-wb-section="pipeline">Pipeline</button><button type="button" data-lead-wb-section="more">More</button>
+        <button type="button" data-lead-wb-section="history">History</button>@if ($canWorkThisLead)<button type="button" data-lead-wb-section="customer">Customer</button>@endif @if ($showSiteVisitTab)<button type="button" data-lead-wb-section="visits">Visits</button>@endif @if ($hasMultipleProjects)<button type="button" data-lead-wb-section="projects">Projects</button>@endif <button type="button" data-lead-wb-section="pipeline">Pipeline</button><button type="button" data-lead-wb-section="more">More</button>
     </nav>
 
     <div id="lead-secondary-accordion" class="lead-secondary-accordion" aria-label="Lead details">
@@ -236,49 +236,14 @@
                     @endif
                 </div>
 
-                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
-                    <div class="card" style="padding:12px;margin:0;">
-                        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#166534;">ALREADY KNOWN</div>
-                        @if ($knownCustomerFields)
-                            @foreach ($knownCustomerFields as $key => [$meta, $item])
-                                <div style="display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--c-border,#eee);padding:7px 0;">
-                                    <span style="font-size:11px;color:var(--c-text-2);">{{ $meta['label'] }}</span>
-                                    <strong style="font-size:12px;text-align:right;">{{ $item['value'] }}@if (($item['state'] ?? '') === 'CHANGED') <span class="badge amber" style="font-size:8px;padding:1px 4px;">Changed</span>@endif</strong>
-                                </div>
-                            @endforeach
-                        @else
-                            <div class="muted" style="font-size:11px;margin-top:7px;">No customer requirement is explicitly recorded yet.</div>
-                        @endif
-                    </div>
-
-                    <div class="card" style="padding:12px;margin:0;">
-                        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#92400e;">CONFIRM / ASK</div>
-                        @foreach ($confirmCustomerFields as $key => [$meta, $item])
-                            <div style="padding:7px 0;border-bottom:1px solid var(--c-border,#eee);">
-                                <div style="font-size:11px;font-weight:700;">{{ $meta['label'] }}</div>
-                                <div style="font-size:11px;color:#92400e;margin-top:2px;">{{ $item['value'] }} · confirm with customer</div>
-                            </div>
-                        @endforeach
-                        @foreach ($missingCustomerFields as $key => [$meta, $item])
-                            <div style="padding:7px 0;border-bottom:1px solid var(--c-border,#eee);">
-                                <div style="font-size:11px;font-weight:700;">{{ $meta['label'] }}</div>
-                                <div class="muted" style="font-size:11px;margin-top:2px;">Not recorded — ask if relevant.</div>
-                            </div>
-                        @endforeach
-                        @if (!$confirmCustomerFields && !$missingCustomerFields)
-                            <div style="font-size:11px;color:#166534;margin-top:7px;">Core customer information is currently documented.</div>
-                        @endif
-                    </div>
-                </div>
-
-                <details class="customer-info-editor" style="margin-top:10px;border:1px solid var(--c-border,#ddd);border-radius:9px;background:#fff;">
-                    <summary style="cursor:pointer;padding:10px 12px;font-size:12px;font-weight:800;">✏️ Record or update information after speaking with the customer <span class="muted" style="font-weight:400;">(optional)</span></summary>
+                <details class="customer-info-editor">
+                    <summary class="customer-info-editor-trigger"><span class="customer-info-action-label">✏️ Update customer info</span><span class="customer-info-optional">OPTIONAL</span></summary>
                     <div style="padding:0 12px 12px;">
                         <p class="muted" style="font-size:11px;margin:0 0 9px;">You do not need to complete every field. Save only what was discussed or confirmed.</p>
                         <form method="POST" action="{{ route('leads.customerInformation') }}">
                             @csrf
                             <input type="hidden" name="lead_id" value="{{ $lead->id }}">
-                            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;">
+                            <div class="customer-info-grid">
                                 @php
                                     $fieldValue = function ($key) use ($entryFields) {
                                         $item = $entryFields[$key] ?? [];
@@ -371,6 +336,41 @@
                         </form>
                     </div>
                 </details>
+                <div class="customer-knowledge-grid">
+                    <div class="card" style="padding:12px;margin:0;">
+                        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#166534;">ALREADY KNOWN</div>
+                        @if ($knownCustomerFields)
+                            @foreach ($knownCustomerFields as $key => [$meta, $item])
+                                <div class="customer-known-row">
+                                    <span style="font-size:11px;color:var(--c-text-2);">{{ $meta['label'] }}</span>
+                                    <strong style="font-size:12px;text-align:right;">{{ $item['value'] }}@if (($item['state'] ?? '') === 'CHANGED') <span class="badge amber" style="font-size:8px;padding:1px 4px;">Changed</span>@endif</strong>
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="muted" style="font-size:11px;margin-top:7px;">No customer requirement is explicitly recorded yet.</div>
+                        @endif
+                    </div>
+
+                    <div class="card" style="padding:12px;margin:0;">
+                        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#92400e;">CONFIRM / ASK</div>
+                        @foreach ($confirmCustomerFields as $key => [$meta, $item])
+                            <div style="padding:7px 0;border-bottom:1px solid var(--c-border,#eee);">
+                                <div style="font-size:11px;font-weight:700;">{{ $meta['label'] }}</div>
+                                <div style="font-size:11px;color:#92400e;margin-top:2px;">{{ $item['value'] }} · confirm with customer</div>
+                            </div>
+                        @endforeach
+                        @foreach ($missingCustomerFields as $key => [$meta, $item])
+                            <div style="padding:7px 0;border-bottom:1px solid var(--c-border,#eee);">
+                                <div style="font-size:11px;font-weight:700;">{{ $meta['label'] }}</div>
+                                <div class="muted" style="font-size:11px;margin-top:2px;">Not recorded — ask if relevant.</div>
+                            </div>
+                        @endforeach
+                        @if (!$confirmCustomerFields && !$missingCustomerFields)
+                            <div style="font-size:11px;color:#166534;margin-top:7px;">Core customer information is currently documented.</div>
+                        @endif
+                    </div>
+                </div>
+
             </div>
         </details>
         @endif
@@ -1286,7 +1286,12 @@
         }
         document.querySelectorAll('[data-lead-wb-scroll]').forEach(function(btn){if(btn.dataset.bound==='1')return;btn.dataset.bound='1';btn.addEventListener('click',function(){var el=document.getElementById(btn.dataset.leadWbScroll);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});});
         document.querySelectorAll('[data-lead-wb-section]').forEach(function(btn){if(btn.dataset.bound==='1')return;btn.dataset.bound='1';btn.addEventListener('click',function(){var item=document.querySelector('details[data-accordion="'+btn.dataset.leadWbSection+'"]');if(item){item.open=true;setTimeout(function(){item.scrollIntoView({behavior:'smooth',block:'start'});},20);}document.querySelectorAll('[data-lead-wb-section]').forEach(function(b){b.classList.toggle('is-active',b===btn);});});});
-        var first=document.querySelector('details[data-accordion="history"]');if(first&&!first.open)first.open=true;
+        var requestedTab=new URL(window.location.href).searchParams.get('lead_tab');
+        var initialTab=requestedTab || 'history';
+        var initial=document.querySelector('details[data-accordion="'+initialTab+'"]');
+        if(!initial) initial=document.querySelector('details[data-accordion="history"]');
+        if(initial&&!initial.open) initial.open=true;
+        document.querySelectorAll('[data-lead-wb-section]').forEach(function(b){b.classList.toggle('is-active',initial&&b.dataset.leadWbSection===initial.dataset.accordion);});
 
         var focusBar=document.querySelector('[data-lead-current-work]');
         var workSection=document.getElementById('pending-tasks');

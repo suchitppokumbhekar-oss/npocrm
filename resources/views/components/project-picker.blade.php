@@ -5,13 +5,22 @@
     'required'     => false,
     'placeholder'  => 'Search project…',
     'id'           => null,
+
+    // Filter-mode options. Existing form usages remain unchanged.
+    'allowAll'     => false,
+    'allLabel'     => 'All projects',
+    'autoSubmit'   => false,
 ])
 
 @php
     $fieldId = $id ?: 'pp_' . uniqid();
 @endphp
 
-<div class="project-picker" data-project-picker data-field-id="{{ $fieldId }}">
+<div class="project-picker"
+     data-project-picker
+     data-field-id="{{ $fieldId }}"
+     @if($autoSubmit) data-auto-submit="1" @endif>
+
     <input type="hidden"
            name="{{ $name }}"
            id="{{ $fieldId }}_value"
@@ -22,17 +31,27 @@
         <input type="text"
                id="{{ $fieldId }}_search"
                class="input pp-search"
-               placeholder="{{ $placeholder }}"
+               placeholder="{{ $allowAll && !$selectedId ? $allLabel : $placeholder }}"
                autocomplete="off"
                spellcheck="false"
                value="{{ $selectedName }}"
-               data-search-url="{{ route('projects.search') }}">
-        <button type="button" class="pp-clear" aria-label="Clear">✕</button>
+               data-search-url="{{ route('projects.search') }}"
+               aria-label="{{ $placeholder }}">
+
+        <button type="button"
+                class="pp-clear"
+                aria-label="{{ $allowAll ? $allLabel : 'Clear project' }}">
+            ✕
+        </button>
     </div>
 
     <div class="pp-results" hidden></div>
 
     <p class="pp-hint muted" style="font-size:11px;margin-top:4px;">
-        Type 2+ letters to search — e.g. <em>riv</em> for Rivali
+        @if($allowAll)
+            Type 2+ letters to find a project. Clear to show {{ strtolower($allLabel) }}.
+        @else
+            Type 2+ letters to search — e.g. <em>riv</em> for Rivali
+        @endif
     </p>
 </div>

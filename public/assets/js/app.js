@@ -1583,6 +1583,8 @@
       var timer    = null;
       var activeIx = -1;
       var items    = [];
+      var controller = null;
+      var autoSubmit = wrap.dataset.autoSubmit === '1';
 
       function show(el) { el.hidden = false; }
       function hide(el) { el.hidden = true; }
@@ -1592,6 +1594,11 @@
         else inputWrap.classList.remove('has-value');
       }
 
+      function notifyChange() {
+        hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        if (autoSubmit && hidden.form) hidden.form.requestSubmit();
+      }
+
       function clearAll() {
         hidden.value = '';
         search.value = '';
@@ -1599,6 +1606,7 @@
         hide(results);
         items = [];
         activeIx = -1;
+        notifyChange();
       }
 
       function setActive(ix) {
@@ -1631,6 +1639,7 @@
             search.value = p.name + (p.location ? ' · ' + p.location : '');
             markHasValue();
             hide(results);
+            notifyChange();
           });
           results.appendChild(btn);
           items.push(btn);
@@ -1648,12 +1657,17 @@
         results.innerHTML = '<div class="pp-loading">Searching…</div>';
         show(results);
 
+        if (controller) controller.abort();
+        controller = new AbortController();
+
         fetch(url + '?q=' + encodeURIComponent(q), {
-          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          signal: controller.signal
         })
         .then(function (r) { return r.json(); })
         .then(function (data) { renderResults(data.results || []); })
-        .catch(function () {
+        .catch(function (err) {
+          if (err && err.name === 'AbortError') return;
           results.innerHTML = '<div class="pp-empty">Could not load results</div>';
         });
       }
@@ -2113,4 +2127,23 @@
   if (returnToWork) {
     window.setTimeout(function () { returnToWork.focus({ preventScroll: true }); }, 80);
   }
+})();
+
+/* ============================================================
+   CRM FILTERS — shared immediate filter behaviour
+   ------------------------------------------------------------
+   Select controls marked [data-filter-auto-submit] submit their
+   containing GET filter form immediately after a selection.
+   Search fields remain manual so typing never causes reloads.
+   ============================================================ */
+(function () {
+  document.addEventListener('change', function (e) {
+    var control = e.target.closest('[data-filter-auto-submit]');
+    if (!control) return;
+
+    var form = control.closest('[data-crm-filter-form]');
+    if (!form) return;
+
+    form.requestSubmit();
+  });
 })();
