@@ -64,10 +64,13 @@
     <a href="{{ url('/my-team') }}" class="sidebar-link {{ request()->is('my-team*') ? 'active' : '' }}">
         <span>👥</span><span>My Team</span>
     </a>
-    <a href="{{ url('/attendance') }}" class="sidebar-link {{ request()->is('attendance*') ? 'active' : '' }}">
-        <span>🕒</span><span>Attendance</span>
-    </a>
 @endif
+
+        @if ($canManageTeam)
+            <a href="{{ url('/attendance') }}" class="sidebar-link {{ request()->is('attendance*') ? 'active' : '' }}">
+                <span>🕒</span><span>Attendance</span>
+            </a>
+        @endif
 
         @if ($isAdmin)
             <div class="sidebar-group-label">MANAGE</div>
@@ -223,8 +226,11 @@
         @if ($canManageTeam && ! app(\App\Services\DelegatedAccessService::class)->hasProfile((int) session('user_id')))
     <div class="drawer-group-label">TEAM</div>
     <a href="{{ url('/my-team') }}" class="drawer-link {{ request()->is('my-team*') ? 'active' : '' }}">👥 <span>My Team</span></a>
-    <a href="{{ url('/attendance') }}" class="drawer-link {{ request()->is('attendance*') ? 'active' : '' }}">🕒 <span>Attendance</span></a>
 @endif
+
+        @if ($canManageTeam)
+            <a href="{{ url('/attendance') }}" class="drawer-link {{ request()->is('attendance*') ? 'active' : '' }}">🕒 <span>Attendance</span></a>
+        @endif
 
         @if ($isAdmin)
             <div class="drawer-group-label">MANAGE</div>

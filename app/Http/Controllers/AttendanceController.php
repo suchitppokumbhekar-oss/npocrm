@@ -8,12 +8,38 @@ use App\Models\Attendance;
 use App\Models\Followup;
 use App\Models\OfficeLocation;
 use App\Models\User;
+use App\Services\AccessService;
+use App\Services\TeamService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
+    public function __construct(private AccessService $access, private TeamService $teams) {}
+
+    private function attendanceScope(Request $request): array
+    {
+        $role = session('user_role');
+        $userId = (int) session('user_id');
+        $authorizedAgentIds = $this->access->visibleAgentIds();
+
+        if ($role !== 'team_manager') {
+            return [null, $authorizedAgentIds];
+        }
+
+        $scope = $request->input('scope') === 'delegated' ? 'delegated' : 'team';
+
+        if ($scope === 'delegated') {
+            return [$scope, $authorizedAgentIds];
+        }
+
+        $teamAgentIds = $this->teams->agentIdsForManager($userId);
+        $teamAgentIds = array_values(array_intersect($teamAgentIds, $authorizedAgentIds));
+
+        return [$scope, $teamAgentIds];
+    }
+
     /* ============================================================
        CHECK IN — must be within office radius
        ============================================================ */
@@ -96,12 +122,14 @@ class AttendanceController extends Controller
         if (! in_array($role, ['admin', 'team_manager'], true)) {
             abort(403, 'Only managers can view attendance.');
         }
+        [$workScope, $visibleAgentIds] = $this->attendanceScope($request);
 
         $view = $request->input('view', 'daily');
         $view = in_array($view, ['daily', 'monthly'], true) ? $view : 'daily';
 
         $payrollAgents = Agent::with('user')
             ->whereHas('user', fn ($q) => $q->where('is_on_payroll', 1))
+            ->whereIn('id', $visibleAgentIds)
             ->get()
             ->sortBy(fn ($a) => $a->user?->name ?? '')
             ->values();
@@ -125,6 +153,7 @@ class AttendanceController extends Controller
         $office = OfficeLocation::active()->first();
 
         $dailyAttendance = Attendance::where('shift_date', $selectedDate)
+            ->whereIn('agent_id', $visibleAgentIds)
             ->get()
             ->keyBy('agent_id');
 
@@ -139,6 +168,7 @@ class AttendanceController extends Controller
                 $monthStart->toDateString(),
                 $monthEnd->toDateString(),
             ])
+            ->whereIn('agent_id', $visibleAgentIds)
             ->get()
             ->groupBy('agent_id');
 
@@ -181,6 +211,7 @@ class AttendanceController extends Controller
             'selectedDate' => $selectedDate,
             'selectedMonth' => $selectedMonth,
             'view' => $view,
+            'workScope' => $workScope,
             'office' => $office,
             'dailyStats' => $dailyStats,
             'monthStart' => $monthStart,
@@ -199,6 +230,7 @@ class AttendanceController extends Controller
         if (! in_array($role, ['admin', 'team_manager'], true)) {
             abort(403, 'Only managers can export attendance.');
         }
+        [$workScope, $visibleAgentIds] = $this->attendanceScope($request);
 
         $type = $request->input('type', 'daily');
         if ($type === 'monthly') {
@@ -213,9 +245,13 @@ class AttendanceController extends Controller
             $calendarDays = $reportEnd->lt($start) ? 0 : $start->diffInDays($reportEnd) + 1;
 
             $agents = Agent::with('user')
+                ->whereIn('id', $visibleAgentIds)
                 ->whereHas('user', fn ($q) => $q->where('is_on_payroll', 1))
                 ->get()->sortBy(fn ($a) => $a->user?->name ?? '')->values();
-            $attendance = Attendance::whereBetween('shift_date', [$start->toDateString(), $end->toDateString()])->get()->groupBy('agent_id');
+            $attendance = Attendance::whereBetween('shift_date', [$start->toDateString(), $end->toDateString()])
+                ->whereIn('agent_id', $visibleAgentIds)
+                ->get()
+                ->groupBy('agent_id');
 
             return response()->streamDownload(function () use ($agents, $attendance, $calendarDays, $month) {
                 $out = fopen('php://output', 'w');
@@ -252,9 +288,13 @@ class AttendanceController extends Controller
             $date = now()->toDateString();
         }
         $agents = Agent::with('user')
+            ->whereIn('id', $visibleAgentIds)
             ->whereHas('user', fn ($q) => $q->where('is_on_payroll', 1))
             ->get()->sortBy(fn ($a) => $a->user?->name ?? '')->values();
-        $attendance = Attendance::where('shift_date', $date)->get()->keyBy('agent_id');
+        $attendance = Attendance::where('shift_date', $date)
+            ->whereIn('agent_id', $visibleAgentIds)
+            ->get()
+            ->keyBy('agent_id');
 
         return response()->streamDownload(function () use ($agents, $attendance, $date) {
             $out = fopen('php://output', 'w');
@@ -296,6 +336,10 @@ class AttendanceController extends Controller
             'lng'      => 'nullable|numeric|between:-180,180',
         ]);
 
+        $visibleAgentIds = $this->access->visibleAgentIds();
+        if (! in_array((int) $validated['agent_id'], $visibleAgentIds, true)) {
+            return back()->withErrors(['attendance' => 'You are not authorized to manage attendance for this employee.']);
+        }
         $agent = Agent::with('user')->findOrFail($validated['agent_id']);
 
         if (! $agent->user?->is_on_payroll) {
@@ -427,6 +471,10 @@ class AttendanceController extends Controller
         ]);
 
         $attendance = Attendance::findOrFail($validated['attendance_id']);
+        $visibleAgentIds = $this->access->visibleAgentIds();
+        if (! in_array((int) $attendance->agent_id, $visibleAgentIds, true)) {
+            abort(403, 'You are not authorized to manage attendance for this employee.');
+        }
 
         if ($attendance->isCheckedOut()) {
             return back()->with('info', 'Already checked out.');
