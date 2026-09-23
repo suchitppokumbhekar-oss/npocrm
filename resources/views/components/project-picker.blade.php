@@ -10,6 +10,9 @@
     'allowAll'     => false,
     'allLabel'     => 'All projects',
     'autoSubmit'   => false,
+    'searchContext' => null,
+    'searchSource'  => null,
+    'searchScope'   => null,
 ])
 
 @php
@@ -19,7 +22,10 @@
 <div class="project-picker"
      data-project-picker
      data-field-id="{{ $fieldId }}"
-     @if($autoSubmit) data-auto-submit="1" @endif>
+     @if($autoSubmit) data-auto-submit="1" @endif
+     @if($searchContext) data-search-context="{{ $searchContext }}" @endif
+     @if($searchSource) data-search-source="{{ $searchSource }}" @endif
+     @if($searchScope) data-search-scope="{{ $searchScope }}" @endif>
 
     <input type="hidden"
            name="{{ $name }}"

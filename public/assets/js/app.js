@@ -1585,6 +1585,9 @@
       var items    = [];
       var controller = null;
       var autoSubmit = wrap.dataset.autoSubmit === '1';
+      var searchContext = wrap.dataset.searchContext || '';
+      var searchSource  = wrap.dataset.searchSource || '';
+      var searchScope   = wrap.dataset.searchScope || '';
 
       function show(el) { el.hidden = false; }
       function hide(el) { el.hidden = true; }
@@ -1660,7 +1663,12 @@
         if (controller) controller.abort();
         controller = new AbortController();
 
-        fetch(url + '?q=' + encodeURIComponent(q), {
+        var params = new URLSearchParams({ q: q });
+        if (searchContext) params.set('context', searchContext);
+        if (searchSource) params.set('source', searchSource);
+        if (searchScope) params.set('scope', searchScope);
+
+        fetch(url + '?' + params.toString(), {
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
           signal: controller.signal
         })

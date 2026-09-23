@@ -129,6 +129,9 @@
                         :allow-all="true"
                         all-label="All projects"
                         :auto-submit="true"
+                        search-context="lead_filter"
+                        search-source="all"
+                        :search-scope="$workScope"
                         placeholder="Search project…" />
                 </div>
 

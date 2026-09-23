@@ -289,7 +289,15 @@ class LeadIndexController extends Controller
         // Projects list — only needed when a project filter is active (for the banner)
         $projects = collect();
         if ($projectFilter) {
-            $projects = Project::where('id', (int) $projectFilter)->get(['id', 'name']);
+            $projectsQuery = Project::where('id', (int) $projectFilter);
+
+            if ($scopedLeadIds !== null) {
+                $projectsQuery->whereHas('leads', function ($leadQuery) use ($scopedLeadIds) {
+                    $leadQuery->whereIn('id', $scopedLeadIds);
+                });
+            }
+
+            $projects = $projectsQuery->get(['id', 'name']);
         }
 
         // Tags + labels for filter dropdowns
@@ -573,7 +581,11 @@ class LeadIndexController extends Controller
         // Projects list — for the active project banner
         $projects = collect();
         if ($projectFilter) {
-            $projects = Project::where('id', (int) $projectFilter)->get(['id', 'name']);
+            $projects = Project::where('id', (int) $projectFilter)
+                ->whereHas('leads', function ($leadQuery) use ($leadIds) {
+                    $leadQuery->whereIn('id', $leadIds);
+                })
+                ->get(['id', 'name']);
         }
 
         // Tags + labels for filter dropdowns

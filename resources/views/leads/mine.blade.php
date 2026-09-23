@@ -141,6 +141,8 @@
                             :allow-all="true"
                             all-label="All projects"
                             :auto-submit="true"
+                            search-context="lead_filter"
+                            search-source="mine"
                             placeholder="Search project…" />
                     </div>
 
@@ -287,7 +289,7 @@
                     <div class="my-leads-empty-icon">🔎</div>
                     <strong>No leads here</strong>
                     <p>Try another view or search for the customer by name, phone or email.</p>
-                    <a href="{{ $modeUrls[working] }}" class="btn-small btn-ghost">Back to Working</a>
+                    <a href="{{ $modeUrls['working'] }}" class="btn-small btn-ghost">Back to Working</a>
                 </div>
             @endforelse
             @if ($leads->hasPages())
