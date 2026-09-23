@@ -31,6 +31,10 @@ class TeamStatusController extends Controller
 
         $userId = (int) session('user_id');
         $isAdmin = $role === 'admin';
+        $requestedScope = $request->query("scope", "team");
+        $workScope = $role === "team_manager"
+            ? ($requestedScope === "delegated" ? "delegated" : "team")
+            : null;
 
         /*
          * ------------------------------------------------------------
@@ -45,7 +49,7 @@ class TeamStatusController extends Controller
          * This prevents an Admin from bypassing delegated access simply
          * because their underlying role is "admin".
          */
-        if ($this->delegatedAccess->hasProfile($userId)) {
+        if ($this->delegatedAccess->hasProfile($userId) && ! ($role === "team_manager" && $workScope === "team")) {
 
             $scopedAgentIds = $this->delegatedAccess->visibleAgentIds($userId);
 
@@ -69,6 +73,11 @@ class TeamStatusController extends Controller
              */
             $scopedAgentIds = app(TeamService::class)
                 ->agentIdsForManager($userId);
+
+            if ($this->delegatedAccess->hasProfile($userId)) {
+                $allowedAgentIds = $this->delegatedAccess->visibleAgentIds($userId);
+                $scopedAgentIds = array_values(array_intersect($scopedAgentIds, $allowedAgentIds));
+            }
         }
 
         /*
@@ -93,6 +102,7 @@ class TeamStatusController extends Controller
                     'escalated' => 0,
                 ],
                 'isAdmin' => $isAdmin,
+                'workScope' => $workScope,
                 'escalationHistory' => collect(),
             ]);
         }
@@ -298,6 +308,7 @@ class TeamStatusController extends Controller
             'filter',
             'totals',
             'isAdmin',
+            'workScope',
             'escalationHistory'
         ));
     }

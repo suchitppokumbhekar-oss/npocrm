@@ -4,7 +4,21 @@
 
 @section('content')
 
-    <a href="{{ url('/') }}" class="back-link">← Back to Dashboard</a>
+    <a href="{{ session('user_role') === 'team_manager' ? url('/?scope=' . ($workScope ?? 'team')) : url('/') }}" class="back-link">← Back to Dashboard</a>
+
+    {{-- TEAM MANAGER OPERATIONAL SCOPE --}}
+    @if (session("user_role") === "team_manager")
+        <nav class="task-scope-tabs" aria-label="Lead scope">
+            <a href="{{ url("/leads?scope=team") }}" class="task-scope-tab {{ ($workScope ?? "team") === "team" ? "active" : "" }}">
+                <strong>My Team</strong>
+                <small>Direct team responsibility</small>
+            </a>
+            <a href="{{ url("/leads?scope=delegated") }}" class="task-scope-tab {{ ($workScope ?? "team") === "delegated" ? "active" : "" }}">
+                <strong>All Delegated</strong>
+                <small>Other teams &amp; agents in your scope</small>
+            </a>
+        </nav>
+    @endif
 
     {{-- HEADER --}}
     <div class="card">
@@ -72,6 +86,9 @@
         </label>
 
         <form method="GET" action="{{ url('/leads') }}" class="filter-body">
+            @if (session('user_role') === 'team_manager')
+                <input type="hidden" name="scope" value="{{ $workScope ?? 'team' }}">
+            @endif
             <div class="flex" style="margin-top:var(--s-3);">
                 <div class="flex-item">
                     <label>🔍 Search</label>
@@ -162,7 +179,7 @@
             <div style="margin-top:var(--s-3);display:flex;gap:var(--s-2);flex-wrap:wrap;">
                 <button type="submit" class="btn">🔍 Apply</button>
                 @if ($activeFilterCount > 0)
-                    <a href="{{ url('/leads') }}" class="btn btn-ghost">
+                    <a href="{{ session('user_role') === 'team_manager' ? url('/leads?scope=' . ($workScope ?? 'team')) : url('/leads') }}" class="btn btn-ghost">
                         Reset
                     </a>
                 @endif

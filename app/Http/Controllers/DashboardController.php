@@ -42,6 +42,10 @@ class DashboardController extends Controller
 
         $scopedAgentIds = null;
         $scopedLeadIds  = null;
+        $requestedScope = $request->input("scope", "team");
+        $workScope = $userRole === "team_manager"
+            ? ($requestedScope === "delegated" ? "delegated" : "team")
+            : null;
 
         /*
          * Delegated Admin / Team Manager
@@ -54,7 +58,7 @@ class DashboardController extends Controller
          * - delegated user's own agent
          * - minus explicitly excluded users
          */
-        if ($this->delegatedAccess->hasProfile($userId)) {
+        if ($this->delegatedAccess->hasProfile($userId) && ! ($userRole === "team_manager" && $workScope === "team")) {
 
             $scopedAgentIds = $this->delegatedAccess->visibleAgentIds($userId);
 
@@ -66,6 +70,11 @@ class DashboardController extends Controller
 
             $scopedAgentIds = app(TeamService::class)
                 ->agentIdsForManager($userId);
+
+            if ($this->delegatedAccess->hasProfile($userId)) {
+                $allowedAgentIds = $this->delegatedAccess->visibleAgentIds($userId);
+                $scopedAgentIds = array_values(array_intersect($scopedAgentIds, $allowedAgentIds));
+            }
 
             if (empty($scopedAgentIds)) {
                 $scopedAgentIds = [-1];
@@ -624,6 +633,7 @@ class DashboardController extends Controller
             'agentId',
             'scopedAgentIds',
             'scopedLeadIds',
+            'workScope',
             'greeting',
             'projects',
             'sources',
