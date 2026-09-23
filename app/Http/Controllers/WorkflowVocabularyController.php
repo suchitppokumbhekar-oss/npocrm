@@ -40,6 +40,14 @@ class WorkflowVocabularyController extends Controller
         $siteVisitOutcomeOverrides = $this->presentations
             ->presentationsForUser($user->id, WorkflowPresentationService::TYPE_SITE_VISIT_OUTCOME);
 
+        $activityTypes = $this->settings->activityTypes(false, true);
+        $activityTypeOverrides = $this->presentations
+            ->presentationsForUser($user->id, WorkflowPresentationService::TYPE_ACTIVITY_TYPE);
+
+        $followupActionTypes = $this->settings->actionTypes(false);
+        $followupActionTypeOverrides = $this->presentations
+            ->presentationsForUser($user->id, WorkflowPresentationService::TYPE_FOLLOWUP_ACTION_TYPE);
+
         return view("settings.workflow-vocabulary", compact(
             "user",
             "outcomes",
@@ -48,6 +56,10 @@ class WorkflowVocabularyController extends Controller
             "lostReasonOverrides",
             "siteVisitOutcomes",
             "siteVisitOutcomeOverrides",
+            "activityTypes",
+            "activityTypeOverrides",
+            "followupActionTypes",
+            "followupActionTypeOverrides",
         ));
     }
 
@@ -74,6 +86,14 @@ class WorkflowVocabularyController extends Controller
             "site_visit_outcomes.*.display_label" => ["nullable", "string", "max:150"],
             "site_visit_outcomes.*.is_visible" => ["nullable", "boolean"],
             "site_visit_outcomes.*.sort_order" => ["nullable", "integer", "min:0", "max:100000"],
+            "activity_types" => ["nullable", "array"],
+            "activity_types.*.display_label" => ["nullable", "string", "max:150"],
+            "activity_types.*.is_visible" => ["nullable", "boolean"],
+            "activity_types.*.sort_order" => ["nullable", "integer", "min:0", "max:100000"],
+            "followup_action_types" => ["nullable", "array"],
+            "followup_action_types.*.display_label" => ["nullable", "string", "max:150"],
+            "followup_action_types.*.is_visible" => ["nullable", "boolean"],
+            "followup_action_types.*.sort_order" => ["nullable", "integer", "min:0", "max:100000"],
         ]);
 
         $canonicalOutcomes = $this->settings
@@ -86,11 +106,16 @@ class WorkflowVocabularyController extends Controller
 
         $canonicalSiteVisitOutcomes = collect(WorkflowPresentationService::siteVisitOutcomeOptions());
 
+        $canonicalActivityTypes = $this->settings->activityTypes(false, true)->keyBy("key");
+        $canonicalFollowupActionTypes = $this->settings->actionTypes(false)->keyBy("key");
+
         DB::transaction(function () use (
             $validated,
             $canonicalOutcomes,
             $canonicalLostReasons,
             $canonicalSiteVisitOutcomes,
+            $canonicalActivityTypes,
+            $canonicalFollowupActionTypes,
             $user
         ) {
             $this->savePresentationRows(
@@ -115,6 +140,22 @@ class WorkflowVocabularyController extends Controller
                 $validated["site_visit_outcomes"] ?? [],
                 $canonicalSiteVisitOutcomes,
                 "Unknown canonical site visit outcome.",
+            );
+
+            $this->savePresentationRows(
+                $user->id,
+                WorkflowPresentationService::TYPE_ACTIVITY_TYPE,
+                $validated["activity_types"] ?? [],
+                $canonicalActivityTypes,
+                "Unknown canonical activity type.",
+            );
+
+            $this->savePresentationRows(
+                $user->id,
+                WorkflowPresentationService::TYPE_FOLLOWUP_ACTION_TYPE,
+                $validated["followup_action_types"] ?? [],
+                $canonicalFollowupActionTypes,
+                "Unknown canonical follow-up action type.",
             );
         });
 

@@ -48,6 +48,13 @@ class FollowupController extends Controller
             abort(403, 'This lead is outside your scope.');
         }
 
+        try {
+            app(\App\Services\WorkflowPresentationService::class)
+                ->assertFollowupActionTypeAllowedForUser($validated['action_type'] ?? null);
+        } catch (\DomainException $e) {
+            return back()->withErrors(['action_type' => $e->getMessage()])->withInput();
+        }
+
         DB::transaction(function () use ($lead, $validated) {
             // Cancel any existing pending task of the same type
             Followup::where('lead_id', $lead->id)
@@ -149,6 +156,12 @@ class FollowupController extends Controller
         }
 
         try {
+            $forcedSystemType = in_array($followup->action_type, ['check_shared_agent', 'check_site_team'], true);
+            if (! $forcedSystemType) {
+                app(\App\Services\WorkflowPresentationService::class)
+                    ->assertActivityTypeAllowedForUser($validated['type'] ?? null);
+            }
+
             app(\App\Services\WorkflowPresentationService::class)
                 ->assertOutcomeAllowedForUser($validated['outcome_key'] ?? null);
 

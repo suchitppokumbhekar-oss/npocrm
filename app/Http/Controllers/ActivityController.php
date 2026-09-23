@@ -25,6 +25,7 @@ class ActivityController extends Controller
             'custom_next_at'        => 'nullable|date|after:now',
             'visit_scheduled_at'    => 'nullable|date',
             'lost_reason'           => 'nullable|string|max:2000',
+            'lost_reason_key'       => 'nullable|string|max:80',
             'property_area_sqft'    => 'nullable|numeric|min:0',
             'rate_per_sqft'         => 'nullable|numeric|min:0',
             'booking_amount'        => 'nullable|numeric|min:0',
@@ -70,6 +71,9 @@ class ActivityController extends Controller
         try {
             app(\App\Services\WorkflowPresentationService::class)
                 ->assertOutcomeAllowedForUser($validated['outcome_key'] ?? null);
+
+            app(\App\Services\WorkflowPresentationService::class)
+                ->assertActivityTypeAllowedForUser($validated['type'] ?? null);
 
             app(\App\Services\WorkflowPresentationService::class)
                 ->assertLostReasonAllowedForUser($validated['lost_reason_key'] ?? null);

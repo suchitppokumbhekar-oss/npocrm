@@ -217,6 +217,42 @@
         </div>
         <div class="card" style="padding:0;overflow:hidden;margin-top:18px;">
             <div style="padding:16px 18px;border-bottom:1px solid var(--c-border,#ddd);">
+                <strong>Activity Types</strong>
+                <div class="muted" style="font-size:12px;margin-top:4px;">Controls employee wording, visibility and order for manual activity choices. Canonical keys and outcome requirements remain system-controlled.</div>
+            </div>
+            <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;min-width:780px;">
+                    <thead><tr style="text-align:left;"><th style="padding:12px;">Canonical activity</th><th style="padding:12px;">System behavior</th><th style="padding:12px;min-width:240px;">Employee sees</th><th style="padding:12px;width:90px;">Visible</th><th style="padding:12px;width:110px;">Order</th></tr></thead>
+                    <tbody>
+                    @foreach($activityTypes as $type)
+                        @php $override = $activityTypeOverrides->get($type->key); $visible = $override ? (bool) $override->is_visible : true; @endphp
+                        <tr style="border-top:1px solid var(--c-border,#eee);vertical-align:top;">
+                            <td style="padding:12px;"><strong>{{ $type->label }}</strong><div class="muted" style="font-size:11px;margin-top:3px;">{{ $type->key }}</div></td>
+                            <td style="padding:12px;font-size:12px;"><strong>{{ $type->requires_outcome ? "Requires outcome" : "Outcome not required" }}</strong></td>
+                            <td style="padding:12px;"><input type="text" class="input" name="activity_types[{{ $type->key }}][display_label]" value="{{ old("activity_types.".$type->key.".display_label", $override?->display_label) }}" maxlength="150" placeholder="{{ $type->label }}"></td>
+                            <td style="padding:12px;text-align:center;"><input type="hidden" name="activity_types[{{ $type->key }}][is_visible]" value="0"><input type="checkbox" name="activity_types[{{ $type->key }}][is_visible]" value="1" @checked(old("activity_types.".$type->key.".is_visible", $visible))></td>
+                            <td style="padding:12px;"><input type="number" class="input" name="activity_types[{{ $type->key }}][sort_order]" value="{{ old("activity_types.".$type->key.".sort_order", $override?->sort_order) }}" min="0" max="100000" placeholder="{{ $type->sort_order }}"></td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card" style="padding:0;overflow:hidden;margin-top:18px;">
+            <div style="padding:16px 18px;border-bottom:1px solid var(--c-border,#ddd);">
+                <strong>Follow-up Action Types</strong>
+                <div class="muted" style="font-size:12px;margin-top:4px;">Controls employee wording, visibility and order for follow-up work choices. Canonical scheduling keys remain unchanged.</div>
+            </div>
+            <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:780px;"><thead><tr style="text-align:left;"><th style="padding:12px;">Canonical work type</th><th style="padding:12px;">System behavior</th><th style="padding:12px;min-width:240px;">Employee sees</th><th style="padding:12px;width:90px;">Visible</th><th style="padding:12px;width:110px;">Order</th></tr></thead><tbody>
+            @foreach($followupActionTypes as $type)
+                @php $override = $followupActionTypeOverrides->get($type->key); $visible = $override ? (bool) $override->is_visible : true; @endphp
+                <tr style="border-top:1px solid var(--c-border,#eee);vertical-align:top;"><td style="padding:12px;"><strong>{{ $type->label }}</strong><div class="muted" style="font-size:11px;margin-top:3px;">{{ $type->key }}</div></td><td style="padding:12px;font-size:12px;"><strong>Canonical scheduled work</strong></td><td style="padding:12px;"><input type="text" class="input" name="followup_action_types[{{ $type->key }}][display_label]" value="{{ old("followup_action_types.".$type->key.".display_label", $override?->display_label) }}" maxlength="150" placeholder="{{ $type->label }}"></td><td style="padding:12px;text-align:center;"><input type="hidden" name="followup_action_types[{{ $type->key }}][is_visible]" value="0"><input type="checkbox" name="followup_action_types[{{ $type->key }}][is_visible]" value="1" @checked(old("followup_action_types.".$type->key.".is_visible", $visible))></td><td style="padding:12px;"><input type="number" class="input" name="followup_action_types[{{ $type->key }}][sort_order]" value="{{ old("followup_action_types.".$type->key.".sort_order", $override?->sort_order) }}" min="0" max="100000" placeholder="{{ $type->sort_order }}"></td></tr>
+            @endforeach
+            </tbody></table></div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden;margin-top:18px;">
+            <div style="padding:16px 18px;border-bottom:1px solid var(--c-border,#ddd);">
                 <strong>Site Visit Project Outcomes</strong>
                 <div class="muted" style="font-size:12px;margin-top:4px;">
                     Controls what this employee sees when recording each project outcome during an actual site visit. Canonical keys remain unchanged for history and reporting.

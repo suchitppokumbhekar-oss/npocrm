@@ -25,6 +25,9 @@
         fn ($t) => in_array($t->key, $systemTypes, true)
     )->values();
 
+    $activityTypes = app(\App\Services\WorkflowPresentationService::class)
+        ->presentActivityTypes($activityTypes, (int) session("user_id"));
+
     $requiresOutcomeMap = $activityTypes->pluck('requires_outcome', 'key')->toArray();
 
     $leadStatusKey         = $lead->statusKey();
@@ -75,7 +78,7 @@
         <label>Type *</label>
         <select name="type" class="input" id="la-type">
             @foreach ($activityTypes as $t)
-                <option value="{{ $t->key }}">{{ $t->icon }} {{ $t->label }}</option>
+                <option value="{{ $t->key }}">{{ $t->icon }} {{ $t->presentation_label }}</option>
             @endforeach
         </select>
     </div>

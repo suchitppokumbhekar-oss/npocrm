@@ -72,6 +72,8 @@
         $activityTypes = $activityTypes->reject(
             fn ($t) => in_array($t->key, $systemTypes, true)
         )->values();
+        $activityTypes = app(\App\Services\WorkflowPresentationService::class)
+            ->presentActivityTypes($activityTypes, (int) session("user_id"));
     }
 
     $actionModel = $settings->actionTypeByKey($taskAction);
@@ -117,7 +119,7 @@
             <div class="ct-label-row"><label for="ct-activity-picker">How did you contact them?</label><span>Required</span></div>
             <select id="ct-activity-picker" class="input ct-select" aria-label="Contact method">
                 @foreach ($activityTypes as $t)
-                    <option value="{{ $t->key }}" @selected($t->key === $defaultType)>{{ $t->label }}</option>
+                    <option value="{{ $t->key }}" @selected($t->key === $defaultType)>{{ $t->presentation_label ?? $t->label }}</option>
                 @endforeach
             </select>
         </div>

@@ -1,6 +1,7 @@
 @php
     $settings    = app(\App\Services\SettingsService::class);
     $actionTypes = $settings->actionTypes();
+    $actionTypes = app(\App\Services\WorkflowPresentationService::class)->presentFollowupActionTypes($actionTypes, (int) session("user_id"));
 
     $statusKey = $lead->statusKey();
 
@@ -54,7 +55,7 @@
             @if ($recommended->isNotEmpty())
                 <optgroup label="✅ Recommended for this stage">
                     @foreach ($recommended as $t)
-                        <option value="{{ $t->key }}">{{ $t->label }}</option>
+                        <option value="{{ $t->key }}">{{ $t->presentation_label }}</option>
                     @endforeach
                 </optgroup>
             @endif
@@ -62,7 +63,7 @@
             @if ($others->isNotEmpty())
                 <optgroup label="⚠️ Other task types (may not match lead stage)">
                     @foreach ($others as $t)
-                        <option value="{{ $t->key }}">{{ $t->label }}</option>
+                        <option value="{{ $t->key }}">{{ $t->presentation_label }}</option>
                     @endforeach
                 </optgroup>
             @endif
