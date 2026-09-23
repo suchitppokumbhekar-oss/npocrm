@@ -326,7 +326,7 @@ async function choose(phone,text,onLaunch){
 function render(accounts,defaultType,phone,text,onLaunch){
  picker=document.createElement('div');picker.className='npo-wa-picker-backdrop';
  var box=document.createElement('div');box.className='npo-wa-picker';
- box.innerHTML='<h3>💬 Choose WhatsApp</h3><p>Select the WhatsApp identity you intend to use for this action.</p><div id="npo-wa-choices"></div><button type="button" class="npo-wa-manage" onclick="window.location.href='{{ url('/my-whatsapp') }}'">⚙ Manage numbers / default</button><button type="button" class="npo-wa-close">Cancel</button>';
+ box.innerHTML='<h3>💬 Choose WhatsApp</h3><p>Select the WhatsApp identity you intend to use for this action.</p><div id="npo-wa-choices"></div><button type="button" class="npo-wa-manage" onclick="window.location.href=&quot;{{ url('/my-whatsapp') }}&quot;">⚙ Manage numbers / default</button><button type="button" class="npo-wa-close">Cancel</button>';
  picker.appendChild(box);document.body.appendChild(picker);
  var list=box.querySelector('#npo-wa-choices');
  accounts=accounts.slice().sort(function(a,b){if(a.type===defaultType)return -1;if(b.type===defaultType)return 1;return 0;});
@@ -392,7 +392,7 @@ async function chooseNudge(targetType,targetId){
    accounts=accounts.slice().sort(function(a,b){if(a.type===defaultType)return -1;if(b.type===defaultType)return 1;return 0;});
   picker=document.createElement('div');picker.className='npo-wa-picker-backdrop';
   var box=document.createElement('div');box.className='npo-wa-picker';
-  box.innerHTML='<h3>💬 Nudge on WhatsApp</h3><p>The CRM will prepare the lead name, reason and action link. Choose the WhatsApp identity to send it from.</p><div id="npo-wa-choices"></div><button type="button" class="npo-wa-manage" onclick="window.location.href='{{ url('/my-whatsapp') }}'">⚙ Manage numbers / default</button><button type="button" class="npo-wa-close">Cancel</button>';
+  box.innerHTML='<h3>💬 Nudge on WhatsApp</h3><p>The CRM will prepare the lead name, reason and action link. Choose the WhatsApp identity to send it from.</p><div id="npo-wa-choices"></div><button type="button" class="npo-wa-manage" onclick="window.location.href=&quot;{{ url('/my-whatsapp') }}&quot;">⚙ Manage numbers / default</button><button type="button" class="npo-wa-close">Cancel</button>';
   picker.appendChild(box);document.body.appendChild(picker);
   var list=box.querySelector('#npo-wa-choices');
   accounts.forEach(function(a){
