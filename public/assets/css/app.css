@@ -3506,3 +3506,68 @@ body.task-execution-active .lead-wb-sections {
         background: var(--c-surface-2);
     }
 }
+
+/* ============================================================
+   LEAD WORKSPACE — DESKTOP TIMELINE UX PASS 1
+   Preserve mobile timeline; improve desktop density/readability.
+   ============================================================ */
+
+@media (min-width: 1101px) {
+    .lead-workbench-v2 .timeline {
+        gap: 10px;
+    }
+
+    .lead-workbench-v2 .timeline-day-header {
+        margin-top: 18px;
+        padding: 10px 0 7px;
+    }
+
+    .lead-workbench-v2 .timeline-item {
+        gap: 10px;
+    }
+
+    .lead-workbench-v2 .timeline-item .icon {
+        width: 34px;
+        height: 34px;
+        flex: 0 0 34px;
+    }
+
+    .lead-workbench-v2 .timeline-item .content {
+        padding: 11px 14px;
+        border-radius: 9px;
+    }
+
+    .lead-workbench-v2 .timeline-item .head {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        column-gap: 10px;
+        margin-bottom: 7px;
+    }
+
+    .lead-workbench-v2 .timeline-item .who {
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .lead-workbench-v2 .timeline-item .when {
+        font-size: 11px;
+    }
+
+    .lead-workbench-v2 .timeline-item .notes {
+        font-size: 13px;
+        line-height: 1.45;
+        max-width: 860px;
+    }
+
+    .lead-workbench-v2 .timeline-item .notes strong {
+        font-weight: 800;
+    }
+}
+
+
+/* Lead Workspace desktop timeline: keep outcome/detail aligned to the reading edge. */
+@media (min-width: 1101px) {
+    .lead-workbench-v2 .timeline-item .notes {
+        text-align: left;
+    }
+}
+
