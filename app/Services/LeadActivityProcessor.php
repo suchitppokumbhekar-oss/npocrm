@@ -171,7 +171,8 @@ class LeadActivityProcessor
         }
 
         /* ---- 6. Precompute outside transaction ---- */
-        $alsoWhatsapp = ! empty($payload['also_whatsapp']);
+        $whatsappKind = $payload['whatsapp_sent_kind'] ?? null;
+        $alsoWhatsapp = ! empty($payload['also_whatsapp']) || in_array($whatsappKind, ['intro', 'details'], true);
 
         $customNextAt = ! empty($payload['custom_next_at'])
             ? \Carbon\Carbon::parse($payload['custom_next_at'])
@@ -266,8 +267,9 @@ class LeadActivityProcessor
 
             // 7e. Optional WhatsApp auto-send
             $waActivity = null;
-            if ($alsoWhatsapp && $outcome && $outcome->prompts_whatsapp_send) {
-                $waOutcome = $this->settings->callOutcomeByKey('wa_sent_details');
+            if ($alsoWhatsapp && $outcome && $activityType->key === 'call') {
+                $waOutcomeKey = $whatsappKind === 'intro' ? 'wa_delivered_awaiting' : 'wa_sent_details';
+                $waOutcome = $this->settings->callOutcomeByKey($waOutcomeKey);
                 if ($waOutcome) {
                     $waActivity = Activity::create([
                         'lead_id'     => $lead->id,
@@ -276,7 +278,7 @@ class LeadActivityProcessor
                         'outcome'     => $waOutcome->label,
                         'outcome_key' => $waOutcome->key,
                         'action_source' => 'automated',
-                        'notes'       => '📤 Details sent via WhatsApp (auto-logged)',
+                        'notes'       => '📤 WhatsApp message sent (auto-logged)',
                         'logged_at'   => now(),
                     ]);
                 }
@@ -322,14 +324,15 @@ class LeadActivityProcessor
                 && in_array($advanceToKey, $structuralStatuses, true);
 
             if (! $advancedToStructural) {
+                $schedulingOutcome = $outcome;
+                $schedulingActivity = $activity;
 
-                // WhatsApp-based next action (only when status didn't advance)
-                if ($waActivity && ! $advanced) {
+                // One next task: failed call keeps retry; connected call + details sent follows the WhatsApp details.
+                if ($waActivity && $outcome && $outcome->is_connected && $whatsappKind === 'details') {
                     $waOutcome = $this->settings->callOutcomeByKey('wa_sent_details');
                     if ($waOutcome) {
-                        $scheduled = $this->smartFollowups->scheduleForOutcome(
-                            $lead, $waActivity, $waOutcome
-                        );
+                        $schedulingOutcome = $waOutcome;
+                        $schedulingActivity = $waActivity;
                     }
                 }
 
@@ -348,9 +351,9 @@ class LeadActivityProcessor
                 }
 
                 // The outcome's own next action
-                if ($outcome) {
+                if ($schedulingOutcome) {
                     $scheduled = $this->smartFollowups->scheduleForOutcome(
-                        $lead, $activity, $outcome
+                        $lead, $schedulingActivity, $schedulingOutcome
                     );
 
                     if ($scheduled && $customNextAt) {

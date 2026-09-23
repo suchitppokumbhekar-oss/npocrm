@@ -71,7 +71,7 @@ class SmartFollowupService
     {
         return DB::transaction(function () use ($lead, $delayHours, $priority) {
             $locked = Lead::query()->lockForUpdate()->find($lead->id);
-            if (! $locked || $locked->isFinal()) {
+            if (! $locked || $locked->isFinal() || ! $locked->agent_id) {
                 return null;
             }
 
@@ -111,6 +111,7 @@ class SmartFollowupService
 
         $leadsWithoutNextAction = Lead::query()
             ->when(! empty($finalStatuses), fn ($q) => $q->whereNotIn('status', $finalStatuses))
+            ->whereNotNull('agent_id')
             ->whereDoesntHave('followups', fn ($q) => $q->where('status', 'pending'))
             ->get();
 
