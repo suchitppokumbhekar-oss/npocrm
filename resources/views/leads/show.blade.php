@@ -524,7 +524,7 @@
                 </div>
             </div>
             @if ($canAddProjectWorkstream)
-                <button type="button" class="btn-small btn-info" onclick="document.getElementById('add-project-interest-form').scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('project-interest-project').focus();">
+                <button type="button" class="btn-small btn-info" onclick="document.getElementById('add-project-interest-form').scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('project-interest-project_search').focus();">
                     ➕ Add Project Interest
                 </button>
             @endif
@@ -559,14 +559,13 @@
                     <div class="row">
                         <span class="label">🏗️ Project</span>
                         <span class="value">
-                            <select id="project-interest-project" name="project_id" required style="width:100%;">
-                                <option value="">Select project…</option>
-                                @foreach ($projects as $projectOption)
-                                    @if (! $relatedProjectLeads->contains('project_id', $projectOption->id))
-                                        <option value="{{ $projectOption->id }}">{{ $projectOption->name }}</option>
-                                    @endif
-                                @endforeach
-                            </select>
+                            <x-project-picker
+                                name="project_id"
+                                id="project-interest-project"
+                                :required="true"
+                                placeholder="Search project…"
+                                :exclude-ids="$relatedProjectLeads->pluck('project_id')->filter()->values()"
+                            />
                         </span>
                     </div>
                     <div class="row">

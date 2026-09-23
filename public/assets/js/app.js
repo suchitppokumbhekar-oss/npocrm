@@ -1588,6 +1588,7 @@
       var searchContext = wrap.dataset.searchContext || '';
       var searchSource  = wrap.dataset.searchSource || '';
       var searchScope   = wrap.dataset.searchScope || '';
+      var excludeIds = new Set((wrap.dataset.excludeIds || '' ).split(',').filter(Boolean).map(String));
 
       function show(el) { el.hidden = false; }
       function hide(el) { el.hidden = true; }
@@ -1622,8 +1623,9 @@
       function renderResults(list) {
         items = [];
         activeIx = -1;
+        list = (list || []).filter(function (p) { return ! excludeIds.has(String(p.id)); });
 
-        if (! list || list.length === 0) {
+        if (list.length === 0) {
           results.innerHTML = '<div class="pp-empty">No projects found</div>';
           show(results);
           return;

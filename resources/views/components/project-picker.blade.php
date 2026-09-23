@@ -13,6 +13,7 @@
     'searchContext' => null,
     'searchSource'  => null,
     'searchScope'   => null,
+    'excludeIds'    => [],
 ])
 
 @php
@@ -22,6 +23,7 @@
 <div class="project-picker"
      data-project-picker
      data-field-id="{{ $fieldId }}"
+     data-exclude-ids="{{ collect($excludeIds)->filter()->map(fn ($id) => (int) $id)->values()->implode(',') }}"
      @if($autoSubmit) data-auto-submit="1" @endif
      @if($searchContext) data-search-context="{{ $searchContext }}" @endif
      @if($searchSource) data-search-source="{{ $searchSource }}" @endif
