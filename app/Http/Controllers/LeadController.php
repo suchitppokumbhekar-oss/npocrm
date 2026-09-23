@@ -18,6 +18,7 @@ use App\Services\LeadStatusService;
 use App\Services\FollowupService;
 use App\Services\SettingsService;
 use App\Services\TeamService;
+use App\Services\WorkflowPresentationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +33,7 @@ class LeadController extends Controller
         private BookingControlService $bookingControls,
         private LeadTransferService $leadTransfers,
         private LeadDuplicateGuard $duplicateGuard,
+        private WorkflowPresentationService $workflowPresentations,
     ) {}
 
     public function show(Request $request, int $id)
@@ -68,19 +70,10 @@ class LeadController extends Controller
         $adminCorrectionLostReasonKey = null;
         $adminCorrectionLostReasonLabel = null;
         if ($this->access->can('leads.status_change') && ! $lead->isLost() && ! $lead->isWon()) {
-            $permanentOutcomeKeys = [
-                'wrong_number',
-                'invalid_number',
-                'fake_spam',
-                'duplicate',
-                'already_bought',
-                'bought_elsewhere',
-                'dnd',
-                'permanently_not_interested',
-                'outside_target_market',
-                'project_unsuitable',
-                'other_permanent',
-            ];
+            $permanentOutcomeKeys = array_column(
+                LeadStatusService::lostReasonOptions()["closed"],
+                "key"
+            );
             $candidate = $activities->first();
             if (! $candidate || ! $candidate->outcome_key || ! in_array($candidate->outcome_key, $permanentOutcomeKeys, true)) {
                 $candidate = null;
@@ -578,6 +571,17 @@ class LeadController extends Controller
         }
         if ($lead->isWon()) {
             return redirect('/')->with('error', '🎉 This lead is already Booked. Use ✏️ Edit Booking to change details.');
+        }
+
+        if ($validated["status"] === "lost") {
+            try {
+                $this->workflowPresentations->assertLostReasonAllowedForUser(
+                    $validated["lost_reason_key"] ?? null,
+                    (int) session("user_id"),
+                );
+            } catch (\DomainException $e) {
+                return redirect("/")->with("error", "🚫 ".$e->getMessage());
+            }
         }
 
         $bookingDetails   = [];

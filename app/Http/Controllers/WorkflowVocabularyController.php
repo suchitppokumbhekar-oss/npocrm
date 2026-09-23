@@ -23,19 +23,25 @@ class WorkflowVocabularyController extends Controller
         $this->superAdmins->requireSuperAdmin();
 
         $user = User::query()
-            ->with('agent')
+            ->with("agent")
             ->findOrFail($userId);
 
         abort_unless($user->agent, 404);
 
         $outcomes = $this->settings->callOutcomes(false);
-        $overrides = $this->presentations
+        $outcomeOverrides = $this->presentations
             ->presentationsForUser($user->id, WorkflowPresentationService::TYPE_OUTCOME);
 
-        return view('settings.workflow-vocabulary', compact(
-            'user',
-            'outcomes',
-            'overrides',
+        $lostReasons = \App\Services\LeadStatusService::lostReasonOptions();
+        $lostReasonOverrides = $this->presentations
+            ->presentationsForUser($user->id, WorkflowPresentationService::TYPE_LOST_REASON);
+
+        return view("settings.workflow-vocabulary", compact(
+            "user",
+            "outcomes",
+            "outcomeOverrides",
+            "lostReasons",
+            "lostReasonOverrides",
         ));
     }
 
@@ -44,43 +50,83 @@ class WorkflowVocabularyController extends Controller
         $this->superAdmins->requireSuperAdmin();
 
         $user = User::query()
-            ->with('agent')
+            ->with("agent")
             ->findOrFail($userId);
 
         abort_unless($user->agent, 404);
 
         $validated = $request->validate([
-            'outcomes' => ['nullable', 'array'],
-            'outcomes.*.display_label' => ['nullable', 'string', 'max:150'],
-            'outcomes.*.is_visible' => ['nullable', 'boolean'],
-            'outcomes.*.sort_order' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            "outcomes" => ["nullable", "array"],
+            "outcomes.*.display_label" => ["nullable", "string", "max:150"],
+            "outcomes.*.is_visible" => ["nullable", "boolean"],
+            "outcomes.*.sort_order" => ["nullable", "integer", "min:0", "max:100000"],
+            "lost_reasons" => ["nullable", "array"],
+            "lost_reasons.*.display_label" => ["nullable", "string", "max:150"],
+            "lost_reasons.*.is_visible" => ["nullable", "boolean"],
+            "lost_reasons.*.sort_order" => ["nullable", "integer", "min:0", "max:100000"],
         ]);
 
-        $canonical = $this->settings
+        $canonicalOutcomes = $this->settings
             ->callOutcomes(false)
-            ->keyBy('key');
+            ->keyBy("key");
 
-        DB::transaction(function () use ($validated, $canonical, $user) {
-            foreach (($validated['outcomes'] ?? []) as $key => $values) {
+        $canonicalLostReasons = collect(\App\Services\LeadStatusService::lostReasonOptions())
+            ->flatten(1)
+            ->keyBy("key");
+
+        DB::transaction(function () use (
+            $validated,
+            $canonicalOutcomes,
+            $canonicalLostReasons,
+            $user
+        ) {
+            $this->savePresentationRows(
+                $user->id,
+                WorkflowPresentationService::TYPE_OUTCOME,
+                $validated["outcomes"] ?? [],
+                $canonicalOutcomes,
+                "Unknown canonical workflow outcome.",
+            );
+
+            $this->savePresentationRows(
+                $user->id,
+                WorkflowPresentationService::TYPE_LOST_REASON,
+                $validated["lost_reasons"] ?? [],
+                $canonicalLostReasons,
+                "Unknown canonical Lost reason.",
+            );
+        });
+
+        return back()->with("success", "Workflow vocabulary updated for ".$user->name.".");
+    }
+
+    private function savePresentationRows(
+        int $userId,
+        string $optionType,
+        array $submitted,
+        \Illuminate\Support\Collection $canonical,
+        string $unknownMessage,
+    ): void {
+        foreach ($submitted as $key => $values) {
             if (! $canonical->has($key)) {
-                abort(422, 'Unknown canonical workflow outcome.');
+                abort(422, $unknownMessage);
             }
 
-            $label = trim((string) ($values['display_label'] ?? ''));
-            $visible = array_key_exists('is_visible', $values)
-                ? (bool) $values['is_visible']
+            $label = trim((string) ($values["display_label"] ?? ""));
+            $visible = array_key_exists("is_visible", $values)
+                ? (bool) $values["is_visible"]
                 : false;
-            $sortOrder = $values['sort_order'] ?? null;
+            $sortOrder = $values["sort_order"] ?? null;
 
-            $hasOverride = $label !== ''
+            $hasOverride = $label !== ""
                 || ! $visible
                 || $sortOrder !== null;
 
             if (! $hasOverride) {
                 UserWorkflowPresentation::query()
-                    ->where('user_id', $user->id)
-                    ->where('option_type', WorkflowPresentationService::TYPE_OUTCOME)
-                    ->where('canonical_key', $key)
+                    ->where("user_id", $userId)
+                    ->where("option_type", $optionType)
+                    ->where("canonical_key", $key)
                     ->delete();
 
                 continue;
@@ -88,19 +134,16 @@ class WorkflowVocabularyController extends Controller
 
             UserWorkflowPresentation::query()->updateOrCreate(
                 [
-                    'user_id' => $user->id,
-                    'option_type' => WorkflowPresentationService::TYPE_OUTCOME,
-                    'canonical_key' => $key,
+                    "user_id" => $userId,
+                    "option_type" => $optionType,
+                    "canonical_key" => $key,
                 ],
                 [
-                    'display_label' => $label !== '' ? $label : null,
-                    'is_visible' => $visible,
-                    'sort_order' => $sortOrder,
+                    "display_label" => $label !== "" ? $label : null,
+                    "is_visible" => $visible,
+                    "sort_order" => $sortOrder,
                 ],
             );
-            }
-        });
-
-        return back()->with('success', 'Workflow vocabulary updated for '.$user->name.'.');
+        }
     }
 }

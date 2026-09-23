@@ -51,7 +51,7 @@
                     <tbody>
                     @foreach($outcomes as $outcome)
                         @php
-                            $override = $overrides->get($outcome->key);
+                            $override = $outcomeOverrides->get($outcome->key);
                             $visible = $override ? (bool) $override->is_visible : true;
                             $next = $outcome->nextActionType?->label;
                             $delay = (int) $outcome->next_action_delay_hours;
@@ -123,6 +123,98 @@
             </div>
         </div>
 
+        <div class="card" style="padding:0;overflow:hidden;margin-top:18px;">
+            <div style="padding:16px 18px;border-bottom:1px solid var(--c-border,#ddd);">
+                <strong>Lost Reasons</strong>
+                <div class="muted" style="font-size:12px;margin-top:4px;">
+                    Wording, visibility and order may differ by employee. Nurture eligibility is canonical system behavior and cannot be changed here.
+                </div>
+            </div>
+
+            @foreach($lostReasons as $groupKey => $reasonOptions)
+                <div style="padding:12px 18px;background:var(--c-bg-soft,#f7f7f7);border-bottom:1px solid var(--c-border,#ddd);">
+                    <strong>{{ $groupKey === "nurture" ? "Nurture eligible" : "Permanently closed" }}</strong>
+                    <div class="muted" style="font-size:11px;margin-top:2px;">
+                        {{ $groupKey === "nurture"
+                            ? "These reasons may create future reactivation work when a nurture date is supplied."
+                            : "These reasons do not permit nurture/reactivation scheduling." }}
+                    </div>
+                </div>
+
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;min-width:780px;">
+                        <thead>
+                            <tr style="text-align:left;">
+                                <th style="padding:12px;">Canonical reason</th>
+                                <th style="padding:12px;">System behavior</th>
+                                <th style="padding:12px;min-width:240px;">Employee sees</th>
+                                <th style="padding:12px;width:90px;">Visible</th>
+                                <th style="padding:12px;width:110px;">Order</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach($reasonOptions as $index => $reason)
+                            @php
+                                $override = $lostReasonOverrides->get($reason["key"]);
+                                $visible = $override ? (bool) $override->is_visible : true;
+                            @endphp
+                            <tr style="border-top:1px solid var(--c-border,#eee);vertical-align:top;">
+                                <td style="padding:12px;">
+                                    <strong>{{ $reason["label"] }}</strong>
+                                    <div class="muted" style="font-size:11px;margin-top:3px;">
+                                        {{ $reason["key"] }}
+                                    </div>
+                                </td>
+
+                                <td style="padding:12px;font-size:12px;line-height:1.5;">
+                                    @if($groupKey === "nurture")
+                                        <strong>Nurture eligible</strong>
+                                        <div class="muted">May schedule reactivation work.</div>
+                                    @else
+                                        <strong>Permanently closed</strong>
+                                        <div class="muted">Nurture/reactivation not allowed.</div>
+                                    @endif
+                                </td>
+
+                                <td style="padding:12px;">
+                                    <input
+                                        type="text"
+                                        class="input"
+                                        name="lost_reasons[{{ $reason["key"] }}][display_label]"
+                                        value="{{ old("lost_reasons.".$reason["key"].".display_label", $override?->display_label) }}"
+                                        maxlength="150"
+                                        placeholder="{{ $reason["label"] }}"
+                                    >
+                                </td>
+
+                                <td style="padding:12px;text-align:center;">
+                                    <input type="hidden"
+                                           name="lost_reasons[{{ $reason["key"] }}][is_visible]"
+                                           value="0">
+                                    <input type="checkbox"
+                                           name="lost_reasons[{{ $reason["key"] }}][is_visible]"
+                                           value="1"
+                                           @checked(old("lost_reasons.".$reason["key"].".is_visible", $visible))>
+                                </td>
+
+                                <td style="padding:12px;">
+                                    <input
+                                        type="number"
+                                        class="input"
+                                        name="lost_reasons[{{ $reason["key"] }}][sort_order]"
+                                        value="{{ old("lost_reasons.".$reason["key"].".sort_order", $override?->sort_order) }}"
+                                        min="0"
+                                        max="100000"
+                                        placeholder="{{ $index }}"
+                                    >
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endforeach
+        </div>
         <div style="display:flex;justify-content:flex-end;margin-top:16px;">
             <button type="submit" class="btn">Save Workflow Vocabulary</button>
         </div>

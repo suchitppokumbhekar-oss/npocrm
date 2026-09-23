@@ -156,7 +156,7 @@
     {{-- LOST / NURTURE CONTROL --}}
     {{-- ============================================================ --}}
     @php
-        $lostReasonOptions = \App\Services\LeadStatusService::lostReasonOptions();
+        $lostReasonOptions = app(\App\Services\WorkflowPresentationService::class)->presentLostReasons((int) session("user_id"));
         $currentLostKey = $lead->lost_reason_key;
     @endphp
     <div id="cs-lost-field" style="display:none;">
@@ -171,12 +171,12 @@
                 <option value="">— Select a reason —</option>
                 <optgroup label="🔄 Nurture possible — customer may buy later">
                     @foreach ($lostReasonOptions['nurture'] as $opt)
-                        <option value="{{ $opt['key'] }}" @selected($currentLostKey === $opt['key'])>{{ $opt['label'] }}</option>
+                        <option value="{{ $opt['key'] }}" @selected($currentLostKey === $opt['key'])>{{ $opt['display_label'] }}</option>
                     @endforeach
                 </optgroup>
                 <optgroup label="🚫 Permanently closed — never reactivate automatically">
                     @foreach ($lostReasonOptions['closed'] as $opt)
-                        <option value="{{ $opt['key'] }}" @selected($currentLostKey === $opt['key'])>{{ $opt['label'] }}</option>
+                        <option value="{{ $opt['key'] }}" @selected($currentLostKey === $opt['key'])>{{ $opt['display_label'] }}</option>
                     @endforeach
                 </optgroup>
             </select>
