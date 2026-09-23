@@ -27,6 +27,7 @@
 
     {{-- 0. ATTENDANCE BANNER (payroll agents only) --}}
     @include('partials.attendance-banner')
+    @include('partials.owner-command-center')
 
     {{-- 1. FOCUS BANNER --}}
     <div class="card greeting-card">

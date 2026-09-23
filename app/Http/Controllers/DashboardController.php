@@ -623,6 +623,11 @@ class DashboardController extends Controller
             ->where('status', 'visit_done')
             ->count();
 
+        $isSuperAdmin = app(\App\Services\SuperAdminService::class)->isSuperAdmin();
+        $ownerCommandCenter = $isSuperAdmin
+            ? app(\App\Services\SuperAdminCommandCenterService::class)->snapshot()
+            : null;
+
         /* ============================================================
            VIEW
            ============================================================ */
@@ -674,6 +679,8 @@ class DashboardController extends Controller
             'statVisitDone',
             'assignableAgents',
             'agentsByTeam',
+            'isSuperAdmin',
+            'ownerCommandCenter',
             'selfAgentId'
         ));
     }

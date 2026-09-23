@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Followup;
+use App\Models\Lead;
 use App\Services\NudgeService;
 use Illuminate\Http\Request;
 
@@ -17,14 +18,16 @@ class NudgeController extends Controller
         }
 
         $validated = $request->validate([
-            'target_type' => ['required', 'in:followup,agent'],
+            'target_type' => ['required', 'in:followup,agent,lead_attention'],
             'target_id' => ['required', 'integer', 'min:1'],
             'account_type' => ['required', 'in:personal,business'],
         ]);
 
-        $payload = $validated['target_type'] === 'followup'
-            ? $this->nudges->buildForFollowup(Followup::findOrFail((int) $validated['target_id']))
-            : $this->nudges->buildForAgent((int) $validated['target_id']);
+        $payload = match ($validated['target_type']) {
+            'followup' => $this->nudges->buildForFollowup(Followup::findOrFail((int) $validated['target_id'])),
+            'lead_attention' => $this->nudges->buildForLeadAttention(Lead::findOrFail((int) $validated['target_id'])),
+            default => $this->nudges->buildForAgent((int) $validated['target_id']),
+        };
 
         $user = \App\Models\User::findOrFail((int) session('user_id'));
         $account = $user->whatsappAccounts()
@@ -45,9 +48,11 @@ class NudgeController extends Controller
             'ok' => true,
             'url' => $url,
             'message' => $payload['message'],
-            'nudge_count' => $validated['target_type'] === 'followup'
-                ? $this->nudges->countForFollowup((int) $validated['target_id'])
-                : $this->nudges->countForAgent((int) $validated['target_id']),
+            'nudge_count' => match ($validated['target_type']) {
+                'followup' => $this->nudges->countForFollowup((int) $validated['target_id']),
+                'agent' => $this->nudges->countForAgent((int) $validated['target_id']),
+                default => 1,
+            },
         ]);
     }
 }
