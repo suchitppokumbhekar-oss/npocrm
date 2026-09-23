@@ -109,10 +109,21 @@
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
             <input type="checkbox" name="also_whatsapp" id="la-wa-cb"
                    value="1" checked style="width:auto;min-height:auto;">
-            <span>📤 Also send details on WhatsApp now</span>
+            <span>📱 I also sent a WhatsApp in this same contact attempt</span>
         </label>
         <p class="muted" style="font-size:11px;margin-top:4px;margin-left:26px;">
-            Logs a WhatsApp activity + schedules a WhatsApp Follow-up to check the response.
+            Record both actions once. Choose below whether you sent an intro or the requested details.
+        </p>
+    </div>
+
+    <div class="field" id="la-wa-kind-field" style="display:none;">
+        <label>What did you send on WhatsApp?</label>
+        <select name="whatsapp_sent_kind" id="la-wa-kind" class="input">
+            <option value="intro">👋 Intro / enquiry acknowledgement — waiting for reply</option>
+            <option value="details">📄 Requested details / brochure / pricing sent</option>
+        </select>
+        <p class="muted" style="font-size:11px;margin-top:4px;">
+            WhatsApp sent does not by itself mean the customer is Interested. CRM will keep only one appropriate next task.
         </p>
     </div>
 
@@ -238,6 +249,8 @@
     var preview    = document.getElementById('la-preview');
     var waF        = document.getElementById('la-wa-field');
     var waCb       = document.getElementById('la-wa-cb');
+    var waKindF    = document.getElementById('la-wa-kind-field');
+    var waKind     = document.getElementById('la-wa-kind');
     var visitF     = document.getElementById('la-visit-field');
     var visitInput = document.getElementById('la-visit-input');
     var lostF      = document.getElementById('la-lost-field');
@@ -255,7 +268,7 @@
         visitF.style.display = 'none';      visitInput.required = false;
         lostF.style.display = 'none';       lostInput.required = false;
         bookingF.style.display = 'none';    bookingAmt.required = false;
-        waF.style.display = 'none';         waCb.checked = true;
+        waF.style.display = typeSel.value === 'call' ? 'block' : 'none'; waCb.checked = false; waKindF.style.display = 'none';
     }
 
     function rebuildOutcomes() {
@@ -341,10 +354,11 @@
             }
         }
 
-        if (wa) {
+        if (typeSel.value === 'call') {
             waF.style.display = 'block';
-            waCb.checked = true;
-            txt += '  ·  📤 option to send WhatsApp';
+            if (wa) waCb.checked = true;
+            waKindF.style.display = waCb.checked ? 'block' : 'none';
+            txt += waCb.checked ? '  ·  📱 Call + WhatsApp' : '  ·  📞 Call only';
         }
 
         preview.textContent = txt;
@@ -361,6 +375,11 @@
         var p = parseFloat(pctIn.value || '0');
         if (v && p) brokIn.value = Math.round(v * p / 100 * 100) / 100;
     }
+
+    waCb.addEventListener('change', function () {
+        waKindF.style.display = waCb.checked ? 'block' : 'none';
+
+    });
 
     typeSel.addEventListener('change', onTypeChange);
     outcomeSel.addEventListener('change', onOutcomeChange);

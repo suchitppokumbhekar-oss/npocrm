@@ -111,6 +111,7 @@ class FollowupController extends Controller
             'outcome_key'           => 'nullable|string',
             'notes'                 => 'nullable|string|max:2000',
             'also_whatsapp'         => 'nullable|boolean',
+            'whatsapp_sent_kind'    => 'nullable|in:intro,details',
             'custom_next_at'        => 'nullable|date|after:now',
             'visit_scheduled_at'    => 'nullable|date|after:now',
             'lost_reason'           => 'nullable|string|max:2000',
