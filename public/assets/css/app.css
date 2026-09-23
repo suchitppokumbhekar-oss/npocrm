@@ -3736,3 +3736,175 @@ body.task-execution-active .lead-wb-sections {
         min-width: 0;
     }
 }
+
+/* ============================================================
+   PROJECTS — DESKTOP UX PASS 1
+   Preserve mobile project UX; improve desktop directory
+   composition and scanning.
+   ============================================================ */
+
+@media (min-width: 1101px) {
+
+    .project-page-head {
+        padding: 18px 20px;
+        margin-bottom: 14px;
+        border: 1px solid var(--c-border);
+        border-radius: 14px;
+        background: var(--c-surface);
+        box-shadow: 0 2px 8px rgba(15,23,42,.03);
+    }
+
+    .project-page-head .back-link {
+        display: inline-block;
+        margin-bottom: 7px;
+    }
+
+    .project-page-head .page-title {
+        font-size: 26px;
+        letter-spacing: -.2px;
+    }
+
+    .project-page-head .page-subtitle {
+        margin-top: 5px;
+    }
+
+    .project-toolbar {
+        padding: 16px 18px;
+        margin-bottom: 14px;
+    }
+
+    .project-filter-form {
+        grid-template-columns: minmax(0, 1fr) 190px auto auto;
+        gap: 12px;
+    }
+
+    .project-filter-form .input {
+        min-height: 44px;
+    }
+
+    .project-filter-form .btn {
+        min-height: 44px;
+        padding-left: 18px;
+        padding-right: 18px;
+    }
+
+    .project-filter-form .btn-small {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .project-list-head {
+        padding: 15px 18px 10px;
+        margin-bottom: 0;
+    }
+
+    .project-list-table {
+        padding: 0 12px 4px;
+    }
+
+
+    .project-list-table th,
+    .project-list-table td {
+        padding: 11px 10px;
+        vertical-align: middle;
+    }
+
+
+    .project-list-table th:nth-child(2),
+    .project-list-table td:nth-child(2) {
+        width: 14%;
+    }
+
+    .project-list-table th:nth-child(3),
+    .project-list-table td:nth-child(3) {
+        width: 20%;
+    }
+
+    .project-list-table th:nth-child(4),
+    .project-list-table td:nth-child(4) {
+        width: 8%;
+        text-align: center;
+    }
+
+    .project-list-table th:nth-child(5),
+    .project-list-table td:nth-child(5) {
+        width: 9%;
+    }
+
+    .project-list-table th:nth-child(6),
+    .project-list-table td:nth-child(6) {
+        width: 20%;
+    }
+
+    .project-list-table td:first-child strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .project-list-table td:nth-child(2),
+    .project-list-table td:nth-child(3) {
+        overflow-wrap: anywhere;
+    }
+
+    .project-list-table .row-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .project-list-table .row-actions .btn-small {
+        white-space: nowrap;
+    }
+
+    .project-list-table tbody tr {
+        transition: background-color .12s ease;
+    }
+
+    .project-list-table tbody tr:hover {
+        background: var(--c-surface-2);
+    }
+
+    .project-pagination {
+        padding-bottom: 12px;
+    }
+}
+
+
+/* Projects desktop: restore natural table/button sizing. */
+@media (min-width: 1101px) {
+    .project-list-table table {
+        table-layout: auto;
+    }
+
+    .project-list-table th:nth-child(2),
+    .project-list-table td:nth-child(2),
+    .project-list-table th:nth-child(3),
+    .project-list-table td:nth-child(3),
+    .project-list-table th:nth-child(4),
+    .project-list-table td:nth-child(4),
+    .project-list-table th:nth-child(5),
+    .project-list-table td:nth-child(5),
+    .project-list-table th:nth-child(6),
+    .project-list-table td:nth-child(6) {
+        width: auto;
+    }
+
+    .project-list-table th:nth-child(4),
+    .project-list-table td:nth-child(4) {
+        text-align: left;
+    }
+
+    .project-list-table .row-actions {
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+}
