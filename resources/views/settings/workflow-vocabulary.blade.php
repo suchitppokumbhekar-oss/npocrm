@@ -215,6 +215,81 @@
                 </div>
             @endforeach
         </div>
+        <div class="card" style="padding:0;overflow:hidden;margin-top:18px;">
+            <div style="padding:16px 18px;border-bottom:1px solid var(--c-border,#ddd);">
+                <strong>Site Visit Project Outcomes</strong>
+                <div class="muted" style="font-size:12px;margin-top:4px;">
+                    Controls what this employee sees when recording each project outcome during an actual site visit. Canonical keys remain unchanged for history and reporting.
+                </div>
+            </div>
+
+            <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;min-width:780px;">
+                    <thead>
+                        <tr style="text-align:left;">
+                            <th style="padding:12px;">Canonical outcome</th>
+                            <th style="padding:12px;">System behavior</th>
+                            <th style="padding:12px;min-width:240px;">Employee sees</th>
+                            <th style="padding:12px;width:90px;">Visible</th>
+                            <th style="padding:12px;width:110px;">Order</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach($siteVisitOutcomes as $key => $label)
+                        @php
+                            $override = $siteVisitOutcomeOverrides->get($key);
+                            $visible = $override ? (bool) $override->is_visible : true;
+                            $canonicalOrder = array_search($key, array_keys($siteVisitOutcomes), true);
+                        @endphp
+                        <tr style="border-top:1px solid var(--c-border,#eee);vertical-align:top;">
+                            <td style="padding:12px;">
+                                <strong>{{ $label }}</strong>
+                                <div class="muted" style="font-size:11px;margin-top:3px;">{{ $key }}</div>
+                            </td>
+
+                            <td style="padding:12px;font-size:12px;line-height:1.5;">
+                                <strong>Project visit classification</strong>
+                                <div class="muted">Stored canonically against the project within the actual site visit.</div>
+                            </td>
+
+                            <td style="padding:12px;">
+                                <input
+                                    type="text"
+                                    class="input"
+                                    name="site_visit_outcomes[{{ $key }}][display_label]"
+                                    value="{{ old("site_visit_outcomes.".$key.".display_label", $override?->display_label) }}"
+                                    maxlength="150"
+                                    placeholder="{{ $label }}"
+                                >
+                            </td>
+
+                            <td style="padding:12px;text-align:center;">
+                                <input type="hidden"
+                                       name="site_visit_outcomes[{{ $key }}][is_visible]"
+                                       value="0">
+                                <input type="checkbox"
+                                       name="site_visit_outcomes[{{ $key }}][is_visible]"
+                                       value="1"
+                                       @checked(old("site_visit_outcomes.".$key.".is_visible", $visible))>
+                            </td>
+
+                            <td style="padding:12px;">
+                                <input
+                                    type="number"
+                                    class="input"
+                                    name="site_visit_outcomes[{{ $key }}][sort_order]"
+                                    value="{{ old("site_visit_outcomes.".$key.".sort_order", $override?->sort_order) }}"
+                                    min="0"
+                                    max="100000"
+                                    placeholder="{{ $canonicalOrder }}"
+                                >
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
         <div style="display:flex;justify-content:flex-end;margin-top:16px;">
             <button type="submit" class="btn">Save Workflow Vocabulary</button>
         </div>

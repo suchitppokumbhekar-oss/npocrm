@@ -36,12 +36,18 @@ class WorkflowVocabularyController extends Controller
         $lostReasonOverrides = $this->presentations
             ->presentationsForUser($user->id, WorkflowPresentationService::TYPE_LOST_REASON);
 
+        $siteVisitOutcomes = WorkflowPresentationService::siteVisitOutcomeOptions();
+        $siteVisitOutcomeOverrides = $this->presentations
+            ->presentationsForUser($user->id, WorkflowPresentationService::TYPE_SITE_VISIT_OUTCOME);
+
         return view("settings.workflow-vocabulary", compact(
             "user",
             "outcomes",
             "outcomeOverrides",
             "lostReasons",
             "lostReasonOverrides",
+            "siteVisitOutcomes",
+            "siteVisitOutcomeOverrides",
         ));
     }
 
@@ -64,6 +70,10 @@ class WorkflowVocabularyController extends Controller
             "lost_reasons.*.display_label" => ["nullable", "string", "max:150"],
             "lost_reasons.*.is_visible" => ["nullable", "boolean"],
             "lost_reasons.*.sort_order" => ["nullable", "integer", "min:0", "max:100000"],
+            "site_visit_outcomes" => ["nullable", "array"],
+            "site_visit_outcomes.*.display_label" => ["nullable", "string", "max:150"],
+            "site_visit_outcomes.*.is_visible" => ["nullable", "boolean"],
+            "site_visit_outcomes.*.sort_order" => ["nullable", "integer", "min:0", "max:100000"],
         ]);
 
         $canonicalOutcomes = $this->settings
@@ -74,10 +84,13 @@ class WorkflowVocabularyController extends Controller
             ->flatten(1)
             ->keyBy("key");
 
+        $canonicalSiteVisitOutcomes = collect(WorkflowPresentationService::siteVisitOutcomeOptions());
+
         DB::transaction(function () use (
             $validated,
             $canonicalOutcomes,
             $canonicalLostReasons,
+            $canonicalSiteVisitOutcomes,
             $user
         ) {
             $this->savePresentationRows(
@@ -94,6 +107,14 @@ class WorkflowVocabularyController extends Controller
                 $validated["lost_reasons"] ?? [],
                 $canonicalLostReasons,
                 "Unknown canonical Lost reason.",
+            );
+
+            $this->savePresentationRows(
+                $user->id,
+                WorkflowPresentationService::TYPE_SITE_VISIT_OUTCOME,
+                $validated["site_visit_outcomes"] ?? [],
+                $canonicalSiteVisitOutcomes,
+                "Unknown canonical site visit outcome.",
             );
         });
 

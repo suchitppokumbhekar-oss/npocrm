@@ -225,19 +225,9 @@ class LeadController extends Controller
                 ->groupBy('site_visit_id');
         }
 
-        $siteVisitOutcomeOptions = [
-            'very_interested' => '⭐ Very interested',
-            'interested' => '✅ Interested',
-            'wants_negotiation' => '🤝 Wants negotiation',
-            'family_discussion' => '👨‍👩‍👧 Family discussion needed',
-            'wants_revisit' => '🔄 Wants another visit',
-            'price_issue' => '💰 Price / budget issue',
-            'location_issue' => '📍 Location issue',
-            'wants_other_project' => '🏗️ Prefers another project',
-            'not_interested' => '❌ Not interested',
-            'booked' => '🎉 Booked',
-            'other' => '📝 Other',
-        ];
+        $siteVisitOutcomeOptions = collect($this->workflowPresentations->presentSiteVisitOutcomes((int) session("user_id")))
+            ->pluck("display_label", "key")
+            ->all();
 
         $siteVisitProjectOptions = $projects;
         $hasConfirmedSiteVisit = (bool) $lead->visit_scheduled_at
@@ -902,11 +892,7 @@ public function unshareAgent(Request $request)
             return back()->withInput()->with('error', 'Select at least one project shown during the visit.');
         }
 
-        $outcomeKeys = [
-            'very_interested', 'interested', 'wants_negotiation', 'family_discussion',
-            'wants_revisit', 'price_issue', 'location_issue', 'wants_other_project',
-            'not_interested', 'booked', 'other',
-        ];
+        $outcomeKeys = array_keys(WorkflowPresentationService::siteVisitOutcomeOptions());
 
         $projectIds = $projects->pluck('project_id')->map(fn ($id) => (int) $id)->values();
         if ($projectIds->unique()->count() !== $projectIds->count()) {
@@ -915,6 +901,17 @@ public function unshareAgent(Request $request)
 
         if ($projects->contains(fn ($row) => ! in_array($row['outcome_key'] ?? '', $outcomeKeys, true))) {
             return back()->withInput()->with('error', 'One of the selected project outcomes is invalid.');
+        }
+
+        try {
+            foreach ($projects as $row) {
+                $this->workflowPresentations->assertSiteVisitOutcomeAllowedForUser(
+                    (string) ($row["outcome_key"] ?? ""),
+                    (int) session("user_id"),
+                );
+            }
+        } catch (\DomainException $e) {
+            return back()->withInput()->with("error", "🚫 ".$e->getMessage());
         }
 
         if ($projectIds->isNotEmpty()) {

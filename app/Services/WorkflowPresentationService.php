@@ -9,6 +9,7 @@ class WorkflowPresentationService
 {
     public const TYPE_OUTCOME = "outcome";
     public const TYPE_LOST_REASON = "lost_reason";
+    public const TYPE_SITE_VISIT_OUTCOME = "site_visit_outcome";
 
     public function presentationsForUser(int $userId, string $optionType): Collection
     {
@@ -157,6 +158,76 @@ class WorkflowPresentationService
 
         if ($row && ! $row->is_visible) {
             throw new \DomainException("That Lost reason is not available for your account.");
+        }
+    }
+    public static function siteVisitOutcomeOptions(): array
+    {
+        return [
+            "very_interested" => "⭐ Very interested",
+            "interested" => "✅ Interested",
+            "wants_negotiation" => "🤝 Wants negotiation",
+            "family_discussion" => "👨‍👩‍👧 Family discussion needed",
+            "wants_revisit" => "🔄 Wants another visit",
+            "price_issue" => "💰 Price / budget issue",
+            "location_issue" => "📍 Location issue",
+            "wants_other_project" => "🏗️ Prefers another project",
+            "not_interested" => "❌ Not interested",
+            "booked" => "🎉 Booked",
+            "other" => "📝 Other",
+        ];
+    }
+
+    public function presentSiteVisitOutcomes(?int $userId = null): array
+    {
+        $userId ??= (int) session("user_id");
+        $overrides = $userId > 0
+            ? $this->presentationsForUser($userId, self::TYPE_SITE_VISIT_OUTCOME)
+            : collect();
+
+        return collect(self::siteVisitOutcomeOptions())
+            ->map(function (string $label, string $key) use ($overrides) {
+                $override = $overrides->get($key);
+                if ($override && ! $override->is_visible) {
+                    return null;
+                }
+
+                return [
+                    "key" => $key,
+                    "canonical_label" => $label,
+                    "display_label" => trim((string) ($override?->display_label ?? "")) ?: $label,
+                    "presentation_sort_order" => $override?->sort_order,
+                    "canonical_sort_order" => array_search($key, array_keys(self::siteVisitOutcomeOptions()), true),
+                ];
+            })
+            ->filter()
+            ->sortBy(fn (array $row) => [
+                $row["presentation_sort_order"] ?? $row["canonical_sort_order"],
+                $row["canonical_sort_order"],
+                $row["key"],
+            ])
+            ->values()
+            ->all();
+    }
+
+    public function assertSiteVisitOutcomeAllowedForUser(string $canonicalKey, ?int $userId = null): void
+    {
+        if (! array_key_exists($canonicalKey, self::siteVisitOutcomeOptions())) {
+            throw new \DomainException("That site visit outcome is not a valid canonical option.");
+        }
+
+        $userId ??= (int) session("user_id");
+        if ($userId <= 0) {
+            return;
+        }
+
+        $row = UserWorkflowPresentation::query()
+            ->where("user_id", $userId)
+            ->where("option_type", self::TYPE_SITE_VISIT_OUTCOME)
+            ->where("canonical_key", $canonicalKey)
+            ->first();
+
+        if ($row && ! $row->is_visible) {
+            throw new \DomainException("That site visit outcome is not available for your account.");
         }
     }
     public function displayLabelForOutcome($outcome, ?int $userId = null): string
