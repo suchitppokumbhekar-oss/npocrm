@@ -21,7 +21,7 @@
     @endif
 
     {{-- HEADER --}}
-    <div class="card">
+    <div class="card lead-directory-card">
         <div class="section-head">
             <h2 style="margin:0;">📋 Lead Directory</h2>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -250,7 +250,7 @@
     @endif
 
     {{-- LEADS CARD --}}
-    <div class="card">
+    <div class="card lead-directory-card">
         <div class="section-head" style="margin-bottom:var(--s-3);">
             <div>
             <h3 style="margin:0;">

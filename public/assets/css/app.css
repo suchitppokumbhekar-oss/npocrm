@@ -3406,3 +3406,57 @@ body.task-execution-active .lead-wb-sections {
         margin-top:7px;
     }
 }
+
+/* ============================================================
+   LEAD DIRECTORY — DESKTOP UX PASS 1
+   Preserve mobile CRM UX; improve desktop composition only.
+   ============================================================ */
+
+@media (min-width: 1101px) {
+    .lead-directory-card {
+        width: min(100%, 1280px);
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .lead-directory-card .section-head {
+        padding: 18px 20px;
+        margin-bottom: 0;
+        align-items: center;
+    }
+
+    .lead-directory-card .crm-filter-form {
+        padding: 0 20px 20px;
+    }
+
+    .lead-directory-card .crm-filter-search {
+        padding: 14px 16px;
+        margin-bottom: 14px;
+        border: 1px solid var(--c-border);
+        border-radius: 12px;
+        background: var(--c-surface-2);
+    }
+
+    .lead-directory-card .crm-filter-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 18px;
+    }
+
+    .lead-directory-card .crm-filter-field {
+        padding: 2px 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .lead-directory-card .crm-filter-field > label {
+        font-size: 12px;
+    }
+
+    .lead-directory-card .crm-filter-date {
+        padding: 14px;
+        border: 1px solid var(--c-border);
+        border-radius: 12px;
+        background: var(--c-surface-2);
+    }
+}
