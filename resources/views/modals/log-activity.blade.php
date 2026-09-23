@@ -52,6 +52,7 @@
         ];
     })->values();
 
+    $lostReasonOptions = app(\App\Services\WorkflowPresentationService::class)->presentLostReasons((int) session("user_id"));
     $defaultVisit = now()->addDay()->setTime(11, 0)->format('Y-m-d\TH:i');
     $defaultBrokeragePct = $settings->get('default_brokerage_percentage', 2);
     $defaultBrokerageExpected = now()->addDays(30)->toDateString();
@@ -117,12 +118,20 @@
         <input type="datetime-local" name="visit_scheduled_at" class="input"
                id="la-visit-input" value="{{ $defaultVisit }}">
     </div>
-
     <div class="field" id="la-lost-field" style="display:none;">
-        <label>Why is the lead being marked Lost? *</label>
-        <textarea name="lost_reason" rows="3" class="input"
-                  id="la-lost-input"
-                  placeholder="e.g. Budget mismatch, chose another project"></textarea>
+        <label>Lost reason *</label>
+        <select name="lost_reason_key" id="la-lost-reason" class="input">
+            <option value="">— Select reason —</option>
+            @foreach ($lostReasonOptions as $groupKey => $groupOptions)
+                <optgroup label="{{ $groupKey === 'nurture' ? 'Can be reactivated later' : 'Permanently closed' }}">
+                    @foreach ($groupOptions as $reason)
+                        <option value="{{ $reason['key'] }}">{{ $reason['display_label'] }}</option>
+                    @endforeach
+                </optgroup>
+            @endforeach
+        </select>
+        <label style="margin-top:8px;">Lost notes <span class="muted">(optional)</span></label>
+        <textarea name="lost_reason" rows="2" class="input" id="la-lost-input" placeholder="Optional context about why the lead was lost"></textarea>
     </div>
 
     <div id="la-booking-fields" style="display:none;">

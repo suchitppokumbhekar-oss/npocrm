@@ -87,7 +87,7 @@
     // Earliest allowed visit datetime → 15 minutes from now (form min attribute)
     $minVisitAt = now()->addMinutes(15)->format('Y-m-d\TH:i');
 
-    $lostReasonOptions = \App\Services\LeadStatusService::lostReasonOptions();
+    $lostReasonOptions = app(\App\Services\WorkflowPresentationService::class)->presentLostReasons((int) session("user_id"));
 @endphp
 
 
@@ -146,7 +146,7 @@
             @foreach ($lostReasonOptions as $groupKey => $groupOptions)
                 <optgroup label="{{ $groupKey === 'nurture' ? 'Can be reactivated later' : 'Permanently closed' }}">
                     @foreach ($groupOptions as $reason)
-                        <option value="{{ $reason['key'] }}">{{ $reason['label'] }}</option>
+                        <option value="{{ $reason['key'] }}">{{ $reason['display_label'] }}</option>
                     @endforeach
                 </optgroup>
             @endforeach
