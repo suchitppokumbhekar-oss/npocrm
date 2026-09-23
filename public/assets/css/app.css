@@ -3460,3 +3460,49 @@ body.task-execution-active .lead-wb-sections {
         background: var(--c-surface-2);
     }
 }
+
+/* ============================================================
+   MY LEADS — DESKTOP UX PASS 1
+   Preserve mobile lead-desk UX; improve desktop filter composition.
+   ============================================================ */
+
+@media (min-width: 1101px) {
+    .lead-desk .lead-desk-search {
+        padding: 16px 18px 18px;
+    }
+
+    .lead-desk .crm-filter-form {
+        padding: 0;
+    }
+
+    .lead-desk .crm-filter-search {
+        padding: 14px 16px;
+        margin-bottom: 14px;
+        border: 1px solid var(--c-border);
+        border-radius: 12px;
+        background: var(--c-surface-2);
+    }
+
+    .lead-desk .crm-filter-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 18px;
+    }
+
+    .lead-desk .crm-filter-field {
+        padding: 2px 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .lead-desk .crm-filter-field > label {
+        font-size: 12px;
+    }
+
+    .lead-desk .crm-filter-date {
+        padding: 14px;
+        border: 1px solid var(--c-border);
+        border-radius: 12px;
+        background: var(--c-surface-2);
+    }
+}
