@@ -26,6 +26,7 @@ class WhatsAppAccountController extends Controller
         return view('whatsapp.index', [
             'personal' => $rows->get('personal'),
             'business' => $rows->get('business'),
+            'defaultAccountType' => $this->accounts->defaultTypeForUser($user),
         ]);
     }
 
@@ -36,6 +37,7 @@ class WhatsAppAccountController extends Controller
         $validated = $request->validate([
             'personal' => ['nullable', 'string', 'max:30'],
             'business' => ['nullable', 'string', 'max:30'],
+            'default_account_type' => ['nullable', 'in:personal,business'],
         ]);
 
         foreach (['personal', 'business'] as $type) {
@@ -57,6 +59,7 @@ class WhatsAppAccountController extends Controller
         $user = $this->user();
 
         return response()->json([
+            'default_account_type' => $this->accounts->defaultTypeForUser($user),
             'ok' => true,
             'accounts' => $this->accounts->accountsForUser($user->id)->map(fn ($a) => [
                 'type'  => $a->account_type,

@@ -12,7 +12,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name', 'email', 'password', 'role',
-        'is_telecaller', 'is_on_payroll',
+        'is_telecaller', 'is_on_payroll', 'default_whatsapp_account_type',
     ];
 
     protected $hidden = ['password'];
