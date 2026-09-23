@@ -2688,6 +2688,8 @@ body.task-execution-active .lead-wb-sections {
 @media(max-width:600px){
     .task-scope-tabs-three{
         grid-template-columns:1fr;
+    }
+}
 /* ============================================================
    CRM FILTER SYSTEM — shared foundation
    ============================================================ */
