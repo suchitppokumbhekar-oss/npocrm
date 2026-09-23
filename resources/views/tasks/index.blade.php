@@ -8,14 +8,15 @@
         $mode = $viewMode ?? 'now';
         $isTeamManager = session('user_role') === 'team_manager';
         $scopeQuery = $isTeamManager ? '&scope=' . ($workScope ?? 'team') : '';
-        $scopeLabel = match ($workScope ?? 'team') { 'personal' => 'My Work', 'delegated' => 'All Delegated', default => 'My Team' };
+        $displayScope = $isTeamManager ? ($workScope ?? 'team') : 'personal';
+        $scopeLabel = match ($displayScope) { 'personal' => 'My Work', 'delegated' => 'All Delegated', default => 'My Team' };
         $modeUrls = [
             'now'      => url('/tasks?view=now' . $scopeQuery . '#task-results'),
             'upcoming' => url('/tasks?view=upcoming' . $scopeQuery . '#task-results'),
             'nurture'  => url('/tasks?view=nurture' . $scopeQuery . '#task-results'),
         ];
         $modeCopy = [
-            'now'      => ['label' => 'Do now', 'title' => 'Your work now', 'desc' => 'Only work that needs attention today. Overdue comes first.'],
+            'now'      => ['label' => 'Do now', 'title' => ($displayScope === 'personal' ? 'Your work now' : ($displayScope === 'delegated' ? 'Delegated work now' : 'Team work now')), 'desc' => 'Only work that needs attention today. Overdue comes first.'],
             'upcoming' => ['label' => 'Coming up', 'title' => 'Coming up', 'desc' => 'See what is next without mixing it into today’s work.'],
             'nurture'  => ['label' => 'Nurture', 'title' => 'Nurture later', 'desc' => 'Future reactivation reminders. Nothing here needs action right now.'],
         ];
@@ -26,7 +27,7 @@
 
         <section class="task-desk-hero">
             <div>
-                <div class="task-desk-kicker">MY WORK</div>
+                <div class="task-desk-kicker">{{ strtoupper($scopeLabel) }}</div>
                 <h2>{{ $modeCopy[$mode]['title'] }}</h2>
                 <p>{{ $modeCopy[$mode]['desc'] }}</p>
             </div>
