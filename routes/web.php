@@ -142,6 +142,7 @@ Route::post('/attendance/check-out',       [\App\Http\Controllers\AttendanceCont
 Route::post('/attendance/force-check-out', [\App\Http\Controllers\AttendanceController::class, 'forceCheckOut'])->name('attendance.forceCheckOut');
 Route::get('/attendance',                  [\App\Http\Controllers\AttendanceController::class, 'index'])->name('attendance.index');
 Route::post('/attendance/manual-check-in', [\App\Http\Controllers\AttendanceController::class, 'manualCheckIn'])->name('attendance.manualCheckIn');
+Route::get('/attendance/export',           [\App\Http\Controllers\AttendanceController::class, 'export'])->name('attendance.export');
 
 // ============================================================
 // CONTACTS + TELECALLING

@@ -4,30 +4,52 @@
 
 @section('content')
 
+    @php
+        $isTeamManager = session('user_role') === 'team_manager';
+        $scopeLabel = $workScope === 'delegated' ? 'All Delegated' : 'My Team';
+        $scopeQuery = $isTeamManager ? '&scope=' . $workScope : '';
+    @endphp
+
     <a href="{{ url('/') }}" class="back-link">← Back to Dashboard</a>
 
-    <div class="card">
-        <div class="section-head" style="gap:10px;flex-wrap:wrap;">
+    <div class="card attendance-shell">
+        <div class="attendance-page-head">
             <div>
-                <h3 style="margin-bottom:4px;">🕒 Payroll Attendance</h3>
-                <p class="muted" style="margin:0;font-size:12px;">Attendance is maintained only for employees marked <strong>On payroll</strong>. Use these records for salary calculation.</p>
+                <h3>Attendance</h3>
+                <p class="muted">Monitor payroll attendance for employees in your current scope.</p>
             </div>
-            <span class="badge blue">{{ $agents->count() }} payroll employees</span>
+            <div class="attendance-head-count">
+                <strong>{{ $agents->count() }}</strong>
+                <span>{{ $isTeamManager ? $scopeLabel : 'Payroll employees' }}</span>
+            </div>
         </div>
 
         @if (session('success'))
-            <div class="alert alert-success" style="margin-bottom:var(--s-3);">{{ session('success') }}</div>
+            <div class="alert alert-success attendance-alert">{{ session('success') }}</div>
         @endif
         @if (session('info'))
-            <div class="alert" style="margin-bottom:var(--s-3);background:#e0f2fe;border-left:3px solid #0284c7;padding:10px 14px;border-radius:6px;">{{ session('info') }}</div>
+            <div class="alert attendance-alert attendance-alert-info">{{ session('info') }}</div>
         @endif
         @if (session('errors') && session('errors')->has('attendance'))
-            <div class="alert alert-error" style="margin-bottom:var(--s-3);">{{ session('errors')->first('attendance') }}</div>
+            <div class="alert alert-error attendance-alert">{{ session('errors')->first('attendance') }}</div>
         @endif
 
-        <nav class="settings-tabs" style="margin-bottom:var(--s-3);">
-            <a href="{{ url('/attendance?view=daily&date=' . $selectedDate) }}" class="tab {{ $view === 'daily' ? 'active' : '' }}">📅 Daily Attendance</a>
-            <a href="{{ url('/attendance?view=monthly&month=' . $selectedMonth) }}" class="tab {{ $view === 'monthly' ? 'active' : '' }}">📊 Monthly Payroll</a>
+        @if ($isTeamManager)
+            <div class="task-scope-tabs attendance-scope-tabs">
+                <a href="{{ url('/attendance?view=' . $view . '&scope=team' . ($view === 'daily' ? '&date=' . $selectedDate : '&month=' . $selectedMonth)) }}" class="task-scope-tab {{ $workScope === 'team' ? 'active' : '' }}">
+                    <strong>My Team</strong>
+                    <small>Employees in teams you directly manage</small>
+                </a>
+                <a href="{{ url('/attendance?view=' . $view . '&scope=delegated' . ($view === 'daily' ? '&date=' . $selectedDate : '&month=' . $selectedMonth)) }}" class="task-scope-tab {{ $workScope === 'delegated' ? 'active' : '' }}">
+                    <strong>All Delegated</strong>
+                    <small>All employees within your delegated authority</small>
+                </a>
+            </div>
+        @endif
+
+        <nav class="attendance-period-tabs">
+            <a href="{{ url('/attendance?view=daily&date=' . $selectedDate . $scopeQuery) }}" class="{{ $view === 'daily' ? 'active' : '' }}">Daily</a>
+            <a href="{{ url('/attendance?view=monthly&month=' . $selectedMonth . $scopeQuery) }}" class="{{ $view === 'monthly' ? 'active' : '' }}">Monthly</a>
         </nav>
 
         @if ($agents->isEmpty())
@@ -35,22 +57,32 @@
                 No employees are currently marked <strong>On payroll</strong>. Attendance will appear here when that checkbox is enabled in the employee record.
             </div>
         @elseif ($view === 'daily')
-            <form method="GET" action="{{ url('/attendance') }}" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:var(--s-3);">
-                <input type="hidden" name="view" value="daily">
-                <div class="field" style="margin:0;min-width:180px;">
-                    <label>Date</label>
-                    <input type="date" name="date" class="input" value="{{ $selectedDate }}" max="{{ $today }}">
+            <div class="attendance-toolbar">
+                <form method="GET" action="{{ url('/attendance') }}" class="attendance-date-form">
+                    <input type="hidden" name="view" value="daily">
+                    @if ($isTeamManager)<input type="hidden" name="scope" value="{{ $workScope }}">@endif
+                    <div class="field attendance-date-field">
+                        <label>Date</label>
+                        <input type="date" name="date" class="input" value="{{ $selectedDate }}" max="{{ $today }}">
+                    </div>
+                    <button class="btn-small btn-info" type="submit">View Day</button>
+                </form>
+                <div class="attendance-toolbar-actions">
+                    <a class="btn-small btn-ghost" href="{{ url('/attendance?view=daily&date=' . $today . $scopeQuery) }}">Today</a>
+                    <a class="btn-small btn-view" href="{{ url('/attendance/export?type=daily&date=' . $selectedDate . $scopeQuery) }}">Export CSV</a>
                 </div>
-                <button class="btn-small btn-info" type="submit">🔎 View Day</button>
-                <a class="btn-small btn-ghost" href="{{ url('/attendance?view=daily&date=' . $today) }}">Today</a>
-                <a class="btn-small btn-view" href="{{ url('/attendance/export?type=daily&date=' . $selectedDate) }}">📥 Export Daily CSV</a>
-            </form>
+            </div>
 
-            <div class="stats-grid" style="margin-bottom:var(--s-3);">
-                <div class="card" style="margin:0;padding:12px;"><div class="muted" style="font-size:11px;">Payroll Employees</div><strong style="font-size:22px;">{{ $dailyStats['total'] }}</strong></div>
-                <div class="card" style="margin:0;padding:12px;"><div class="muted" style="font-size:11px;">Present</div><strong style="font-size:22px;">{{ $dailyStats['present'] }}</strong></div>
-                <div class="card" style="margin:0;padding:12px;"><div class="muted" style="font-size:11px;">Absent / Not In</div><strong style="font-size:22px;">{{ $dailyStats['absent'] }}</strong></div>
-                <div class="card" style="margin:0;padding:12px;"><div class="muted" style="font-size:11px;">Still Working</div><strong style="font-size:22px;">{{ $dailyStats['open'] }}</strong></div>
+            <div class="attendance-metrics">
+                <div class="attendance-metric"><span>Employees</span><strong>{{ $dailyStats['total'] }}</strong></div>
+                <div class="attendance-metric"><span>Present</span><strong>{{ $dailyStats['present'] }}</strong></div>
+                <div class="attendance-metric"><span>Absent / Not In</span><strong>{{ $dailyStats['absent'] }}</strong></div>
+                <div class="attendance-metric"><span>Still Working</span><strong>{{ $dailyStats['open'] }}</strong></div>
+            </div>
+
+            <div class="attendance-register-head">
+                <div><strong>Daily Register</strong><span>{{ $selectedDate }}</span></div>
+                <span>{{ $agents->count() }} employees</span>
             </div>
 
             <div class="table-wrap">
@@ -124,20 +156,97 @@
                     </tbody>
                 </table>
             </div>
-        @else
-            <form method="GET" action="{{ url('/attendance') }}" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:var(--s-3);">
-                <input type="hidden" name="view" value="monthly">
-                <div class="field" style="margin:0;min-width:180px;">
-                    <label>Month</label>
-                    <input type="month" name="month" class="input" value="{{ $selectedMonth }}">
-                </div>
-                <button class="btn-small btn-info" type="submit">🔎 View Month</button>
-                <a class="btn-small btn-view" href="{{ url('/attendance/export?type=monthly&month=' . $selectedMonth) }}">📥 Export Payroll CSV</a>
-            </form>
 
-            <div class="alert" style="background:#f8fafc;border-left:3px solid #64748b;padding:10px 14px;border-radius:6px;margin-bottom:var(--s-3);">
-                <strong>{{ $monthStart->format('F Y') }}</strong> · {{ $calendarDays }} calendar day{{ $calendarDays === 1 ? '' : 's' }} in the reporting period.
-                For the current month, only days through today are included. This report shows attendance data; salary rules such as weekly offs, approved leave, half-days and deductions should be applied according to your payroll policy.
+            <div class="attendance-mobile-list">
+                @foreach ($agents as $agent)
+                    @php
+                        $att = $attendanceByAgent->get($agent->id);
+                        $isIn = $att?->isCheckedIn() ?? false;
+                        $isOut = $att?->isCheckedOut() ?? false;
+                        $isManual = $att && $att->override_by_user_id;
+                    @endphp
+                    <article class="attendance-mobile-card">
+                        <div class="attendance-mobile-head">
+                            <div>
+                                <strong>{{ $agent->user?->name ?? '(no user)' }}</strong>
+                                @if ($agent->user?->email)<div class="muted attendance-mobile-email">{{ $agent->user->email }}</div>@endif
+                            </div>
+                            <div>
+                                @if ($isOut)
+                                    <span class="badge" style="background:#e2e8f0;color:#475569;">🏁 Present · Out</span>
+                                @elseif ($isIn)
+                                    @if ($isManual)<span class="badge orange">🔶 Manual</span>@else<span class="badge green">🟢 Present · In</span>@endif
+                                @else
+                                    <span class="badge red">🔴 Absent</span>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="attendance-mobile-grid">
+                            <div><span>Check-in</span><strong>{{ $att?->checked_in_at?->format('H:i') ?? '—' }}</strong></div>
+                            <div><span>Check-out</span><strong>{{ $att?->checked_out_at?->format('H:i') ?? '—' }}</strong></div>
+                            <div><span>Worked</span><strong>{{ $att?->durationLabel() ?? '—' }}</strong></div>
+                            <div>
+                                <span>Attendance</span>
+                                <strong>
+                                    @if ($att && $att->override_by_user_id)
+                                        Manager override
+                                    @elseif ($att)
+                                        GPS check-in
+                                    @else
+                                        No record
+                                    @endif
+                                </strong>
+                            </div>
+                        </div>
+
+                        @if ($att?->checked_in_distance_m !== null)
+                            <div class="muted attendance-mobile-distance">{{ $att->checked_in_distance_m }}m from office</div>
+                        @endif
+
+                        <div class="attendance-mobile-actions">
+                            @if (! $isIn)
+                                <button class="btn-small" type="button" data-modal="attendance-manual"
+                                        data-agent-id="{{ $agent->id }}" data-agent-name="{{ $agent->user?->name ?? 'Employee' }}"
+                                        style="background:#22c55e;color:#fff;">📍 Manual Check-In</button>
+                            @elseif ($isIn && ! $isOut)
+                                <form method="POST" action="{{ url('/attendance/force-check-out') }}">
+                                    @csrf
+                                    <input type="hidden" name="attendance_id" value="{{ $att->id }}">
+                                    <input type="hidden" name="override_reason" value="Force checkout by {{ session('user_name', 'admin') }}">
+                                    <button class="btn-small" type="submit" onclick="return confirm('Force checkout for this employee?');" style="background:#e74c3c;color:#fff;">⏹ Force Out</button>
+                                </form>
+                            @else
+                                <span class="muted" style="font-size:12px;">✓ Attendance complete</span>
+                            @endif
+                        </div>
+                    </article>
+                @endforeach
+            </div>
+        @else
+            <div class="attendance-toolbar">
+                <form method="GET" action="{{ url('/attendance') }}" class="attendance-date-form">
+                    <input type="hidden" name="view" value="monthly">
+                    @if ($isTeamManager)<input type="hidden" name="scope" value="{{ $workScope }}">@endif
+                    <div class="field attendance-date-field">
+                        <label>Month</label>
+                        <input type="month" name="month" class="input" value="{{ $selectedMonth }}">
+                    </div>
+                    <button class="btn-small btn-info" type="submit">View Month</button>
+                </form>
+                <div class="attendance-toolbar-actions">
+                    <a class="btn-small btn-view" href="{{ url('/attendance/export?type=monthly&month=' . $selectedMonth . $scopeQuery) }}">Export CSV</a>
+                </div>
+            </div>
+
+            <div class="attendance-report-note">
+                <div><strong>{{ $monthStart->format('F Y') }}</strong><span>{{ $calendarDays }} calendar day{{ $calendarDays === 1 ? '' : 's' }} included</span></div>
+                <p>Attendance record only. Weekly offs, approved leave, half-days and payroll deductions should be applied according to payroll policy.</p>
+            </div>
+
+            <div class="attendance-register-head">
+                <div><strong>Monthly Register</strong><span>{{ $monthStart->format('F Y') }}</span></div>
+                <span>{{ $agents->count() }} employees</span>
             </div>
 
             <div class="table-wrap">
@@ -170,6 +279,32 @@
                         @endforeach
                     </tbody>
                 </table>
+            </div>
+
+            <div class="attendance-mobile-list">
+                @foreach ($monthlyRows as $row)
+                    <article class="attendance-mobile-card">
+                        <div class="attendance-mobile-head">
+                            <div>
+                                <strong>{{ $row->agent->user?->name ?? '(no user)' }}</strong>
+                                @if ($row->agent->user?->email)<div class="muted attendance-mobile-email">{{ $row->agent->user->email }}</div>@endif
+                            </div>
+                            <span class="badge blue">{{ number_format($row->attendance_percent, 1) }}%</span>
+                        </div>
+
+                        <div class="attendance-mobile-grid">
+                            <div><span>Present</span><strong>{{ $row->present }}</strong></div>
+                            <div><span>Absent</span><strong>{{ $row->absent }}</strong></div>
+                            <div><span>Open</span><strong>{{ $row->open }}</strong></div>
+                            <div><span>Manual</span><strong>{{ $row->manual }}</strong></div>
+                        </div>
+
+                        <div class="attendance-mobile-total">
+                            <span>Total worked</span>
+                            <strong>{{ intdiv($row->minutes, 60) }}h {{ str_pad($row->minutes % 60, 2, '0', STR_PAD_LEFT) }}m</strong>
+                        </div>
+                    </article>
+                @endforeach
             </div>
         @endif
     </div>
