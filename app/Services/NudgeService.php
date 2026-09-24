@@ -83,7 +83,7 @@ class NudgeService
             abort(403, "You do not have access to nudge this agent.");
         }
 
-        $phone = preg_replace("/\D/", "", (string) $agent->phone);
+        $phone = phone_wa($agent->phone);
         if ($phone === "") {
             throw new \DomainException("This agent has no WhatsApp number configured.");
         }
@@ -136,7 +136,7 @@ Open lead and act: " . url("/leads/" . $lead->id)
             throw new \DomainException('Nudge is available only for overdue or escalated work.');
         }
 
-        $phone = preg_replace('/\D/', '', (string) $agent->phone);
+        $phone = phone_wa($agent->phone);
         if ($phone === '') {
             throw new \DomainException('This agent has no WhatsApp number configured.');
         }
@@ -170,7 +170,7 @@ Open lead and act: " . url("/leads/" . $lead->id)
         }
 
         $agent = Agent::with('user')->findOrFail($agentId);
-        $phone = preg_replace('/\D/', '', (string) $agent->phone);
+        $phone = phone_wa($agent->phone);
         if ($phone === '') {
             throw new \DomainException('This agent has no WhatsApp number configured.');
         }

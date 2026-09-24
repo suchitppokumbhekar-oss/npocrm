@@ -384,7 +384,7 @@ class DashboardController extends Controller
 
                 $msg = implode("\n", $lines);
 
-                $wa = preg_replace('/\D/', '', $summary->phone);
+                $wa = phone_wa($summary->phone);
 
                 $summary->nudge_url     = null;
                 $summary->nudge_phone   = $wa;

@@ -120,3 +120,21 @@ if (! function_exists('phone_display')) {
         return $canonical === '' ? '' : '+' . $canonical;
     }
 }
+
+if (! function_exists('phone_search_variants')) {
+    function phone_search_variants(?string $phone, ?string $countryCode = null): array
+    {
+        $canonical = phone_canonical($phone, $countryCode);
+        if ($canonical === '') return [];
+
+        $variants = [$canonical];
+
+        if (strlen($canonical) === 12 && str_starts_with($canonical, '91')) {
+            $local = substr($canonical, 2);
+            $variants[] = $local;
+            $variants[] = '0' . $local;
+        }
+
+        return array_values(array_unique(array_filter($variants)));
+    }
+}

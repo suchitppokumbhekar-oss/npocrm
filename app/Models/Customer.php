@@ -38,6 +38,8 @@ class Customer extends Model
     }
 
     /**
+     * Normalize a customer phone number to canonical international digits.
+     */
     public static function normalizePhone(string $phone): string
     {
         return phone_canonical($phone);

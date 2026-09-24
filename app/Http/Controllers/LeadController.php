@@ -285,6 +285,8 @@ class LeadController extends Controller
             'assign_to_agent_id'   => 'nullable|string',   // 'auto' or an integer id
         ]);
 
+        $validated['phone'] = phone_canonical($validated['phone']);
+
         // One customer + one project = one enquiry. Protect the manual Add Lead
         // path as well as the automated intake path, including older leads that
         // may not have customer_id populated.

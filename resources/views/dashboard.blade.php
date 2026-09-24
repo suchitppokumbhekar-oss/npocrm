@@ -363,7 +363,7 @@
                                             data-npo-nudge
                                             data-nudge-target-type="agent"
                                             data-nudge-target-id="{{ $summary->agent_id }}"
-                                            data-whatsapp-phone="{{ preg_replace('/\D/', '', $summary->phone) }}"
+                                            data-whatsapp-phone="{{ $summary->nudge_phone }}"
                                             class="btn-small btn-ghost"
                                             title="Nudge {{ $summary->name }} on WhatsApp">
                                         💬 Nudge @if(($summary->nudge_count ?? 0) > 0)<span class="npo-nudge-count">({{ $summary->nudge_count }}×)</span>@endif
@@ -779,7 +779,7 @@
                             @endif
 
                             <div class="muted" style="font-size:12px;margin-top:3px;">
-                                {{ $lead->phone }}
+                                {{ phone_display($lead->phone) }}
                                 @if ($lead->project?->name) · {{ $lead->project->name }} @endif
                                 · 👤 <strong>{{ $lead->agent?->user?->name ?? 'Unassigned' }}</strong>
                             </div>

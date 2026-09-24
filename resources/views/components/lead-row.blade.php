@@ -53,7 +53,7 @@
         @endif
     </td>
 
-    <td class="lead-phone-cell">{{ $lead->phone }}</td>
+    <td class="lead-phone-cell">{{ phone_display($lead->phone) }}</td>
 
     <td><x-status-badge :status="$lead->statusKey()" /></td>
 

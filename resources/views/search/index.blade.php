@@ -99,7 +99,7 @@
                         @foreach ($results['customers']['items'] as $c)
                             <tr>
                                 <td><strong>{{ $c->name }}</strong></td>
-                                <td>{{ $c->phone }}</td>
+                                <td>{{ phone_display($c->phone) }}</td>
                                 <td><span class="muted" style="font-size:12px;">{{ $c->email ?? '—' }}</span></td>
                                 <td style="text-align:center;">
                                     <span class="badge {{ $c->leads_count > 1 ? 'purple' : 'blue' }}">
@@ -124,7 +124,7 @@
                     <a href="{{ url('/customers/' . $c->id) }}" class="search-mobile-row">
                         <div style="flex:1;min-width:0;">
                             <div style="font-weight:700;">{{ $c->name }}</div>
-                            <div class="muted" style="font-size:12px;">{{ $c->phone }}</div>
+                            <div class="muted" style="font-size:12px;">{{ phone_display($c->phone) }}</div>
                             <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;">
                                 <span class="badge {{ $c->leads_count > 1 ? 'purple' : 'blue' }}" style="font-size:11px;">
                                     {{ $c->leads_count }} enquiries
@@ -189,7 +189,7 @@
                                         </a>
                                     @endif
                                 </td>
-                                <td>{{ $lead->phone }}</td>
+                                <td>{{ phone_display($lead->phone) }}</td>
                                 <td>
                                     <span class="muted" style="font-size:12px;">
                                         {{ $lead->project?->name ?? '—' }}
@@ -238,7 +238,7 @@
                         @endif
 
                         <div class="muted" style="font-size:12px;">
-                            📱 {{ $lead->phone }}
+                            📱 {{ phone_display($lead->phone) }}
                             @if ($lead->project?->name) · 🏗️ {{ $lead->project->name }} @endif
                         </div>
                         <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;">
@@ -293,7 +293,7 @@
                                         {{ $c->name }}
                                     </a>
                                 </td>
-                                <td>{{ $c->phone }}</td>
+                                <td>{{ phone_display($c->phone) }}</td>
                                 <td><span class="muted" style="font-size:12px;">{{ $c->project?->name ?? '—' }}</span></td>
                                 <td>
                                     @if ($c->agent?->user?->name)

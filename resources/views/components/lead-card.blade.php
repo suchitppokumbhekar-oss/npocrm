@@ -54,7 +54,7 @@
     <div class="lead-glimpse-meta">
 
         <span class="lead-glimpse-phone">
-            📱 {{ $lead->phone }}
+            📱 {{ phone_display($lead->phone) }}
         </span>
 
         <span class="lead-glimpse-agent">

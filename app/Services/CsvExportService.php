@@ -310,7 +310,7 @@ class CsvExportService
 
                             $lead->customer_name,
 
-                            $lead->phone,
+                            phone_display($lead->phone),
 
                             $lead->email,
 

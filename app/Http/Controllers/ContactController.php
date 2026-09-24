@@ -157,10 +157,13 @@ class ContactController extends Controller
         }
 
         if ($q !== '') {
-            $query->where(function ($qq) use ($q) {
+            $phoneLikes = array_map(fn ($v) => '%' . $v . '%', phone_search_variants($q));
+            $query->where(function ($qq) use ($q, $phoneLikes) {
                 $qq->where('name', 'like', "%{$q}%")
-                    ->orWhere('phone', 'like', "%{$q}%")
                     ->orWhere('email', 'like', "%{$q}%");
+                foreach ($phoneLikes as $phoneLike) {
+                    $qq->orWhere('phone', 'like', $phoneLike);
+                }
             });
         }
         if ($status) $query->where('status', $status);

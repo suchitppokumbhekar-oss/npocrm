@@ -97,14 +97,14 @@ class SearchController extends Controller
     private function searchCustomers(string $q, string $role, int $userId, ?string $createdFrom = null, ?string $createdTo = null): array
     {
         $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
-        $phoneLike = null;
-        $normalized = Customer::normalizePhone($q);
-        if (strlen($normalized) >= 3) $phoneLike = '%' . $normalized . '%';
+        $phoneLikes = [];
+        $normalized = phone_canonical($q);
+        if (strlen($normalized) >= 3) $phoneLikes = array_map(fn ($v) => '%' . $v . '%', phone_search_variants($q));
 
-        $base = Customer::query()->where(function ($qq) use ($like, $phoneLike) {
+        $base = Customer::query()->where(function ($qq) use ($like, $phoneLikes) {
             $qq->where('name', 'like', $like)
                ->orWhere('email', 'like', $like);
-            if ($phoneLike) $qq->orWhere('phone', 'like', $phoneLike);
+            foreach ($phoneLikes as $phoneLike) $qq->orWhere('phone', 'like', $phoneLike);
         });
 
         if (($role === 'admin' && ! $this->access->isUnrestrictedAdmin($userId))
@@ -145,9 +145,9 @@ class SearchController extends Controller
     private function searchLeads(string $q, string $role, int $userId, ?string $createdFrom = null, ?string $createdTo = null): array
     {
         $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
-        $phoneLike = null;
-        $normalized = Customer::normalizePhone($q);
-        if (strlen($normalized) >= 3) $phoneLike = '%' . $normalized . '%';
+        $phoneLikes = [];
+        $normalized = phone_canonical($q);
+        if (strlen($normalized) >= 3) $phoneLikes = array_map(fn ($v) => '%' . $v . '%', phone_search_variants($q));
 
         $base = Lead::with([
                 'agent.user',
@@ -157,11 +157,11 @@ class SearchController extends Controller
                 'labels',
                 'pendingFollowups',
             ])
-            ->where(function ($qq) use ($like, $phoneLike) {
+            ->where(function ($qq) use ($like, $phoneLikes) {
                 $qq->where('customer_name', 'like', $like)
                    ->orWhere('email', 'like', $like);
 
-                if ($phoneLike) {
+                foreach ($phoneLikes as $phoneLike) {
                     $qq->orWhere('phone', 'like', $phoneLike);
                 }
 
@@ -202,15 +202,15 @@ class SearchController extends Controller
     private function searchContacts(string $q, string $role, int $userId): array
     {
         $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
-        $phoneLike = null;
-        $normalized = Customer::normalizePhone($q);
-        if (strlen($normalized) >= 3) $phoneLike = '%' . $normalized . '%';
+        $phoneLikes = [];
+        $normalized = phone_canonical($q);
+        if (strlen($normalized) >= 3) $phoneLikes = array_map(fn ($v) => '%' . $v . '%', phone_search_variants($q));
 
         $base = Contact::with(['project', 'agent.user'])
-            ->where(function ($qq) use ($like, $phoneLike) {
+            ->where(function ($qq) use ($like, $phoneLikes) {
                 $qq->where('name', 'like', $like)
                    ->orWhere('email', 'like', $like);
-                if ($phoneLike) $qq->orWhere('phone', 'like', $phoneLike);
+                foreach ($phoneLikes as $phoneLike) $qq->orWhere('phone', 'like', $phoneLike);
             });
 
         if ($role === 'agent') {

@@ -16,7 +16,7 @@
     <input type="hidden" name="contact_id" value="{{ $contact->id }}">
 
     <p class="muted" style="margin-bottom:12px;">
-        Logging call for <strong>{{ $contact->name }}</strong> · {{ $contact->phone }}
+        Logging call for <strong>{{ $contact->name }}</strong> · {{ phone_display($contact->phone) }}
     </p>
 
     <div class="field">

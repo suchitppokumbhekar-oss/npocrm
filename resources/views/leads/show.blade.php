@@ -62,7 +62,7 @@
             <div class="lead-wb-customer">
                 <div class="lead-wb-customer-label">CUSTOMER</div>
                 <div class="lead-wb-customer-name">{{ $lead->customer_name }}</div>
-                <a class="lead-wb-contact" href="tel:{{ phone_tel($lead->phone) }}">{{ $lead->phone }}</a>
+                <a class="lead-wb-contact" href="tel:{{ phone_tel($lead->phone) }}">{{ phone_display($lead->phone) }}</a>
                 <div class="lead-wb-context"><span class="lead-wb-project-location">📍 {{ $lead->project?->location ?? 'Location not set' }}</span><x-status-badge :status="$leadStatusKey" /> @if ($lead->tag)<x-lead-tag-chip :tag="$lead->tag" />@endif</div>
             </div>
             <div class="lead-wb-owner-meta">

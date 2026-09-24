@@ -32,17 +32,8 @@ class WhatsAppAccountService
 
     public function normalize(?string $phone): string
     {
-        $digits = preg_replace('/\D+/', '', (string) $phone);
-        if ($digits === '') return '';
-
-        // Keep international numbers intact; convert common Indian formats.
-        if (strlen($digits) === 10) return '91' . $digits;
-        if (strlen($digits) === 11 && $digits[0] === '0') return '91' . substr($digits, 1);
-        if (strlen($digits) === 12 && str_starts_with($digits, '91')) return $digits;
-
-        return ltrim($digits, '0');
+        return phone_canonical($phone);
     }
-
     public function isValid(?string $phone): bool
     {
         $digits = $this->normalize($phone);

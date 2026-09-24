@@ -244,7 +244,7 @@ class BookingFinanceController extends Controller
         }
         $lead=Lead::query()->where('customer_id',$customer->id)->when($projectId,fn($q)=>$q->where('project_id',$projectId))->where('status','booking')->latest('id')->first();
         if($lead) return (int)$lead->id;
-        $lead=Lead::create(['customer_name'=>$data['customer_name'],'phone'=>$data['customer_phone']??$customer->phone,'source'=>'historical','status'=>'booking','previous_status'=>'booking','project_id'=>$projectId ?: null,'customer_id'=>$customer->id,'booking_amount'=>$data['booking_amount'],'booking_date'=>$data['booking_date'],'booking_unit'=>$data['booking_unit']??null,'property_area_sqft'=>$data['property_area_sqft']??null,'rate_per_sqft'=>$data['rate_per_sqft']??null,'brokerage_status'=>'pending']);
+        $lead=Lead::create(['customer_name'=>$data['customer_name'],'phone'=>$customer->phone,'source'=>'historical','status'=>'booking','previous_status'=>'booking','project_id'=>$projectId ?: null,'customer_id'=>$customer->id,'booking_amount'=>$data['booking_amount'],'booking_date'=>$data['booking_date'],'booking_unit'=>$data['booking_unit']??null,'property_area_sqft'=>$data['property_area_sqft']??null,'rate_per_sqft'=>$data['rate_per_sqft']??null,'brokerage_status'=>'pending']);
         return (int)$lead->id;
     }
 
