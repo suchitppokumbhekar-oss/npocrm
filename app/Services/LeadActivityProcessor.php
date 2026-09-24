@@ -183,7 +183,7 @@ class LeadActivityProcessor
             $lead, $followup, $payload, $outcome, $type,
             $shouldAdvance, $advanceToKey, $firstTouchNeedsContacted,
             $bookingDetails, $brokerageDetails,
-            $alsoWhatsapp, $customNextAt
+            $alsoWhatsapp, $whatsappKind, $customNextAt
         ) {
 
             // 7a. Log the primary activity
@@ -267,7 +267,7 @@ class LeadActivityProcessor
 
             // 7e. Optional WhatsApp auto-send
             $waActivity = null;
-            if ($alsoWhatsapp && $outcome && $activityType->key === 'call') {
+            if ($alsoWhatsapp && $outcome && $type === 'call') {
                 $waOutcomeKey = $whatsappKind === 'intro' ? 'wa_delivered_awaiting' : 'wa_sent_details';
                 $waOutcome = $this->settings->callOutcomeByKey($waOutcomeKey);
                 if ($waOutcome) {

@@ -637,7 +637,7 @@ class NotificationService
             ->whereNull('read_at')
             ->whereIn('type', $actionableTypes)
             ->orderBy('id')
-            ->chunkById(200, function ($notifications) use ($userId, &$cleared): void {
+            ->chunkById(200, function ($notifications) use ($userId, $actor, &$cleared): void {
                 foreach ($notifications as $notification) {
                     $decision = $this->staleDecision($notification, $userId);
                     if (! $decision) continue;
