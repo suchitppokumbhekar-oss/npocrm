@@ -66,7 +66,7 @@
                         <td class="muted">{{ $project->rera_number ?: '—' }}</td>
                         <td><span class="badge blue">{{ $project->leads_count }}</span></td>
                         <td>@if ($project->status === 'active') <span class="badge green">Active</span> @else <span class="badge red">Inactive</span> @endif</td>
-                        <td class="row-actions"><a href="{{ url('/leads?project=' . $project->id) }}" class="btn-small btn-ghost">Leads</a>@if ($isAdmin)<button type="button" class="btn-small btn-info" data-modal="edit-project" data-project="{{ $project->id }}">Edit</button><a href="{{ url('/settings?tab=routing&project=' . $project->id) }}" class="btn-small btn-ghost">Routing</a>@endif</td>
+                        <td class="row-actions"><a href="{{ url('/leads?project=' . $project->id) }}" class="btn-small btn-ghost">Leads</a><a href="{{ route('projects.media', $project->id) }}" class="btn-small btn-ghost">Media</a>@if ($isAdmin)<button type="button" class="btn-small btn-info" data-modal="edit-project" data-project="{{ $project->id }}">Edit</button><a href="{{ url('/settings?tab=routing&project=' . $project->id) }}" class="btn-small btn-ghost">Routing</a>@endif</td>
                     </tr>
                 @endforeach
                 </tbody>
@@ -75,7 +75,7 @@
 
         <div class="project-mobile-list">
             @foreach ($projects as $project)
-                <article class="project-mobile-card"><div class="project-mobile-top"><div><strong>{{ $project->name }}</strong><div class="muted">{{ $project->location }}</div></div>@if ($project->status === 'active') <span class="badge green">Active</span> @else <span class="badge red">Inactive</span> @endif</div><div class="project-mobile-meta"><span>🎯 {{ $project->leads_count }} leads</span><span>RERA: {{ $project->rera_number ?: '—' }}</span></div><div class="project-mobile-actions"><a href="{{ url('/leads?project=' . $project->id) }}" class="btn-small btn-info">View Leads</a>@if ($isAdmin)<button type="button" class="btn-small btn-ghost" data-modal="edit-project" data-project="{{ $project->id }}">Edit</button><a href="{{ url('/settings?tab=routing&project=' . $project->id) }}" class="btn-small btn-ghost">Routing</a>@endif</div></article>
+                <article class="project-mobile-card"><div class="project-mobile-top"><div><strong>{{ $project->name }}</strong><div class="muted">{{ $project->location }}</div></div>@if ($project->status === 'active') <span class="badge green">Active</span> @else <span class="badge red">Inactive</span> @endif</div><div class="project-mobile-meta"><span>🎯 {{ $project->leads_count }} leads</span><span>RERA: {{ $project->rera_number ?: '—' }}</span></div><div class="project-mobile-actions"><a href="{{ url('/leads?project=' . $project->id) }}" class="btn-small btn-info">View Leads</a><a href="{{ route('projects.media', $project->id) }}" class="btn-small btn-ghost">Media</a>@if ($isAdmin)<button type="button" class="btn-small btn-ghost" data-modal="edit-project" data-project="{{ $project->id }}">Edit</button><a href="{{ url('/settings?tab=routing&project=' . $project->id) }}" class="btn-small btn-ghost">Routing</a>@endif</div></article>
             @endforeach
         </div>
 

@@ -246,8 +246,19 @@ class LeadActivityProcessor
                 $followup->update(['status' => 'done', 'updated_at' => now()]);
             }
 
-            // 7d. Complete all same-family pending tasks
+            // 7d. Complete pending work that this activity genuinely satisfies.
             $siblingTypes = $this->siblingActionTypes($type);
+
+            // A confirmed project-details share is a WhatsApp activity, but it
+            // also fulfils explicit "send details / brochure" work. Keep this
+            // context narrow so unrelated tasks (calls, site-team checks,
+            // visits, etc.) remain pending.
+            if (($payload['work_context'] ?? null) === 'project_details_shared') {
+                $siblingTypes = array_values(array_unique(array_merge(
+                    $siblingTypes,
+                    ['send_details', 'send_brochure']
+                )));
+            }
 
             if (! empty($siblingTypes)) {
                 $query = Followup::where('lead_id', $lead->id)

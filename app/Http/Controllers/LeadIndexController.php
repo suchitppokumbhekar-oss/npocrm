@@ -210,7 +210,7 @@ class LeadIndexController extends Controller
             $query->where('status', $statusFilter);
         } elseif ($statusFilter === 'all') {
             // Explicit All view: include terminal/closed leads too.
-        } elseif ($preset === null || $preset === '') {
+        } elseif (($preset === null || $preset === '') && ! $projectFilter) {
             if (! empty($terminalStatusKeys)) {
                 $query->whereNotIn('status', $terminalStatusKeys);
             }
@@ -514,7 +514,7 @@ class LeadIndexController extends Controller
             $query->where('status', $statusFilter);
         } elseif ($statusFilter === 'all') {
             // Explicit All view: include terminal/closed leads too.
-        } elseif ($preset === null || $preset === '') {
+        } elseif (($preset === null || $preset === '') && ! $projectFilter) {
             if (! empty($terminalStatusKeys)) {
                 $query->whereNotIn('status', $terminalStatusKeys);
             }

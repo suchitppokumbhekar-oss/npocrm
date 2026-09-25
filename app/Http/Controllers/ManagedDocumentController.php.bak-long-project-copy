@@ -1,0 +1,328 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Lead;
+use App\Models\BookingBrokerageReceipt;
+use App\Models\ManagedFile;
+use App\Models\Project;
+use App\Services\AccessService;
+use App\Services\ManagedDocumentService;
+use App\Services\SuperAdminService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class ManagedDocumentController extends Controller
+{
+    public function __construct(
+        private AccessService $access,
+        private ManagedDocumentService $documents,
+        private SuperAdminService $superAdmins,
+    ) {}
+
+    public function upload(Request $request)
+    {
+        $this->requireLogin();
+
+        $data = $request->validate([
+            'file' => 'required|file|max:25600',
+            'entity_type' => 'required|in:lead,project',
+            'entity_id' => 'required|integer|min:1',
+            'document_category' => 'required|string|max:60',
+            'title' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:2000',
+            'workflow_stage' => 'nullable|string|max:60',
+            'context_type' => 'nullable|in:communication,site_visit,booking,brokerage,project_media,general',
+            'context_id' => 'nullable|integer|min:1',
+            'customer_shareable' => 'nullable|boolean',
+        ]);
+
+        $this->authorizeEntity(
+            $data['entity_type'],
+            (int) $data['entity_id'],
+            true
+        );
+        if (($data['context_type'] ?? null) === 'site_visit') {
+            abort_unless($data['entity_type'] === 'lead' && ! empty($data['context_id']), 422);
+
+            $visitBelongsToLead = DB::table('site_visits')
+                ->where('id', (int) $data['context_id'])
+                ->where('lead_id', (int) $data['entity_id'])
+                ->exists();
+
+            abort_unless($visitBelongsToLead, 422);
+        }
+
+
+
+        $file = $this->documents->store(
+            $request->file('file'),
+            [
+                'title' => $data['title'] ?? null,
+                'description' => $data['description'] ?? null,
+                'document_category' => $data['document_category'],
+                'workflow_stage' => $data['workflow_stage'] ?? null,
+                'context_type' => $data['context_type'] ?? null,
+                'context_id' => $data['context_id'] ?? null,
+                'customer_shareable' => (bool) ($data['customer_shareable'] ?? false),
+                'visibility' => 'internal',
+                'relationship' => $data['entity_type'] === 'project'
+                    ? 'project_media'
+                    : 'evidence',
+                'source_label' => $data['entity_type'] === 'project'
+                    ? 'project_media'
+                    : 'lead_evidence',
+            ],
+            $data['entity_type'],
+            (int) $data['entity_id'],
+            (int) session('user_id')
+        );
+
+        return back()->with('success', 'Document uploaded successfully.');
+    }
+
+    public function view(int $id): StreamedResponse
+    {
+        $this->requireLogin();
+
+        $file = ManagedFile::with('links')->findOrFail($id);
+        $this->authorizeFile($file);
+
+        abort_if($file->removed_at, 404);
+        abort_unless(Storage::disk($file->disk)->exists($file->storage_path), 404);
+
+        $this->documents->recordEvent(
+            $file,
+            'viewed',
+            (int) session('user_id'),
+            'web'
+        );
+
+        return Storage::disk($file->disk)->response(
+            $file->storage_path,
+            $file->original_name,
+            [
+                'Content-Type' => $file->mime_type ?: 'application/octet-stream',
+                'Content-Disposition' => 'inline; filename="' .
+                    addslashes($file->original_name) . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]
+        );
+    }
+
+    public function download(int $id): StreamedResponse
+    {
+        $this->requireLogin();
+
+        $file = ManagedFile::with('links')->findOrFail($id);
+        $this->authorizeFile($file);
+
+        $userId = (int) session('user_id');
+
+        abort_unless(
+            $this->superAdmins->isSuperAdmin($userId)
+            || (
+                session('user_role') !== 'team_manager'
+                && $this->access->can('documents.download')
+            ),
+            403
+        );
+
+        abort_if($file->removed_at, 404);
+        abort_unless(Storage::disk($file->disk)->exists($file->storage_path), 404);
+
+        $this->documents->recordEvent($file, 'downloaded', $userId, 'web');
+
+        return Storage::disk($file->disk)->download(
+            $file->storage_path,
+            $file->original_name
+        );
+    }
+
+    public function approveShare(int $id)
+    {
+        $this->requireLogin();
+
+        $userId = (int) session('user_id');
+
+        abort_unless(
+            $this->superAdmins->isSuperAdmin($userId)
+            || $this->access->can('documents.approve_share'),
+            403
+        );
+
+        $file = ManagedFile::with('links')->findOrFail($id);
+        $this->authorizeFile($file);
+
+        $isProjectMedia = $file->links->contains(fn ($link) =>
+            $link->entity_type === 'project'
+            && $link->relationship === 'project_media'
+        );
+        abort_unless($isProjectMedia, 422, 'Only project media can be approved for customer sharing.');
+
+        $this->documents->approveForSharing($file, $userId);
+
+        return back()->with('success', 'Document approved for customer sharing.');
+    }
+
+    public function replace(Request $request, int $id)
+    {
+        $this->requireLogin();
+
+        $data = $request->validate([
+            'file' => 'required|file|max:25600',
+        ]);
+
+        $file = ManagedFile::with('links')->findOrFail($id);
+        $this->authorizeFile($file);
+        abort_if($file->removed_at, 422, 'Removed media cannot be replaced.');
+        abort_if($file->valid_until, 422, 'This media version has already been superseded. Replace the current version instead.');
+
+        $projectLink = $file->links->first(fn ($link) =>
+            $link->entity_type === 'project' && $link->relationship === 'project_media'
+        );
+        abort_unless($projectLink, 422, 'Only project media can be replaced.');
+
+        $userId = (int) session('user_id');
+        $allowed = $this->superAdmins->isSuperAdmin($userId)
+            || ((int) $file->uploaded_by_user_id === $userId
+                && (session('user_role') === 'agent' || $this->access->can('documents.replace_own')))
+            || $this->access->can('project_media.manage');
+        abort_unless($allowed, 403);
+
+        $replacement = $this->documents->store(
+            $request->file('file'),
+            [
+                'title' => $file->title,
+                'description' => $file->description,
+                'document_category' => $file->document_category,
+                'context_type' => $projectLink->context_type ?: 'project_media',
+                'context_id' => $projectLink->context_id,
+                'workflow_stage' => $projectLink->workflow_stage,
+                'relationship' => 'project_media',
+                'source_label' => $file->source_label ?: 'project_media',
+                'visibility' => 'internal',
+                'customer_shareable' => $file->customer_shareable,
+                'version_number' => ((int) $file->version_number) + 1,
+                'replaces_file_id' => $file->id,
+            ],
+            'project',
+            (int) $projectLink->entity_id,
+            $userId
+        );
+
+        $this->documents->retireReplacedVersion($file, $replacement, $userId);
+
+        return back()->with('success', 'Replacement uploaded as a new version. Customer sharing requires approval of the new version.');
+    }
+
+
+    public function remove(Request $request, int $id)
+    {
+        $this->requireLogin();
+
+        $data = $request->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        $file = ManagedFile::with('links')->findOrFail($id);
+        $this->authorizeFile($file);
+
+        $userId = (int) session('user_id');
+
+        $allowed = $this->superAdmins->isSuperAdmin($userId)
+            || (
+                (int) $file->uploaded_by_user_id === $userId
+                && (
+                    session('user_role') === 'agent'
+                    || $this->access->can('documents.remove_own')
+                )
+            );
+
+        abort_unless($allowed, 403);
+
+        $this->documents->remove(
+            $file,
+            $userId,
+            $data['reason'] ?? null
+        );
+
+        return back()->with('success', 'Document removed from active use.');
+    }
+
+    private function authorizeFile(ManagedFile $file): void
+    {
+        abort_if($file->links->isEmpty(), 403);
+
+        foreach ($file->links as $link) {
+            try {
+                $this->authorizeEntity(
+                    $link->entity_type,
+                    (int) $link->entity_id,
+                    false
+                );
+
+                return;
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+                if ($e->getStatusCode() !== 403 && $e->getStatusCode() !== 404) {
+                    throw $e;
+                }
+            }
+        }
+
+        abort(403);
+    }
+
+    private function authorizeEntity(
+        string $entityType,
+        int $entityId,
+        bool $write
+    ): void {
+        if ($entityType === 'lead') {
+            $lead = Lead::findOrFail($entityId);
+
+            abort_unless(
+                $write
+                    ? $this->access->canWorkLead($lead)
+                    : $this->access->canViewLead($lead),
+                403
+            );
+
+            return;
+        }
+
+        if ($entityType === 'project') {
+            $project = Project::query()
+                ->visibleTo(
+                    (int) session('user_id'),
+                    (string) session('user_role')
+                )
+                ->findOrFail($entityId);
+
+
+            return;
+        }
+        if ($entityType === 'booking_brokerage_receipt') {
+            $receipt = BookingBrokerageReceipt::with('booking.lead')->findOrFail($entityId);
+            $lead = $receipt->booking?->lead;
+            abort_unless($lead, 404);
+            abort_unless(
+                $write
+                    ? $this->access->canWorkLead($lead)
+                    : $this->access->canViewLead($lead),
+                403
+            );
+            return;
+        }
+
+
+        abort(404);
+    }
+
+    private function requireLogin(): void
+    {
+        abort_unless(session('user_id'), 403);
+    }
+}

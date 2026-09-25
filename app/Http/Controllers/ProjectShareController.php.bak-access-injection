@@ -1,0 +1,219 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Activity;
+use App\Models\Lead;
+use App\Models\ManagedFile;
+use App\Models\ProjectSharePackage;
+use App\Models\ProjectSharePackageFile;
+use App\Services\AccessService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+class ProjectShareController extends Controller
+{
+    public function store(Request $request, int $leadId)
+    {
+        abort_unless(session('user_id'), 403);
+
+        $lead = Lead::with('project')->findOrFail($leadId);
+        abort_unless($this->access->canWorkLead($lead), 403);
+        abort_unless($lead->project_id && $lead->project, 422, 'This lead does not have a project selected.');
+
+        $data = $request->validate([
+            'file_ids' => 'required|array|min:1',
+            'file_ids.*' => 'required|integer|min:1|distinct',
+            'message' => 'nullable|string|max:50000',
+            'channel' => 'nullable|in:whatsapp,copy_link',
+        ]);
+
+        $fileIds = array_map('intval', $data['file_ids']);
+
+        $files = ManagedFile::query()
+            ->with('links')
+            ->whereIn('id', $fileIds)
+            ->approvedForSharing()
+            ->get();
+
+        abort_unless(
+            $files->count() === count($fileIds),
+            422,
+            'One or more selected files are not approved for sharing.'
+        );
+
+        foreach ($files as $file) {
+            $belongsToProject = $file->links->contains(fn ($link) =>
+                $link->entity_type === 'project'
+                && (int) $link->entity_id === (int) $lead->project_id
+                && $link->relationship === 'project_media'
+            );
+
+            abort_unless(
+                $belongsToProject,
+                422,
+                'One or more selected files do not belong to this project.'
+            );
+        }
+
+        $userId = (int) session('user_id');
+        $channel = $data['channel'] ?? 'whatsapp';
+        $token = Str::random(64);
+
+        $package = DB::transaction(function () use (
+            $lead,
+            $files,
+            $data,
+            $userId,
+            $channel,
+            $token
+        ) {
+            $package = ProjectSharePackage::create([
+                'token_hash' => hash('sha256', $token),
+                'lead_id' => $lead->id,
+                'project_id' => $lead->project_id,
+                'created_by_user_id' => $userId,
+                'channel' => $channel,
+                'recipient_phone' => $lead->phone,
+                'message' => $data['message'] ?? null,
+                'expires_at' => now()->addDays(14),
+                'created_at' => now(),
+            ]);
+
+            foreach ($files->values() as $index => $file) {
+                ProjectSharePackageFile::create([
+                    'project_share_package_id' => $package->id,
+                    'managed_file_id' => $file->id,
+                    'version_number' => $file->version_number,
+                    'sort_order' => $index,
+                    'created_at' => now(),
+                ]);
+            }
+
+            Activity::create([
+                'lead_id' => $lead->id,
+                'agent_id' => $lead->resolveLoggingAgentId(),
+                'type' => 'project_share_prepared',
+                'outcome' => 'Project details prepared for sharing',
+                'outcome_key' => null,
+                'action_source' => 'manual',
+                'notes' => 'Project: ' . $lead->project->name
+                    . "\nAssets: " . $files->count()
+                    . "\nChannel: " . $channel
+                    . "\nShare package: #" . $package->id,
+                'logged_at' => now(),
+            ]);
+
+            $lead->update(['last_activity_at' => now()]);
+
+            return $package;
+        });
+
+        return response()->json([
+            'ok' => true,
+            'package_id' => $package->id,
+            'token' => $token,
+            'url' => url('/share/project/' . $token),
+            'expires_at' => $package->expires_at?->toIso8601String(),
+        ]);
+    }
+
+    public function show(string $token)
+    {
+        $package = $this->findAvailablePackage($token);
+
+        $files = $package->files()
+            ->with('file')
+            ->orderBy('sort_order')
+            ->get()
+            ->filter(function ($packageFile) {
+                $file = $packageFile->file;
+
+                return $file
+                    && (int) $file->version_number === (int) $packageFile->version_number
+                    && $file->isApprovedForSharing()
+                    && $file->links->contains(fn ($link) =>
+                        $link->entity_type === 'project'
+                        && (int) $link->entity_id === (int) $package->project_id
+                        && $link->relationship === 'project_media'
+                    );
+            })
+            ->values();
+
+        abort_if($files->isEmpty(), 404, 'This project share is no longer available.');
+
+        $package->forceFill([
+            'last_viewed_at' => now(),
+            'view_count' => ((int) $package->view_count) + 1,
+        ])->save();
+
+        return view('project-shares.show', [
+            'package' => $package->load(['project', 'lead']),
+            'files' => $files,
+            'token' => $token,
+        ]);
+    }
+
+    public function file(string $token, int $fileId)
+    {
+        $package = $this->findAvailablePackage($token);
+
+        $packageFile = $package->files()
+            ->with('file')
+            ->where('managed_file_id', $fileId)
+            ->firstOrFail();
+
+        $file = $packageFile->file;
+
+        abort_unless($file, 404);
+        abort_unless(
+            (int) $file->version_number === (int) $packageFile->version_number
+            && $file->isApprovedForSharing(),
+            404
+        );
+
+        abort_unless(
+            $file->links->contains(fn ($link) =>
+                $link->entity_type === 'project'
+                && (int) $link->entity_id === (int) $package->project_id
+                && $link->relationship === 'project_media'
+            ),
+            404
+        );
+
+        abort_unless(
+            Storage::disk($file->disk)->exists($file->storage_path),
+            404
+        );
+
+        return Storage::disk($file->disk)->response(
+            $file->storage_path,
+            $file->original_name,
+            [
+                'Content-Type' => $file->mime_type ?: 'application/octet-stream',
+                'Content-Disposition' => 'inline; filename="' .
+                    addslashes($file->original_name) . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]
+        );
+    }
+
+    private function findAvailablePackage(string $token): ProjectSharePackage
+    {
+        abort_unless(
+            preg_match('/^[A-Za-z0-9]+$/', $token) && strlen($token) === 64,
+            404
+        );
+
+        $package = ProjectSharePackage::query()
+            ->where('token_hash', hash('sha256', $token))
+            ->with(['project', 'lead'])
+            ->first();
+
+        abort_unless($package && $package->isAvailable(), 404);
+
+        return $package;
+    }
+}

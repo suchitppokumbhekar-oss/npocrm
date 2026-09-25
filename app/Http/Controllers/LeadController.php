@@ -6,6 +6,7 @@ use App\Models\Activity;
 use App\Models\Agent;
 use App\Models\Followup;
 use App\Models\Lead;
+use App\Models\ManagedFile;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\LeadAssignmentService;
@@ -15,6 +16,7 @@ use App\Services\CustomerService;
 use App\Services\BookingControlService;
 use App\Services\AccessService;
 use App\Services\LeadStatusService;
+use App\Services\ManagedDocumentService;
 use App\Services\FollowupService;
 use App\Services\SettingsService;
 use App\Services\TeamService;
@@ -34,6 +36,7 @@ class LeadController extends Controller
         private LeadTransferService $leadTransfers,
         private LeadDuplicateGuard $duplicateGuard,
         private WorkflowPresentationService $workflowPresentations,
+        private ManagedDocumentService $documents,
     ) {}
 
     public function show(Request $request, int $id)
@@ -190,6 +193,58 @@ class LeadController extends Controller
                 && ! $lead->agentHandlesProject($sessionAgentId);
         }
 
+        // Private CRM evidence and approved project collateral linked to this lead.
+        $leadDocuments = ManagedFile::query()
+            ->with(['uploader', 'links'])
+            ->whereHas('links', function ($q) use ($lead) {
+                $q->where('entity_type', 'lead')->where('entity_id', $lead->id);
+            })
+            ->whereNull('removed_at')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $documentsByVisit = $leadDocuments
+            ->filter(fn ($file) => $file->links->contains(fn ($link) => $link->context_type === 'site_visit' && $link->context_id))
+            ->groupBy(function ($file) {
+                $link = $file->links->first(fn ($item) => $item->context_type === 'site_visit' && $item->context_id);
+                return (int) $link->context_id;
+            });
+
+        $generalLeadDocuments = $leadDocuments
+            ->reject(fn ($file) => $file->links->contains(fn ($link) => in_array($link->context_type, ['site_visit', 'booking'], true)))
+            ->values();
+
+        $bookingDocuments = $leadDocuments
+            ->filter(fn ($file) => $file->links->contains(fn ($link) => $link->context_type === 'booking'))
+            ->values();
+
+        $projectMedia = collect();
+        if ($lead->project_id) {
+            $projectMedia = ManagedFile::query()
+                ->with(['uploader', 'links'])
+                ->approvedForSharing()
+                ->whereHas('links', function ($q) use ($lead) {
+                    $q->where('entity_type', 'project')
+                        ->where('entity_id', $lead->project_id)
+                        ->where('relationship', 'project_media');
+                })
+                ->orderBy('document_category')
+                ->orderByDesc('version_number')
+                ->get();
+        }
+
+        $projectShareHistory = \App\Models\ProjectSharePackage::query()
+            ->with(['files.file', 'creator'])
+            ->where('lead_id', $lead->id)
+            ->where('project_id', $lead->project_id)
+            ->whereIn('share_status', ['sent', 'not_sent'])
+            ->orderByDesc('confirmed_at')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get();
+
+        $lastSuccessfulProjectShare = $projectShareHistory
+            ->first(fn ($package) => $package->share_status === 'sent');
         $bookingControl = $lead->bookingControl;
         $canChangeBooking = $this->access->canChangeBooking($lead);
         $canAddProjectWorkstream = $this->access->canAddProjectWorkstream($lead)
@@ -262,7 +317,9 @@ class LeadController extends Controller
             'rootLead', 'relatedProjectLeads', 'canAddProjectWorkstream',
             'siteVisits', 'siteVisitProjectRows', 'siteVisitOutcomeOptions',
             'siteVisitProjectOptions', 'canRecordSiteVisit', 'canManageLead', 'canChangeProject', 'returnTo',
-            'customerInformationProfile'
+            'customerInformationProfile',
+            'leadDocuments', 'generalLeadDocuments', 'documentsByVisit', 'bookingDocuments', 'projectMedia',
+            'projectShareHistory', 'lastSuccessfulProjectShare'
         ));
     }
 
@@ -1235,6 +1292,7 @@ public function unshareAgent(Request $request)
             'brokerage_status'      => 'nullable|in:pending,invoiced,received,disputed',
             'brokerage_expected_at' => 'nullable|date',
             'co_broker_name'        => 'nullable|string|max:100',
+            'booking_evidence'       => 'nullable|file|max:25600',
         ]);
 
         $lead = Lead::findOrFail($validated['lead_id']);
@@ -1277,6 +1335,24 @@ public function unshareAgent(Request $request)
             $this->bookingControls->resubmitAfterEdit($lead->fresh());
         }
 
+        if ($request->hasFile('booking_evidence')) {
+            $this->documents->store(
+                $request->file('booking_evidence'),
+                [
+                    'document_category' => 'booking_evidence',
+                    'context_type' => 'booking',
+                    'context_id' => $lead->id,
+                    'workflow_stage' => 'booking',
+                    'relationship' => 'evidence',
+                    'source_label' => 'booking_details',
+                    'visibility' => 'internal',
+                ],
+                'lead',
+                (int) $lead->id,
+                (int) session('user_id')
+            );
+        }
         return redirect('/leads/' . $lead->id)->with('success', '💾 Booking details saved!');
+
     }
 }

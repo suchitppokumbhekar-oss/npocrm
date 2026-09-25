@@ -14,7 +14,7 @@
  <div class="bf-guidebar"><strong style="font-size:12px;padding:7px 4px">What do you want to do?</strong><a href="/admin/booking-finance?tab=bookings#booking-register">Find / enter a booking</a><a href="/admin/booking-finance?tab=rules">Set brokerage rules</a><a href="/admin/booking-finance?tab=payables">Set payable types</a><a href="/admin/booking-finance?tab=salary">Manage salary history</a><a href="/admin/booking-finance?tab=import">Import bookings</a><a href="/admin/booking-finance?tab=simulation">Test a rule</a><a href="/incentive-guide.html">📘 Help / Guide</a></div>
 
  @if($tab==='bookings')
- <div class="bf-sectionnav"><a href="#booking-entry">① Booking entry</a><a href="#booking-register">② Booking register</a>@if($editBooking)<a href="#booking-money">③ Brokerage / NB</a><a href="#booking-allocations">④ Employee incentive</a><a href="#booking-payables">⑤ Payables</a>@endif</div>
+ <div class="bf-sectionnav"><a href="#booking-entry">① Booking entry</a><a href="#booking-register">② Booking register</a>@if($editBooking)<a href="#booking-money">③ Brokerage / NB</a><a href="#booking-receipts">④ Brokerage receipts</a><a href="#booking-allocations">⑤ Employee incentive</a><a href="#booking-payables">⑥ Payables</a>@endif</div>
  <div class="bf-card"><h3>What happens to a booking?</h3><p class="bf-note"><strong>Live CRM:</strong> when an existing Lead reaches Booking, the CRM keeps its existing booking workflow. A financial record is created from the booking and follows the existing Booking Control approval. <strong>Historical/manual/imported:</strong> create a draft here, review the calculated brokerage/payables/NB, then Submit → Authorize. Authorization creates the authoritative incentive deal snapshot.</p></div>
  <div class="bf-card">
   <h3 id="booking-entry">{{ $editBooking?'Edit booking financial record #'.$editBooking->id:'＋ Add historical / manual booking' }}</h3>
@@ -29,9 +29,52 @@
  <div class="bf-card" id="booking-register"><h3>Booking register</h3><div class="bf-scroll"><table class="bf-table"><tr><th>ID</th><th>Customer / Project</th><th>Date</th><th class="bf-num">Booking</th><th class="bf-num">Brokerage</th><th class="bf-num">NB</th><th>Status</th><th>Actions</th></tr>@foreach($bookings as $b)<tr><td>#{{$b->id}}</td><td><strong>{{$b->customer_name_snapshot}}</strong><br>{{$b->project_name_snapshot}}<br><span class="bf-note">{{$b->builder_name}}</span></td><td>{{$b->booking_date?->format('d M Y')}}</td><td class="bf-num">{{$money($b->booking_amount)}}</td><td class="bf-num">{{$money($b->brokerage_gross)}}</td><td class="bf-num"><strong>{{$money($b->net_brokerage)}}</strong></td><td>{{$b->status}}</td><td><a class="bf-btn gray" href="/admin/booking-finance?tab=bookings&edit_booking={{$b->id}}">Open</a>@if(in_array($b->status,['draft','submitted']))<form method="POST" action="/admin/booking-finance/bookings/{{$b->id}}/submit" style="display:inline">@csrf<button class="bf-btn">Submit</button></form>@endif @if($b->status==='submitted')<form method="POST" action="/admin/booking-finance/bookings/{{$b->id}}/authorize" style="display:inline" onsubmit="return confirm('Authorize this booking financial record?')">@csrf<button class="bf-btn warn">Authorize</button></form>@endif</td></tr>@endforeach</table></div>{{$bookings->links()}}</div>
  @if($editBooking)
  <div class="bf-grid" id="booking-money"><div class="bf-card"><div class="bf-label">Brokerage</div><div class="bf-kpi">{{$money($editBooking->brokerage_gross)}}</div><div class="bf-note">Rule #{{$editBooking->brokerage_rule_id ?: 'legacy/default'}}</div></div><div class="bf-card"><div class="bf-label">NB after deductions</div><div class="bf-kpi">{{$money($editBooking->net_brokerage)}}</div></div><div class="bf-card"><div class="bf-label">Payables reducing NB</div><div class="bf-kpi">{{$money($editBooking->payable_deduction_total)}}</div></div><div class="bf-card"><div class="bf-label">Financial status</div><div class="bf-kpi" style="font-size:18px">{{$editBooking->status}}</div></div></div>
+<div class="bf-card" id="booking-receipts">
+    <h3>Brokerage Receipts</h3>
+
+    @if($editBooking->status === 'authorized')
+    <form method="POST" action="/admin/booking-finance/bookings/{{$editBooking->id}}/brokerage-receipts" class="bf-form" enctype="multipart/form-data">
+        @csrf
+        <div><label>Receipt date</label><input type="date" name="receipt_date" required value="{{now()->format('Y-m-d')}}"></div>
+        <div><label>Amount ₹</label><input type="number" name="amount" step="0.01" min="0.01" required></div>
+        <div><label>Payer / Builder</label><input name="payer_name"></div>
+        <div><label>Payment reference</label><input name="payment_reference"></div>
+        <div><label>Payment mode</label><input name="payment_mode"></div>
+        <div><label>Receipt evidence</label><input type="file" name="receipt_evidence" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx"></div>
+        <div class="full"><label>Notes</label><textarea name="notes" rows="2"></textarea></div>
+        <div class="full"><button class="bf-btn">Record brokerage receipt</button></div>
+    </form>
+    @else
+    <p class="bf-note">Brokerage receipts can be recorded after this booking financial record is authorized.</p>
+    @endif
+
+    <div class="bf-scroll">
+        <table class="bf-table">
+            <tr><th>Date</th><th>Payer</th><th>Reference</th><th>Mode</th><th class="bf-num">Amount</th><th>Evidence</th></tr>
+            @forelse($editBooking->brokerageReceipts as $receipt)
+            <tr>
+                <td>{{$receipt->receipt_date?->format('d M Y')}}</td>
+                <td>{{$receipt->payer_name ?: '—'}}</td>
+                <td>{{$receipt->payment_reference ?: '—'}}</td>
+                <td>{{$receipt->payment_mode ?: '—'}}</td>
+                <td class="bf-num">{{$money($receipt->amount)}}</td>
+                <td>
+                    @forelse($receiptEvidence->get((int) $receipt->id, collect()) as $evidence)
+                        <a class="bf-btn gray" href="/documents/{{$evidence->id}}/view" target="_blank" rel="noopener">View</a>
+                    @empty
+                        <span class="bf-note">—</span>
+                    @endforelse
+                </td>
+            </tr>
+            @empty
+            <tr><td colspan="6" class="bf-note">No brokerage receipts recorded yet.</td></tr>
+            @endforelse
+        </table>
+    </div>
+</div>
  <div class="bf-card" id="booking-allocations"><h3>Employee incentive allocations</h3><form method="POST" action="/admin/booking-finance/bookings/{{$editBooking->id}}/allocations" class="bf-form">@csrf<div><label>Employee</label><select name="agent_id" required>@foreach($agents as $a)<option value="{{$a->id}}">{{$a->user?->name}}</option>@endforeach</select></div><div><label>Allocation type</label><select name="allocation_type"><option value="percentage">Percentage</option><option value="fixed">Fixed</option></select></div><div><label>Base</label><select name="base_type"><option value="net_brokerage">Net Brokerage</option><option value="brokerage_gross">Gross Brokerage</option><option value="booking_value">Booking Value</option></select></div><div><label>Rate %</label><input name="rate" type="number" step="0.001"></div><div><label>Fixed ₹</label><input name="fixed_amount" type="number" step="0.01"></div><div class="full"><button class="bf-btn">Add allocation</button></div></form><div class="bf-scroll"><table class="bf-table"><tr><th>Employee</th><th>Base</th><th>Rate</th><th>Calculated incentive</th><th>Rule</th></tr>@foreach($editBooking->allocations as $a)<tr><td>{{$a->agent?->user?->name}}</td><td>{{$a->base_type}}</td><td>{{ $a->allocation_type==='fixed' ? $money($a->fixed_amount) : number_format($a->rate,3).'%' }}</td><td>{{$money($a->calculated_amount)}}</td><td>#{{$a->incentive_rule_id ?: 'manual'}}</td></tr>@endforeach</table></div></div>
- <div class="bf-card" id="booking-payables"><h3>Booking payables</h3><form method="POST" action="/admin/booking-finance/bookings/{{$editBooking->id}}/payables" class="bf-form">@csrf<div><label>Type</label><select name="payable_type_id"><option value="">Custom</option>@foreach($payableTypes as $t)<option value="{{$t->id}}">{{$t->name}} {{ $t->affects_net_brokerage?'(deducts NB)':''}}</option>@endforeach</select></div><div><label>Payee</label><input name="payee_name" required></div><div><label>Amount ₹</label><input name="amount" type="number" step="0.01" required></div><div><label>Due date</label><input name="due_date" type="date"></div><div><label>Deduct from NB?</label><select name="affects_net_brokerage"><option value="0">No</option><option value="1">Yes</option></select></div><div class="full"><button class="bf-btn">Add payable</button></div></form><div class="bf-scroll"><table class="bf-table"><tr><th>Type</th><th>Payee</th><th>Amount</th><th>NB deduction</th><th>Status</th><th>Paid</th></tr>@foreach($editBooking->payables as $p)<tr><td>{{$p->payable_type_name_snapshot}}</td><td>{{$p->payee_name}}</td><td>{{$money($p->amount)}}</td><td>{{$p->affects_net_brokerage?'Yes':'No'}}</td><td>{{$p->status}}</td><td>{{$money($p->payments->sum('amount'))}}</td></tr>@endforeach</table></div></div>
  @endif
+ <div class="bf-card" id="booking-payables"><h3>Booking payables</h3><form method="POST" action="/admin/booking-finance/bookings/{{$editBooking->id}}/payables" class="bf-form">@csrf<div><label>Type</label><select name="payable_type_id"><option value="">Custom</option>@foreach($payableTypes as $t)<option value="{{$t->id}}">{{$t->name}} {{ $t->affects_net_brokerage?'(deducts NB)':''}}</option>@endforeach</select></div><div><label>Payee</label><input name="payee_name" required></div><div><label>Amount ₹</label><input name="amount" type="number" step="0.01" required></div><div><label>Due date</label><input name="due_date" type="date"></div><div><label>Deduct from NB?</label><select name="affects_net_brokerage"><option value="0">No</option><option value="1">Yes</option></select></div><div class="full"><button class="bf-btn">Add payable</button></div></form><div class="bf-scroll"><table class="bf-table"><tr><th>Type</th><th>Payee</th><th>Amount</th><th>NB deduction</th><th>Status</th><th>Paid</th></tr>@foreach($editBooking->payables as $p)<tr><td>{{$p->payable_type_name_snapshot}}</td><td>{{$p->payee_name}}</td><td>{{$money($p->amount)}}</td><td>{{$p->affects_net_brokerage?'Yes':'No'}}</td><td>{{$p->status}}</td><td>{{$money($p->payments->sum('amount'))}}</td></tr>@endforeach</table></div></div>
  @endif
 
  @if($tab==='rules')

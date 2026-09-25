@@ -1,0 +1,43 @@
+[1mdiff --git a/app/Services/SuperAdminWorkSummaryService.php b/app/Services/SuperAdminWorkSummaryService.php[m
+[1mindex fa49750..7eb1de1 100644[m
+[1m--- a/app/Services/SuperAdminWorkSummaryService.php[m
+[1m+++ b/app/Services/SuperAdminWorkSummaryService.php[m
+[36m@@ -397,7 +397,7 @@[m [mpublic function reconciliation(int $agentId, string $period = 'today'): array[m
+ [m
+         $metricEvidence = [];[m
+         foreach ($definitions as $definition) {[m
+[31m-            if ($definition['difference'] === 0) {[m
+[32m+[m[32m            if ($definition['difference'] === 0 && $definition['metric'] !== 'tasks_completed') {[m
+                 continue;[m
+             }[m
+             $metricEvidence[$definition['metric']] = $this->reconciliationMetricEvidence($agentId, $definition['metric'], $from, $to);[m
+[36m@@ -477,6 +477,29 @@[m [mprivate function reconciliationMetricEvidence(int $agentId, string $metric, Carb[m
+                     })->all(),[m
+                 ];[m
+ [m
+[32m+[m[32m            case 'tasks_completed':[m
+[32m+[m[32m                $tasks = Followup::with(['lead.project', 'sourceActivity'])[m
+[32m+[m[32m                    ->where('agent_id', $agentId)->where('status', 'done')[m
+[32m+[m[32m                    ->whereBetween('updated_at', [$from, $to])[m
+[32m+[m[32m                    ->orderByDesc('updated_at')->get();[m
+[32m+[m
+[32m+[m[32m                return [[m
+[32m+[m[32m                    'mode' => 'tasks',[m
+[32m+[m[32m                    'title' => 'Completed follow-up history',[m
+[32m+[m[32m                    'columns' => ['Lead', 'Completed', 'Task', 'CRM provenance'],[m
+[32m+[m[32m                    'rows' => $tasks->map(function ($task) {[m
+[32m+[m[32m                        $source = $task->sourceActivity;[m
+[32m+[m[32m                        $provenance = $task->auto_created ? 'Auto-created task' : 'Manually scheduled task';[m
+[32m+[m[32m                        $provenance .= $source ? ' · source activity #' . $source->id . ' (' . ($source->outcome_key ?: $source->type ?: 'activity') . ')' : ' · no source activity link';[m
+[32m+[m[32m                        return [[m
+[32m+[m[32m                            'lead' => $this->leadRow($task->lead, $task->updated_at, 'Completed: ' . ($task->action_type ?: 'task')),[m
+[32m+[m[32m                            'at' => Carbon::parse($task->updated_at),[m
+[32m+[m[32m                            'state' => $task->action_type ?: 'task',[m
+[32m+[m[32m                            'reason' => $provenance,[m
+[32m+[m[32m                        ];[m
+[32m+[m[32m                    })->all(),[m
+[32m+[m[32m                ];[m
+[32m+[m
+             case 'bookings':[m
+                 $events = Activity::with(['lead.project'])[m
+                     ->where('agent_id', $agentId)->where('type', 'status_change')->where('outcome_key', 'booking')[m

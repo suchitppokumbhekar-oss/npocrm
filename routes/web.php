@@ -41,6 +41,18 @@ Route::get('/webhooks/meta/lead',  [\App\Http\Controllers\MetaWebhookController:
 Route::post('/webhooks/meta/lead', [\App\Http\Controllers\MetaWebhookController::class, 'handle']);
 
 // ============================================================
+// PUBLIC PROJECT SHARE
+// ============================================================
+
+Route::get('/share/project/{token}', [\App\Http\Controllers\ProjectShareController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->name('project-share.show');
+
+Route::get('/share/project/{token}/file/{fileId}', [\App\Http\Controllers\ProjectShareController::class, 'file'])
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->where('fileId', '[0-9]+')
+    ->name('project-share.file');
+// ============================================================
 // PASSWORD RESET (public)
 // ============================================================
 
@@ -179,6 +191,8 @@ Route::post('/assign-project',       [\App\Http\Controllers\LeadController::clas
 Route::post('/leads/assign-agent',   [\App\Http\Controllers\LeadController::class,     'assignAgent'])->name('leads.assignAgent');
 Route::post('/leads/unshare-agent',  [\App\Http\Controllers\LeadController::class,     'unshareAgent'])->name('leads.unshareAgent');
 Route::post('/leads/external-share', [\App\Http\Controllers\ExternalShareController::class, 'store'])->name('leads.externalShare');
+Route::post('/leads/{leadId}/project-share', [\App\Http\Controllers\ProjectShareController::class, 'store'])->where('leadId', '[0-9]+')->name('project-share.store');
+Route::post('/leads/{leadId}/project-share/{packageId}/confirm', [\App\Http\Controllers\ProjectShareController::class, 'confirm'])->where(['leadId' => '[0-9]+', 'packageId' => '[0-9]+'])->name('project-share.confirm');
 Route::post('/leads/revive',         [\App\Http\Controllers\LeadController::class,     'revive'])->name('leads.revive');
 Route::post('/leads/status',         [\App\Http\Controllers\LeadController::class,     'updateStatus'])->name('leads.updateStatus');
 Route::post('/leads/lost-reason',     [\App\Http\Controllers\LeadController::class,     'updateLostReason'])->name('leads.updateLostReason');
@@ -190,7 +204,16 @@ Route::match(['GET','POST'], '/device-share', [\App\Http\Controllers\DeviceLeadI
 Route::get('/device-share/native', [\App\Http\Controllers\DeviceLeadImportController::class, 'native'])->name('device.share.native');
 
 Route::get('/projects',              [\App\Http\Controllers\ProjectController::class,  'index'])->name('projects.index');
+Route::get('/projects/{id}/media', [\App\Http\Controllers\ProjectController::class, 'media'])->where('id','[0-9]+')->name('projects.media');
 Route::post('/projects',             [\App\Http\Controllers\ProjectController::class,  'store'])->name('projects.store');
+// DOCUMENTS + PROJECT MEDIA
+Route::post('/documents/upload', [\App\Http\Controllers\ManagedDocumentController::class, 'upload'])->name('documents.upload');
+Route::get('/documents/{id}/view', [\App\Http\Controllers\ManagedDocumentController::class, 'view'])->where('id', '[0-9]+')->name('documents.view');
+Route::get('/documents/{id}/download', [\App\Http\Controllers\ManagedDocumentController::class, 'download'])->where('id', '[0-9]+')->name('documents.download');
+Route::post('/documents/{id}/replace', [\App\Http\Controllers\ManagedDocumentController::class, 'replace'])->where('id', '[0-9]+')->name('documents.replace');
+Route::post('/documents/{id}/metadata', [\App\Http\Controllers\ManagedDocumentController::class, 'updateMetadata'])->where('id', '[0-9]+')->name('documents.updateMetadata');
+Route::post('/documents/{id}/approve-share', [\App\Http\Controllers\ManagedDocumentController::class, 'approveShare'])->where('id', '[0-9]+')->name('documents.approveShare');
+Route::post('/documents/{id}/remove', [\App\Http\Controllers\ManagedDocumentController::class, 'remove'])->where('id', '[0-9]+')->name('documents.remove');
 
 Route::post('/activities',           [\App\Http\Controllers\ActivityController::class, 'store'])->name('activities.store');
 Route::post('/leads/customer-information', [\App\Http\Controllers\ActivityController::class, 'storeCustomerInformation'])->name('leads.customerInformation');

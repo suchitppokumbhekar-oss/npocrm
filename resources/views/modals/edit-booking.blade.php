@@ -7,7 +7,7 @@
     $expectedAt   = $lead->brokerage_expected_at?->format('Y-m-d') ?? now()->addDays(30)->toDateString();
 @endphp
 
-<form method="POST" action="/leads/update-booking" data-ajax>
+<form method="POST" action="/leads/update-booking" enctype="multipart/form-data" data-ajax>
     @csrf
     <input type="hidden" name="lead_id" value="{{ $lead->id }}">
 
@@ -117,6 +117,12 @@
         <input type="text" name="co_broker_name" class="input" maxlength="100"
                value="{{ old('co_broker_name', $lead->co_broker_name) }}"
                placeholder="If commission is shared">
+    </div>
+
+    <div class="field">
+        <label>Booking Evidence <span class="muted">(optional)</span></label>
+        <input type="file" name="booking_evidence" class="input" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx">
+        <div class="muted" style="font-size:11px;margin-top:4px;">Booking form, payment proof, allotment/confirmation, KYC or related booking document. Max 25 MB.</div>
     </div>
 
     <button type="submit" class="btn btn-block">💾 Save Booking Details</button>

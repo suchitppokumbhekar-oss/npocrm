@@ -1,0 +1,108 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Activity;
+use App\Models\Lead;
+use App\Models\ManagedFile;
+use App\Models\ProjectSharePackage;
+use App\Models\ProjectSharePackageFile;
+use App\Services\AccessService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+class ProjectShareController extends Controller
+{
+    public function __construct(private AccessService $access)
+    {
+    }
+
+    public function store(Request $request, int $leadId)
+    {
+        abort_unless(session('user_id'), 403);
+
+        $lead = Lead::with('project')->findOrFail($leadId);
+        abort_unless($this->access->canWorkLead($lead), 403);
+        abort_unless($lead->project_id && $lead->project, 422, 'This lead does not have a project selected.');
+
+        $data = $request->validate([
+            'file_ids' => 'required|array|min:1',
+            'file_ids.*' => 'required|integer|min:1|distinct',
+            'message' => 'nullable|string|max:5000',
+            'channel' => 'nullable|in:whatsapp,copy_link',
+        ]);
+
+        $fileIds = array_map('intval', $data['file_ids']);
+
+        $files = ManagedFile::query()
+            ->with('links')
+            ->whereIn('id', $fileIds)
+            ->approvedForSharing()
+            ->get();
+
+        abort_unless($files->count() === count($fileIds), 422, 'One or more selected files are not approved for sharing.');
+
+        foreach ($files as $file) {
+            $belongsToProject = $file->links->contains(fn ($link) =>
+                $link->entity_type === 'project'
+                && (int) $link->entity_id === (int) $lead->project_id
+                && $link->relationship === 'project_media'
+            );
+
+            abort_unless($belongsToProject, 422, 'One or more selected files do not belong to this project.');
+        }
+
+        $userId = (int) session('user_id');
+        $channel = $data['channel'] ?? 'whatsapp';
+
+        $package = DB::transaction(function () use ($lead, $files, $data, $userId, $channel) {
+            $package = ProjectSharePackage::create([
+                'token' => Str::random(64),
+                'lead_id' => $lead->id,
+                'project_id' => $lead->project_id,
+                'created_by_user_id' => $userId,
+                'channel' => $channel,
+                'recipient_phone' => $lead->phone,
+                'message' => $data['message'] ?? null,
+                'expires_at' => now()->addDays(14),
+                'created_at' => now(),
+            ]);
+
+            foreach ($files->values() as $index => $file) {
+                ProjectSharePackageFile::create([
+                    'project_share_package_id' => $package->id,
+                    'managed_file_id' => $file->id,
+                    'version_number' => $file->version_number,
+                    'sort_order' => $index,
+                    'created_at' => now(),
+                ]);
+            }
+
+            Activity::create([
+                'lead_id' => $lead->id,
+                'agent_id' => $lead->resolveLoggingAgentId(),
+                'type' => 'project_details_shared',
+                'outcome' => 'Project details prepared for sharing',
+                'outcome_key' => null,
+                'action_source' => 'manual',
+                'notes' => 'Project: ' . $lead->project->name
+                    . "\nAssets: " . $files->count()
+                    . "\nChannel: " . $channel
+                    . "\nShare package: #" . $package->id,
+                'logged_at' => now(),
+            ]);
+
+            $lead->update(['last_activity_at' => now()]);
+
+            return $package;
+        });
+
+        return response()->json([
+            'ok' => true,
+            'package_id' => $package->id,
+            'token' => $package->token,
+            'expires_at' => $package->expires_at?->toIso8601String(),
+        ]);
+    }
+}

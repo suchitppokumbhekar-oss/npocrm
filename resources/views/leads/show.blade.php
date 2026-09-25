@@ -201,7 +201,7 @@
     @endif
 
     <nav class="lead-wb-sections {{ $focusWork ? 'lead-wb-task-focus-hidden' : '' }}" aria-label="Lead information" data-lead-secondary-tabs>
-        <button type="button" data-lead-wb-section="history">History</button>@if ($canWorkThisLead)<button type="button" data-lead-wb-section="customer">Customer</button>@endif @if ($showSiteVisitTab)<button type="button" data-lead-wb-section="visits">Visits</button>@endif @if ($hasMultipleProjects)<button type="button" data-lead-wb-section="projects">Projects</button>@endif <button type="button" data-lead-wb-section="pipeline">Pipeline</button><button type="button" data-lead-wb-section="more">More</button>
+        <button type="button" data-lead-wb-section="history">History</button>@if ($canWorkThisLead)<button type="button" data-lead-wb-section="customer">Customer</button>@endif @if ($showSiteVisitTab)<button type="button" data-lead-wb-section="visits">Visits</button>@endif @if ($lead->project_id || $relatedProjectLeads->isNotEmpty() || $canAddProjectWorkstream)<button type="button" data-lead-wb-section="projects">Projects</button>@endif <button type="button" data-lead-wb-section="pipeline">Pipeline</button><button type="button" data-lead-wb-section="more">More</button>
     </nav>
 
     <div id="lead-secondary-accordion" class="lead-secondary-accordion" aria-label="Lead details">
@@ -584,6 +584,725 @@
     </div>
 
     {{-- ============================================================ --}}
+    {{-- 📤 CUSTOMER PROJECT SHARING                                  --}}
+    {{-- Only controller-approved project media appears here.        --}}
+    {{-- ============================================================ --}}
+    <div
+        id="project-share-panel"
+        data-mobile-section="project-share"
+        class="lead-mobile-section card"
+        style="margin-top:14px;border-left:4px solid #16a34a;background:#f7fff9;"
+    >
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+                <h3 style="margin:0;">📤 Share Project Details</h3>
+                <div class="muted" style="font-size:12px;margin-top:3px;">
+                    Select approved project media to create a temporary customer sharing link.
+                </div>
+            </div>
+            @if ($lead->project_id)
+                <a href="{{ route('projects.media', $lead->project_id) }}?return_to={{ urlencode(request()->fullUrl()) }}" class="btn-small btn-info" style="text-decoration:none;white-space:nowrap;">📎 Add / Manage Project Media</a>
+            @endif
+        </div>
+
+        @if ($lastSuccessfulProjectShare)
+            <div id="project-share-already-sent" style="margin-top:12px;padding:12px;border:1px solid #86efac;border-radius:10px;background:#f0fdf4;">
+                <div style="font-size:13px;font-weight:900;color:#166534;">✓ Project details already sent</div>
+                <div style="font-size:11px;color:#166534;margin-top:4px;line-height:1.5;">
+                    Last sent
+                    <strong>{{ $lastSuccessfulProjectShare->confirmed_at?->format('d M Y, h:i A') }}</strong>
+                    @if ($lastSuccessfulProjectShare->creator)
+                        by <strong>{{ $lastSuccessfulProjectShare->creator->name }}</strong>
+                    @endif
+                    · Package #{{ $lastSuccessfulProjectShare->id }}
+                </div>
+
+                @if ($lastSuccessfulProjectShare->files->isNotEmpty())
+                    <div style="font-size:11px;color:#14532d;margin-top:7px;">
+                        <strong>Sent:</strong>
+                        @foreach ($lastSuccessfulProjectShare->files as $packageFile)
+                            <span style="display:block;margin-top:3px;">
+                                • {{ $packageFile->file?->title ?: $packageFile->file?->original_name ?: ('File #' . $packageFile->managed_file_id) }}
+                                · Version {{ $packageFile->version_number }}
+                            </span>
+                        @endforeach
+                    </div>
+                @endif
+
+                <button type="button" class="btn-small btn-primary" id="project-share-again" style="margin-top:10px;">
+                    ↻ Share Again
+                </button>
+
+                <div style="font-size:10px;color:#166534;margin-top:6px;">
+                    Use Share Again when the customer requests the files again or you need to send additional material. Every confirmed resend is recorded separately.
+                </div>
+            </div>
+        @endif
+
+        @if ($projectShareHistory->isNotEmpty())
+            <details style="margin-top:10px;">
+                <summary style="cursor:pointer;font-size:11px;font-weight:800;color:#475569;">
+                    Recent sharing history ({{ $projectShareHistory->count() }})
+                </summary>
+                <div style="display:grid;gap:6px;margin-top:7px;">
+                    @foreach ($projectShareHistory as $shareAttempt)
+                        <div style="padding:8px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:10px;line-height:1.45;">
+                            <strong>{{ $shareAttempt->share_status === 'sent' ? '✓ Sent' : '✕ Not sent' }}</strong>
+                            · {{ $shareAttempt->confirmed_at?->format('d M Y, h:i A') }}
+                            @if ($shareAttempt->creator)
+                                · {{ $shareAttempt->creator->name }}
+                            @endif
+                            · {{ $shareAttempt->files->count() }} file(s)
+                            · Package #{{ $shareAttempt->id }}
+                            @if ($shareAttempt->failure_reason)
+                                <br>Reason: {{ ucwords(str_replace('_', ' ', $shareAttempt->failure_reason)) }}
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </details>
+        @endif
+        @if ($projectMedia->isEmpty())
+            <div style="margin-top:12px;padding:12px;border:1px dashed #cbd5e1;border-radius:9px;background:#fff;color:#64748b;font-size:12px;">
+                No approved project media is available yet.
+                Upload project media and approve it for customer sharing before creating a customer link.
+            </div>
+        @else
+            <div style="margin-top:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+                    <strong style="font-size:13px;">Available project media</strong>
+
+                    <button
+                        type="button"
+                        class="btn-small"
+                        id="project-share-select-all"
+                        style="font-size:11px;"
+                    >
+                        Select all
+                    </button>
+                </div>
+
+                <div id="project-share-files" style="display:grid;gap:7px;">
+                    @foreach ($projectMedia as $file)
+                        <label
+                            style="display:flex;gap:10px;align-items:flex-start;border:1px solid #dbe2ea;border-radius:9px;padding:10px;background:#fff;cursor:pointer;"
+                        >
+                            <input
+                                type="checkbox"
+                                name="project_share_file_ids[]"
+                                value="{{ $file->id }}"
+                                data-share-message="{{ base64_encode($file->description ?? '') }}"
+                                data-file-url="{{ route('documents.view', $file->id) }}"
+                                data-file-name="{{ $file->original_name }}"
+                                data-file-type="{{ $file->mime_type ?: 'application/octet-stream' }}"
+                                style="margin-top:3px;"
+                            >
+
+                            <span style="min-width:0;display:block;">
+                                <span style="display:block;font-weight:800;font-size:12px;word-break:break-word;">
+                                    {{ $file->title ?: $file->original_name }}
+                                </span>
+
+                                <span style="display:block;color:#64748b;font-size:10px;margin-top:3px;">
+                                    {{ $file->document_category ?: 'Project media' }}
+                                    · Version {{ $file->version_number }}
+                                    @if ($file->mime_type)
+                                        · {{ $file->mime_type }}
+                                    @endif
+                                </span>
+                            </span>
+                        </label>
+                    @endforeach
+                </div>
+
+                <div id="project-share-compose" style="margin-top:12px;{{ $lastSuccessfulProjectShare ? 'display:none;' : '' }}">
+                    <label
+                        for="project-share-message"
+                        style="display:block;font-size:12px;font-weight:800;margin-bottom:5px;"
+                    >
+                        Message to customer <span class="muted" style="font-weight:400;">(optional)</span>
+                    </label>
+
+                    <textarea
+                        id="project-share-message"
+                        
+                        rows="3"
+                        placeholder="Example: Sharing the project details and approved media we discussed."
+                    ></textarea>
+                </div>
+
+                <div
+                    id="project-share-error"
+                    style="display:none;margin-top:9px;padding:9px;border-radius:8px;background:#fff1f2;color:#be123c;font-size:12px;"
+                ></div>
+
+                <div
+                    id="project-share-success"
+                    style="display:none;margin-top:9px;padding:9px;border-radius:8px;background:#f0fdf4;color:#166534;font-size:12px;word-break:break-word;"
+                ></div>
+
+                <div style="margin-top:12px;padding:10px 12px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;">
+                    <div style="font-size:12px;font-weight:800;color:#92400e;">📱 Customer not saved in your phone?</div>
+                    <div style="font-size:11px;color:#78350f;margin-top:3px;line-height:1.45;">
+                        Save this customer to your phone contacts first, then tap <strong>Share Actual Files</strong>.
+                    </div>
+                    <div style="margin-top:8px;font-size:12px;">
+                        <strong>{{ $lead->name }}</strong><br>
+                        <span>{{ phone_display($lead->phone) }}</span>
+                    </div>
+                    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;">
+                        <button type="button" class="btn-small" id="project-share-copy-name">📋 Copy Name</button>
+                        <button type="button" class="btn-small" id="project-share-copy-number">📋 Copy Number</button>
+                    </div>
+                    <div id="project-share-contact-copy-status" style="display:none;font-size:10px;color:#166534;font-weight:700;margin-top:6px;"></div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+                    <button
+                        type="button"
+                        id="project-share-whatsapp"
+                        class="btn-small btn-primary"
+                    >
+                        📎 Share Actual Files
+                    </button>
+
+                    <button
+                        type="button"
+                        id="project-share-copy"
+                        class="btn-small btn-info"
+                    >
+                        🔗 Copy Secure Project Link
+                    </button>
+                </div>
+
+                <div style="font-size:10px;color:var(--c-muted);margin-top:7px;">
+                    Share links expire automatically after 14 days.
+                </div>
+                <div
+                    id="project-share-confirmation"
+                    style="display:none;margin-top:12px;padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;"
+                >
+                    <div style="font-size:13px;font-weight:800;">
+                        Have you shared the details successfully?
+                    </div>
+                    <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.45;">
+                        Confirm only after you have actually sent the selected project files to the customer.
+                    </div>
+
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                        <button type="button" class="btn-small btn-primary" id="project-share-confirm-sent">
+                            ✓ Successfully Sent
+                        </button>
+                        <button type="button" class="btn-small" id="project-share-confirm-not-sent">
+                            ✕ Not Sent
+                        </button>
+                    </div>
+
+                    <div id="project-share-failure-panel" style="display:none;margin-top:10px;">
+                        <label for="project-share-failure-reason" style="display:block;font-size:11px;font-weight:800;margin-bottom:5px;">
+                            Why was it not sent?
+                        </label>
+                        <select id="project-share-failure-reason" style="width:100%;">
+                            <option value="">Select reason</option>
+                            <option value="customer_not_on_whatsapp">Customer is not on WhatsApp</option>
+                            <option value="wrong_number">Wrong / invalid number</option>
+                            <option value="share_cancelled">Share was cancelled</option>
+                            <option value="technical_problem">Technical problem</option>
+                            <option value="alternate_channel">Customer asked for another channel</option>
+                            <option value="other">Other</option>
+                        </select>
+
+                        <button type="button" class="btn-small" id="project-share-confirm-failure" style="margin-top:8px;">
+                            Record Not Sent
+                        </button>
+                    </div>
+
+                    <div id="project-share-confirmation-status" style="display:none;font-size:11px;font-weight:700;margin-top:9px;"></div>
+                    <div id="project-share-not-sent-actions" style="display:none;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                        <button type="button" class="btn-small btn-primary" id="project-share-retry">
+                            ↻ Retry Sharing
+                        </button>
+                        <a href="{{ $backUrl }}" class="btn-small" id="project-share-back-work" style="text-decoration:none;">
+                            ← Back to Work
+                        </a>
+                    </div>
+                </div>
+            </div>
+        @endif
+    </div>
+
+    <script>
+    (() => {
+        const panel = document.getElementById('project-share-panel');
+        if (!panel) return;
+
+        const selectAll = document.getElementById('project-share-select-all');
+        const shareAgainBtn = document.getElementById('project-share-again');
+        const shareCompose = document.getElementById('project-share-compose');
+        const checkboxes = () => Array.from(
+            panel.querySelectorAll('input[name="project_share_file_ids[]"]')
+        );
+
+        const messageEl = document.getElementById('project-share-message');
+        const errorEl = document.getElementById('project-share-error');
+        const successEl = document.getElementById('project-share-success');
+        const whatsappBtn = document.getElementById('project-share-whatsapp');
+        const copyBtn = document.getElementById('project-share-copy');
+        const copyNameBtn = document.getElementById('project-share-copy-name');
+        const copyNumberBtn = document.getElementById('project-share-copy-number');
+        const contactCopyStatus = document.getElementById('project-share-contact-copy-status');
+        const confirmationPanel = document.getElementById('project-share-confirmation');
+        const confirmSentBtn = document.getElementById('project-share-confirm-sent');
+        const confirmNotSentBtn = document.getElementById('project-share-confirm-not-sent');
+        const failurePanel = document.getElementById('project-share-failure-panel');
+        const failureReason = document.getElementById('project-share-failure-reason');
+        const confirmFailureBtn = document.getElementById('project-share-confirm-failure');
+        const confirmationStatus = document.getElementById('project-share-confirmation-status');
+        const notSentActions = document.getElementById('project-share-not-sent-actions');
+        const retryShareBtn = document.getElementById('project-share-retry');
+        const customerName = @json($lead->name);
+
+        const returnToWorkUrl = @json($backUrl);
+        const storeUrl = @json(route('project-share.store', ['leadId' => $lead->id]));
+        const confirmUrlTemplate = @json(route('project-share.confirm', ['leadId' => $lead->id, 'packageId' => '__PACKAGE__']));
+        const customerPhone = @json($lead->phone);
+
+        let messageManuallyEdited = false;
+        let pendingSharePackageId = null;
+
+        function decodeShareMessage(encoded) {
+            if (!encoded) return "";
+
+            try {
+                const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+                return new TextDecoder("utf-8").decode(bytes);
+            } catch (error) {
+                return "";
+            }
+        }
+
+        function suggestedShareMessage() {
+            const selected = checkboxes().filter(input => input.checked);
+
+            for (const input of selected) {
+                const message = decodeShareMessage(input.dataset.shareMessage || "");
+                if (message.trim()) return message;
+            }
+
+            return "";
+        }
+
+        function refreshSuggestedMessage() {
+            if (!messageEl || messageManuallyEdited) return;
+            messageEl.value = suggestedShareMessage();
+        }
+
+        checkboxes().forEach(input => {
+            input.addEventListener("change", () => {
+                refreshSuggestedMessage();
+                preloadShareFile(input);
+            });
+
+            if (input.checked) {
+                preloadShareFile(input);
+            }
+        });
+
+        if (messageEl) {
+            messageEl.addEventListener("input", () => {
+                messageManuallyEdited = true;
+            });
+        }
+
+        function clearMessages() {
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
+            successEl.style.display = 'none';
+            successEl.textContent = '';
+        }
+
+        function showError(message) {
+            errorEl.textContent = message || 'Unable to prepare the project share.';
+            errorEl.style.display = 'block';
+        }
+
+        function showSuccess(message) {
+            successEl.textContent = message || 'Project share prepared.';
+            successEl.style.display = 'block';
+        }
+
+        function setButtonBusy(button, busy, busyText, normalText) {
+            if (!button) return;
+            button.disabled = busy;
+            button.textContent = busy ? busyText : normalText;
+        }
+
+        const preparedFiles = new Map();
+
+        async function preloadShareFile(input) {
+            if (!input.checked) {
+                preparedFiles.delete(input.value);
+                return;
+            }
+
+            try {
+                const response = await fetch(input.dataset.fileUrl, {
+                    credentials: "same-origin"
+                });
+
+                if (!response.ok) {
+                    throw new Error("Unable to preload file.");
+                }
+
+                const blob = await response.blob();
+
+                preparedFiles.set(input.value, new File(
+                    [blob],
+                    input.dataset.fileName || "project-file",
+                    { type: input.dataset.fileType || blob.type || "application/octet-stream" }
+                ));
+            } catch (error) {
+                preparedFiles.delete(input.value);
+            }
+        }
+        async function prepareShare(channel) {
+            clearMessages();
+
+            const selected = checkboxes()
+                .filter(input => input.checked)
+                .map(input => Number(input.value));
+
+            if (!selected.length) {
+                showError('Select at least one approved project asset.');
+                return null;
+            }
+
+            try {
+                const response = await fetch(storeUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': @json(csrf_token()),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        file_ids: selected,
+                        message: messageEl ? messageEl.value : '',
+                        channel: channel
+                    })
+                });
+
+                const payload = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    const validationErrors = payload.errors
+                        ? Object.values(payload.errors).flat().join(' ')
+                        : '';
+
+                    throw new Error(
+                        validationErrors ||
+                        payload.message ||
+                        'Unable to prepare the project share.'
+                    );
+                }
+
+                if (!payload.url || !payload.token) {
+                    throw new Error('The server did not return a valid share link.');
+                }
+
+                return payload;
+            } catch (error) {
+                showError(error.message || 'Unable to prepare the project share.');
+                return null;
+            }
+        }
+
+        function showShareConfirmation(packageId) {
+            pendingSharePackageId = packageId;
+
+            if (failurePanel) failurePanel.style.display = 'none';
+            if (failureReason) failureReason.value = '';
+            if (confirmationStatus) {
+                confirmationStatus.style.display = 'none';
+                confirmationStatus.textContent = '';
+            }
+
+            if (confirmationPanel) {
+                confirmationPanel.style.display = 'block';
+                confirmationPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        async function confirmShare(status, reason = null) {
+            if (!pendingSharePackageId) {
+                showError('No pending project share was found to confirm.');
+                return null;
+            }
+
+            const url = confirmUrlTemplate.replace('__PACKAGE__', String(pendingSharePackageId));
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': @json(csrf_token()),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    status: status,
+                    failure_reason: reason
+                })
+            });
+
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok || !payload.ok) {
+                const validationErrors = payload.errors
+                    ? Object.values(payload.errors).flat().join(' ')
+                    : '';
+
+                throw new Error(
+                    validationErrors ||
+                    payload.message ||
+                    'Unable to record the project share result.'
+                );
+            }
+
+            return payload;
+        }
+
+        function nextActionText(payload) {
+            if (!payload || !payload.next_action) return '';
+
+            const action = String(payload.next_action.action_type || '')
+                .replaceAll('_', ' ');
+
+            if (!payload.next_action.scheduled_for) {
+                return action ? ' Next action: ' + action + '.' : '';
+            }
+
+            const when = new Date(payload.next_action.scheduled_for);
+            const whenText = Number.isNaN(when.getTime())
+                ? payload.next_action.scheduled_for
+                : when.toLocaleString();
+
+            return ' Next action: ' + action + ' — ' + whenText + '.';
+        }
+
+        confirmSentBtn?.addEventListener('click', async () => {
+            setButtonBusy(confirmSentBtn, true, 'Recording…', '✓ Successfully Sent');
+
+            try {
+                const payload = await confirmShare('sent');
+
+                if (!payload) return;
+
+                if (confirmationStatus) {
+                    confirmationStatus.textContent =
+                        '✓ Successfully sent has been recorded in CRM.' + nextActionText(payload);
+                    confirmationStatus.style.display = 'block';
+                }
+
+                if (failurePanel) failurePanel.style.display = 'none';
+                confirmNotSentBtn.disabled = true;
+                pendingSharePackageId = null;
+
+                window.setTimeout(() => {
+                    window.location.assign(returnToWorkUrl);
+                }, 650);
+            } catch (error) {
+                showError(error.message || 'Unable to record the successful share.');
+            } finally {
+                setButtonBusy(confirmSentBtn, false, 'Recording…', '✓ Successfully Sent');
+            }
+        });
+
+        confirmNotSentBtn?.addEventListener('click', () => {
+            if (failurePanel) failurePanel.style.display = 'block';
+            failureReason?.focus();
+        });
+
+        confirmFailureBtn?.addEventListener('click', async () => {
+            const reason = failureReason ? failureReason.value : '';
+
+            if (!reason) {
+                showError('Select why the project details were not sent.');
+                return;
+            }
+
+            setButtonBusy(confirmFailureBtn, true, 'Recording…', 'Record Not Sent');
+
+            try {
+                const payload = await confirmShare('not_sent', reason);
+
+                if (!payload) return;
+
+                if (confirmationStatus) {
+                    confirmationStatus.textContent =
+                        'Not-sent attempt recorded in CRM.' + nextActionText(payload);
+                    confirmationStatus.style.display = 'block';
+                }
+
+                confirmSentBtn.disabled = true;
+                confirmNotSentBtn.disabled = true;
+                if (failurePanel) failurePanel.style.display = 'none';
+                if (notSentActions) notSentActions.style.display = 'flex';
+                pendingSharePackageId = null;
+            } catch (error) {
+                showError(error.message || 'Unable to record the not-sent attempt.');
+            } finally {
+                setButtonBusy(confirmFailureBtn, false, 'Recording…', 'Record Not Sent');
+            }
+        });
+        retryShareBtn?.addEventListener('click', () => {
+            if (confirmationPanel) confirmationPanel.style.display = 'none';
+            if (notSentActions) notSentActions.style.display = 'none';
+            if (confirmationStatus) {
+                confirmationStatus.style.display = 'none';
+                confirmationStatus.textContent = '';
+            }
+
+            if (confirmSentBtn) confirmSentBtn.disabled = false;
+            if (confirmNotSentBtn) confirmNotSentBtn.disabled = false;
+            if (failureReason) failureReason.value = '';
+
+            clearMessages();
+
+            if (whatsappBtn) {
+                whatsappBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                whatsappBtn.focus({ preventScroll: true });
+            }
+        });
+        async function copyText(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+
+            const copied = document.execCommand('copy');
+            textarea.remove();
+
+            if (!copied) {
+                throw new Error('Could not copy the share link. Please copy it manually.');
+            }
+        }
+
+        async function copyContactValue(value, label) {
+            try {
+                await copyText(value || "");
+                if (contactCopyStatus) {
+                    contactCopyStatus.textContent = label + " copied to clipboard.";
+                    contactCopyStatus.style.display = "block";
+                }
+            } catch (error) {
+                showError(error.message || "Could not copy to clipboard.");
+            }
+        }
+
+        shareAgainBtn?.addEventListener('click', () => {
+            if (shareCompose) {
+                shareCompose.style.display = 'block';
+                shareCompose.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            shareAgainBtn.disabled = true;
+            shareAgainBtn.textContent = 'Sharing again…';
+        });
+        copyNameBtn?.addEventListener("click", () => copyContactValue(customerName, "Customer name"));
+        copyNumberBtn?.addEventListener("click", () => copyContactValue(customerPhone, "Customer number"));
+        selectAll?.addEventListener('click', () => {
+            const inputs = checkboxes();
+            const shouldSelect = inputs.some(input => !input.checked);
+
+            inputs.forEach(input => {
+                input.checked = shouldSelect;
+            });
+
+            selectAll.textContent = shouldSelect ? 'Clear all' : 'Select all';
+        });
+
+        copyBtn?.addEventListener('click', async () => {
+            setButtonBusy(copyBtn, true, "Preparing…", "🔗 Copy Secure Project Link");
+
+            try {
+                const payload = await prepareShare('copy_link');
+                if (!payload) return;
+
+                await copyText(payload.url);
+                showSuccess('Secure project link copied to your clipboard.');
+            } catch (error) {
+                showError(error.message || "Unable to copy the secure project link.");
+            } finally {
+                setButtonBusy(copyBtn, false, "Preparing…", "🔗 Copy Secure Project Link");
+            }
+        });
+
+        whatsappBtn?.addEventListener('click', () => {
+            clearMessages();
+
+            const selectedInputs = checkboxes().filter(input => input.checked);
+
+            if (!selectedInputs.length) {
+                showError('Select at least one approved project asset.');
+                return;
+            }
+
+            const files = selectedInputs
+                .map(input => preparedFiles.get(input.value))
+                .filter(Boolean);
+
+            if (files.length !== selectedInputs.length) {
+                selectedInputs.forEach(input => {
+                    if (!preparedFiles.has(input.value)) preloadShareFile(input);
+                });
+
+                showError('Selected files are still loading. Please wait a moment and tap Share Actual Files again.');
+                return;
+            }
+
+            if (!navigator.share || !navigator.canShare || !navigator.canShare({ files })) {
+                showError('This browser cannot send actual file attachments through the mobile share sheet.');
+                return;
+            }
+
+            const customMessage = messageEl ? messageEl.value : "";
+
+            const sharePromise = navigator.share({
+                text: customMessage,
+                files: files
+            });
+
+            sharePromise.then(async () => {
+                setButtonBusy(whatsappBtn, true, "Recording…", "📎 Share Actual Files");
+
+                const payload = await prepareShare('whatsapp');
+
+                setButtonBusy(whatsappBtn, false, "Recording…", "📎 Share Actual Files");
+
+                if (payload) {
+                    showSuccess('Share sheet completed. Please confirm whether the customer was actually sent the details.');
+                    showShareConfirmation(payload.package_id);
+                }
+            }).catch(error => {
+                if (error && error.name === "AbortError") {
+                    showError('Sharing was cancelled.');
+                } else {
+                    showError(error.message || 'Unable to share the selected project files.');
+                }
+            });
+        });    })();
+    </script>
+
+    {{-- ============================================================ --}}
             </div>
         </details>
 
@@ -665,6 +1384,35 @@
                                 @endforeach
                             </div>
                         @endif
+
+                        @php $visitDocuments = $documentsByVisit->get((int) $visit->id, collect()); @endphp
+                        <div style="margin-top:10px;padding-top:9px;border-top:1px dashed #dbeafe;">
+                            <div style="font-size:12px;font-weight:800;margin-bottom:6px;">📎 Site Visit Evidence</div>
+                            @foreach ($visitDocuments as $document)
+                                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:5px;flex-wrap:wrap;">
+                                    <a href="{{ route('documents.view', $document->id) }}" target="_blank" rel="noopener" style="font-size:12px;font-weight:700;">{{ $document->title ?: $document->original_name }}</a>
+                                    @if ((int) $document->uploaded_by_user_id === (int) session('user_id') || session('user_role') === 'admin')
+                                        <form method="POST" action="{{ route('documents.remove', $document->id) }}" onsubmit="return confirm('Remove this site visit document from active use?');">
+                                            @csrf
+                                            <input type="hidden" name="reason" value="Removed from site visit evidence">
+                                            <button type="submit" class="btn-small" style="background:#fff;color:var(--c-danger);border:1px solid #fecaca;">Remove</button>
+                                        </form>
+                                    @endif
+                                </div>
+                            @endforeach
+                            @if ($canWorkThisLead)
+                                <form method="POST" action="{{ route('documents.upload') }}" enctype="multipart/form-data" style="display:flex;gap:7px;align-items:end;flex-wrap:wrap;margin-top:7px;">
+                                    @csrf
+                                    <input type="hidden" name="entity_type" value="lead">
+                                    <input type="hidden" name="entity_id" value="{{ $lead->id }}">
+                                    <input type="hidden" name="context_type" value="site_visit">
+                                    <input type="hidden" name="context_id" value="{{ $visit->id }}">
+                                    <input type="hidden" name="document_category" value="site_visit_evidence">
+                                    <input type="file" name="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx" required style="font-size:11px;max-width:280px;">
+                                    <button type="submit" class="btn-small btn-info">⬆ Add Visit File</button>
+                                </form>
+                            @endif
+                        </div>
 
                         @if ($visit->notes)
                             <div style="margin-top:9px;font-size:12px;color:var(--c-text-2);white-space:pre-wrap;"><strong>Visit notes:</strong> {{ $visit->notes }}</div>
@@ -896,6 +1644,52 @@
 
 
     {{-- ============================================================ --}}
+    <div class="card lead-mobile-section" data-mobile-section="more" style="border-left:4px solid #64748b;">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+                <h3 style="margin:0;">📎 Communication Evidence</h3>
+                <div class="muted" style="font-size:12px;margin-top:3px;">Upload screenshots or documents that support customer communication and qualification history.</div>
+            </div>
+        </div>
+
+        @if ($generalLeadDocuments->isNotEmpty())
+            <div style="margin-top:12px;display:grid;gap:7px;">
+                @foreach ($generalLeadDocuments as $document)
+                    <div style="border:1px solid var(--c-border);border-radius:8px;padding:8px 10px;background:#fff;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <div>
+                            <a href="{{ route('documents.view', $document->id) }}" target="_blank" rel="noopener" style="font-weight:800;text-decoration:none;">{{ $document->title ?: $document->original_name }}</a>
+                            <div class="muted" style="font-size:10px;margin-top:2px;">{{ ucfirst(str_replace('_', ' ', $document->document_category)) }} · {{ $document->uploader?->name ?? 'Unknown' }} · {{ $document->created_at?->format('d M Y, h:i A') }}</div>
+                        </div>
+                        @if ((int) $document->uploaded_by_user_id === (int) session('user_id') || session('user_role') === 'admin')
+                            <form method="POST" action="{{ route('documents.remove', $document->id) }}" onsubmit="return confirm('Remove this document from active use? The audit history will be preserved.');">
+                                @csrf
+                                <input type="hidden" name="reason" value="Removed from lead evidence">
+                                <button type="submit" class="btn-small" style="background:#fff;color:var(--c-danger);border:1px solid #fecaca;">Remove</button>
+                            </form>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
+        @if ($canWorkThisLead)
+            <form method="POST" action="{{ route('documents.upload') }}" enctype="multipart/form-data" style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--c-border);">
+                @csrf
+                <input type="hidden" name="entity_type" value="lead">
+                <input type="hidden" name="entity_id" value="{{ $lead->id }}">
+                <input type="hidden" name="context_type" value="communication">
+                <input type="hidden" name="document_category" value="communication_evidence">
+                <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:220px;">
+                        <label style="display:block;font-size:12px;font-weight:800;margin-bottom:5px;">Screenshot / document</label>
+                        <input type="file" name="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx" required style="width:100%;">
+                    </div>
+                    <button type="submit" class="btn-small btn-primary">⬆ Upload Evidence</button>
+                </div>
+            </form>
+        @endif
+    </div>
+
     {{-- LOST REASON --}}
     {{-- ============================================================ --}}
     @if ($leadStatusKey === 'lost')
@@ -1063,6 +1857,33 @@
                             data-modal="edit-booking" data-lead="{{ $lead->id }}">
                         ✏️ {{ $bookingControl?->status === 'rejected' ? 'Correct & Resubmit Booking' : 'Edit Booking Details' }}
                     </button>
+                </div>
+            @endif
+
+            @if($bookingDocuments->isNotEmpty())
+                <hr style="border:0;border-top:1px dashed var(--c-border);margin:var(--s-3) 0;">
+                <div>
+                    <strong>📎 Booking Evidence</strong>
+                    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                        @foreach($bookingDocuments as $document)
+                            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                                <a href="/documents/{{$document->id}}/view"
+                                   target="_blank"
+                                   rel="noopener"
+                                   class="btn-small">
+                                    View {{ $document->title ?: $document->original_name }}
+                                </a>
+                                @if((int)$document->uploaded_by_user_id === (int)session('user_id') || $isAdminUser)
+                                    <form method="POST" action="/documents/{{$document->id}}/remove"
+                                          onsubmit="return confirm('Remove this booking evidence from active use? The audit history will be preserved.');">
+                                        @csrf
+                                        <input type="hidden" name="reason" value="Removed from lead booking">
+                                        <button type="submit" class="btn-small">Remove</button>
+                                    </form>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             @endif
         </div>

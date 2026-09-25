@@ -1,0 +1,103 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use App\Models\UserWorkflowPresentation;
+use App\Services\SettingsService;
+use App\Services\SuperAdminService;
+use App\Services\WorkflowPresentationService;
+use Illuminate\Http\Request;
+
+class WorkflowVocabularyController extends Controller
+{
+    public function __construct(
+        private SuperAdminService $superAdmins,
+        private SettingsService $settings,
+        private WorkflowPresentationService $presentations,
+    ) {}
+
+    public function edit(int $userId)
+    {
+        $this->superAdmins->requireSuperAdmin();
+
+        $user = User::query()
+            ->with('agent')
+            ->findOrFail($userId);
+
+        abort_unless($user->agent, 404);
+
+        $outcomes = $this->settings->callOutcomes(false);
+        $overrides = $this->presentations
+            ->presentationsForUser($user->id, WorkflowPresentationService::TYPE_OUTCOME);
+
+        return view('settings.workflow-vocabulary', compact(
+            'user',
+            'outcomes',
+            'overrides',
+        ));
+    }
+
+    public function save(Request $request, int $userId)
+    {
+        $this->superAdmins->requireSuperAdmin();
+
+        $user = User::query()
+            ->with('agent')
+            ->findOrFail($userId);
+
+        abort_unless($user->agent, 404);
+
+        $validated = $request->validate([
+            'outcomes' => ['nullable', 'array'],
+            'outcomes.*.display_label' => ['nullable', 'string', 'max:150'],
+            'outcomes.*.is_visible' => ['nullable', 'boolean'],
+            'outcomes.*.sort_order' => ['nullable', 'integer', 'min:0', 'max:100000'],
+        ]);
+
+        $canonical = $this->settings
+            ->callOutcomes(false)
+            ->keyBy('key');
+
+        foreach (($validated['outcomes'] ?? []) as $key => $values) {
+            if (! $canonical->has($key)) {
+                abort(422, 'Unknown canonical workflow outcome.');
+            }
+
+            $label = trim((string) ($values['display_label'] ?? ''));
+            $visible = array_key_exists('is_visible', $values)
+                ? (bool) $values['is_visible']
+                : false;
+            $sortOrder = $values['sort_order'] ?? null;
+
+            $hasOverride = $label !== ''
+                || ! $visible
+                || $sortOrder !== null;
+
+            if (! $hasOverride) {
+                UserWorkflowPresentation::query()
+                    ->where('user_id', $user->id)
+                    ->where('option_type', WorkflowPresentationService::TYPE_OUTCOME)
+                    ->where('canonical_key', $key)
+                    ->delete();
+
+                continue;
+            }
+
+            UserWorkflowPresentation::query()->updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'option_type' => WorkflowPresentationService::TYPE_OUTCOME,
+                    'canonical_key' => $key,
+                ],
+                [
+                    'display_label' => $label !== '' ? $label : null,
+                    'is_visible' => $visible,
+                    'sort_order' => $sortOrder,
+                ],
+            );
+        }
+
+        return back()->with('success', 'Workflow vocabulary updated for '.$user->name.'.');
+    }
+}

@@ -1,0 +1,1436 @@
+@extends('layouts.app')
+
+@section('title', 'Settings — NPO CRM')
+
+@section('content')
+
+@php
+    $access = app(\App\Services\AccessService::class);
+
+    $canManageSettings = $access->can('settings.manage');
+    $canManageTeams = $access->can('teams.manage');
+    $canManageAgents = $access->can('agents.manage');
+    $canManageManagers = $access->can('team_managers.manage');
+    $canChangeRoles = $access->can('users.manage');
+    $isSuperAdmin = app(\App\Services\SuperAdminService::class)->isSuperAdmin();
+@endphp
+
+    <a href="{{ url('/') }}" class="back-link">← Back to Dashboard</a>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+        <div class="settings-head">
+            <h2>⚙️ Settings</h2>
+            <p class="muted" style="font-size:13px;margin-top:4px;">
+                Everything you edit here updates the whole CRM instantly. No code changes.
+            </p>
+        </div>
+
+        <nav class="settings-tabs">
+            <a href="#statuses"       class="tab" data-tab="statuses">🏷️ Statuses</a>
+            <a href="#activity-types" class="tab" data-tab="activity-types">📞 Activity Types</a>
+            <a href="#action-types"   class="tab" data-tab="action-types">✅ Action Types</a>
+            <a href="#teams"          class="tab" data-tab="teams">👥 Teams</a>
+            <a href="#managers"       class="tab" data-tab="managers">🎯 Managers</a>
+            <a href="#agents"         class="tab" data-tab="agents">👤 Agents</a>
+            <a href="#outcomes"       class="tab" data-tab="outcomes">🎯 Call Outcomes</a>
+            <a href="#sources"        class="tab" data-tab="sources">📥 Sources</a>
+            <a href="#general"        class="tab" data-tab="general">⚙️ General</a>
+            <a href="#website-intake" class="tab" data-tab="website-intake">🌐 Website Intake</a>
+            <a href="#facebook"       class="tab" data-tab="facebook">🔵 Facebook Leads</a>
+            <a href="#routing"        class="tab" data-tab="routing">🎯 Project Routing</a>
+        </nav>
+    </div>
+
+    {{-- ============================================================
+         STATUSES
+         ============================================================ --}}
+    <section class="tab-panel" data-panel="statuses">
+        <div class="card">
+            <div class="section-head">
+                <h3>🏷️ Lead Statuses</h3>
+                @if ($canManageSettings)
+    <button type="button" class="btn-small"
+            data-modal="settings" data-type="statuses">➕ Add Status</button>
+@endif
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <tr>
+                        <th>Order</th><th>Key</th><th>Label</th><th>Color</th>
+                        <th>Final</th><th>Active</th>@if ($canManageSettings)
+    <th>Actions</th>
+@endif
+                    </tr>
+                    @foreach ($statuses as $s)
+                        <tr>
+                            <td class="reorder">
+                                <form method="POST" action="/settings/statuses/{{ $s->id }}/move/up" style="display:inline;">
+                                    @csrf <button class="reorder-btn" title="Move up">▲</button>
+                                </form>
+                                <form method="POST" action="/settings/statuses/{{ $s->id }}/move/down" style="display:inline;">
+                                    @csrf <button class="reorder-btn" title="Move down">▼</button>
+                                </form>
+                            </td>
+                            <td><code>{{ $s->key }}</code></td>
+                            <td><x-status-badge :status="$s->key" /></td>
+                            <td><span class="color-swatch" style="background:var(--c-{{ $s->color }});"></span> {{ $s->color }}</td>
+                            <td>{{ $s->is_final ? '✅' : '—' }}</td>
+                            <td>{{ $s->is_active ? '✅' : '❌' }}</td>
+                            @if ($canManageSettings)
+    <td class="row-actions">
+        <button class="btn-small btn-info"
+                data-modal="settings" data-type="statuses" data-id="{{ $s->id }}">✏️</button>
+        <form method="POST" action="/settings/statuses/{{ $s->id }}/toggle" style="display:inline;">
+            @csrf
+            <button class="btn-small" title="Toggle active">{{ $s->is_active ? '⏸' : '▶' }}</button>
+        </form>
+    </td>
+@endif
+                        </tr>
+                    @endforeach
+                </table>
+            </div>
+        </div>
+    </section>
+
+    {{-- ============================================================
+         ACTIVITY TYPES
+         ============================================================ --}}
+    <section class="tab-panel" data-panel="activity-types">
+        <div class="card">
+            <div class="section-head">
+                <h3>📞 Activity Types</h3>
+                <button type="button" class="btn-small"
+                        data-modal="settings" data-type="activity-types">➕ Add Activity Type</button>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <tr>
+                        <th>Order</th><th>Icon</th><th>Key</th><th>Label</th>
+                        <th>Requires Outcome</th><th>System</th><th>Active</th><th>Actions</th>
+                    </tr>
+                    @foreach ($activityTypes as $a)
+                        <tr>
+                            <td class="reorder">
+                                <form method="POST" action="/settings/activity-types/{{ $a->id }}/move/up" style="display:inline;">@csrf<button class="reorder-btn">▲</button></form>
+                                <form method="POST" action="/settings/activity-types/{{ $a->id }}/move/down" style="display:inline;">@csrf<button class="reorder-btn">▼</button></form>
+                            </td>
+                            <td style="font-size:20px;">{{ $a->icon }}</td>
+                            <td><code>{{ $a->key }}</code></td>
+                            <td>{{ $a->label }}</td>
+                            <td>{{ $a->requires_outcome ? '✅' : '—' }}</td>
+                            <td>{{ $a->is_system ? '🔒' : '—' }}</td>
+                            <td>{{ $a->is_active ? '✅' : '❌' }}</td>
+                            <td class="row-actions">
+                                <button class="btn-small btn-info"
+                                        data-modal="settings" data-type="activity-types" data-id="{{ $a->id }}">✏️</button>
+                                @unless ($a->is_system)
+                                    <form method="POST" action="/settings/activity-types/{{ $a->id }}/toggle" style="display:inline;">
+                                        @csrf <button class="btn-small">{{ $a->is_active ? '⏸' : '▶' }}</button>
+                                    </form>
+                                @endunless
+                            </td>
+                        </tr>
+                    @endforeach
+                </table>
+            </div>
+        </div>
+    </section>
+
+    {{-- ============================================================
+         ACTION TYPES
+         ============================================================ --}}
+    <section class="tab-panel" data-panel="action-types">
+        <div class="card">
+            <div class="section-head">
+                <h3>✅ Follow-up Action Types</h3>
+                <button type="button" class="btn-small"
+                        data-modal="settings" data-type="action-types">➕ Add Action Type</button>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <tr>
+                        <th>Order</th><th>Key</th><th>Label</th><th>Active</th><th>Actions</th>
+                    </tr>
+                    @foreach ($actionTypes as $t)
+                        <tr>
+                            <td class="reorder">
+                                <form method="POST" action="/settings/action-types/{{ $t->id }}/move/up" style="display:inline;">@csrf<button class="reorder-btn">▲</button></form>
+                                <form method="POST" action="/settings/action-types/{{ $t->id }}/move/down" style="display:inline;">@csrf<button class="reorder-btn">▼</button></form>
+                            </td>
+                            <td><code>{{ $t->key }}</code></td>
+                            <td>{{ $t->label }}</td>
+                            <td>{{ $t->is_active ? '✅' : '❌' }}</td>
+                            <td class="row-actions">
+                                <button class="btn-small btn-info"
+                                        data-modal="settings" data-type="action-types" data-id="{{ $t->id }}">✏️</button>
+                                <form method="POST" action="/settings/action-types/{{ $t->id }}/toggle" style="display:inline;">
+                                    @csrf <button class="btn-small">{{ $t->is_active ? '⏸' : '▶' }}</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @endforeach
+                </table>
+            </div>
+        </div>
+    </section>
+
+    {{-- ============================================================
+         TEAMS
+         ============================================================ --}}
+    <section class="tab-panel" data-panel="teams">
+        <div class="card">
+            <div class="section-head">
+                <h3>👥 Teams</h3>
+                @if ($canManageTeams)
+    <button type="button" class="btn-small"
+            data-modal="team-form">
+        ➕ Add Team
+    </button>
+@endif
+            </div>
+
+            @if ($teams->isEmpty())
+                <p class="muted">No teams yet. Create one to group agents and assign a team manager.</p>
+            @else
+                <div class="table-wrap">
+                    <table>
+                        <tr>
+                            <th>Team</th>
+                            <th>Manager</th>
+                            <th>Agents</th>
+                            <th>Active</th>
+                            @if ($canManageTeams)
+    <th>Actions</th>
+@endif
+                        </tr>
+                        @foreach ($teams as $team)
+                            <tr>
+                                <td>
+                                    <strong>{{ $team->name }}</strong>
+                                    @if ($team->description)
+                                        <br><span class="muted" style="font-size:11px;">{{ $team->description }}</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if ($team->manager)
+                                        {{ $team->manager->name }}
+                                    @else
+                                        <span class="muted">—</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    <span class="badge blue">{{ $team->members->where('is_active', true)->count() }}</span>
+                                </td>
+                                <td>{{ $team->is_active ? '✅' : '❌' }}</td>
+                                @if ($canManageTeams)
+    <td class="row-actions">
+        <button class="btn-small btn-info"
+                data-modal="team-form" data-team="{{ $team->id }}">✏️</button>
+
+        <form method="POST" action="/settings/teams/{{ $team->id }}/toggle" style="display:inline;">
+            @csrf
+            <button class="btn-small" title="Toggle active">
+                {{ $team->is_active ? '⏸' : '▶' }}
+            </button>
+        </form>
+    </td>
+@endif
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            @endif
+        </div>
+    </section>
+
+    {{-- ============================================================
+         TEAM MANAGERS (with Change Role button)
+         ============================================================ --}}
+    <section class="tab-panel" data-panel="managers">
+        <div class="card">
+            <div class="section-head">
+                <h3>🎯 Team Managers</h3>
+                @if ($canManageManagers)
+    <button type="button" class="btn-small"
+            data-modal="manager-form">
+        ➕ Add Team Manager
+    </button>
+@endif
+            </div>
+
+            @if ($managers->isEmpty())
+                <p class="muted">
+                    No team managers yet. Add one to give them a team-scoped dashboard.
+                </p>
+            @else
+                <div class="table-wrap">
+                    <table>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Manages</th>
+                            @if ($canManageManagers)
+    <th>Actions</th>
+@endif
+                        </tr>
+                        @foreach ($managers as $manager)
+                            <tr>
+                                <td><strong>{{ $manager->name }}</strong></td>
+                                <td><span class="muted" style="font-size:12px;">{{ $manager->email }}</span></td>
+                                <td>
+                                    @forelse ($manager->managedTeams as $team)
+                                        <span class="badge blue" style="font-size:11px;margin-right:3px;">
+                                            {{ $team->name }}
+                                        </span>
+                                    @empty
+                                        <span class="muted" style="font-size:12px;">— no team yet —</span>
+                                    @endforelse
+                                </td>
+                                <td class="row-actions">
+                                    <button class="btn-small btn-info"
+                                            data-modal="manager-form" data-manager="{{ $manager->id }}">✏️</button>
+
+                                    <button class="btn-small btn-ghost"
+                                            style="background:transparent;color:var(--c-text);border:1.5px solid var(--c-border);"
+                                            data-modal="change-role"
+                                            data-user="{{ $manager->id }}"
+                                            title="Change role to Agent">
+                                        🔑
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            @endif
+        </div>
+    </section>
+
+    {{-- ============================================================
+         AGENTS (with Change Role button)
+         ============================================================ --}}
+    <section class="tab-panel" data-panel="agents">
+        <div class="card">
+            <div class="section-head">
+                <h3>👤 Agents</h3>
+                @if ($canManageAgents)
+    <button type="button" class="btn-small"
+            data-modal="agent-form">
+        ➕ Add Agent
+    </button>
+@endif
+            </div>
+
+            @if ($agents->isEmpty())
+                <p class="muted">No agents yet. Add one to start assigning leads.</p>
+            @else
+                <div class="table-wrap">
+                    <table>
+                        <tr>
+                            <th>Agent</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Load</th>
+                            <th>Teams</th>
+                            <th>Status</th>
+                            @if ($isSuperAdmin)
+                                <th>Workflow</th>
+                            @endif
+                            <th>Actions</th>
+                        </tr>
+                        @foreach ($agents as $agent)
+                            @php
+                                $activeTeams  = $agent->teams->where('pivot.is_active', true);
+                                $managedTeams = $agent->user?->managedTeams ?? collect();
+                                $hasAnyTeam   = $activeTeams->isNotEmpty() || $managedTeams->isNotEmpty();
+                            @endphp
+                            <tr>
+                                <td>
+                                    <strong>{{ $agent->user?->name ?? '—' }}</strong>
+                                </td>
+                                <td>
+                                    <span class="muted" style="font-size:12px;">
+                                        {{ $agent->user?->email ?? '—' }}
+                                    </span>
+                                </td>
+                                <td>{{ $agent->phone ?? '—' }}</td>
+                                <td>
+                                    <span class="badge {{ $agent->current_load >= $agent->max_daily_leads ? 'red' : ($agent->current_load > 0 ? 'orange' : 'blue') }}">
+                                        {{ $agent->current_load }} / {{ $agent->max_daily_leads }}
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (! $hasAnyTeam)
+                                        <span class="muted" style="font-size:12px;">—</span>
+                                    @else
+                                        @foreach ($managedTeams as $mt)
+                                            <span class="badge purple" style="font-size:11px;margin-right:3px;"
+                                                  title="Manager of this team">
+                                                🎯 {{ $mt->name }}
+                                            </span>
+                                        @endforeach
+
+                                        @foreach ($activeTeams as $t)
+                                            @if (! $managedTeams->contains('id', $t->id))
+                                                <span class="badge blue" style="font-size:11px;margin-right:3px;">
+                                                    {{ $t->name }}
+                                                </span>
+                                            @endif
+                                        @endforeach
+                                    @endif
+                                </td>
+                                <td>
+                                    @if ($agent->status === 'active')
+                                        <span class="badge green">Active</span>
+                                    @else
+                                        <span class="badge red">Inactive</span>
+                                    @endif
+                                </td>
+                                @if ($isSuperAdmin)
+                                    <td>
+                                        @if ($agent->user)
+                                            <a class="btn-small btn-info"
+                                               href="{{ route('settings.workflow-vocabulary.edit', $agent->user->id) }}">
+                                                Vocabulary
+                                            </a>
+                                        @else
+                                            <span class="muted">—</span>
+                                        @endif
+                                    </td>
+                                @endif
+                                <td class="row-actions">
+                                    <button class="btn-small btn-info"
+                                            data-modal="agent-form" data-agent="{{ $agent->id }}">✏️</button>
+
+                                    <button class="btn-small btn-ghost"
+                                            style="background:transparent;color:var(--c-text);border:1.5px solid var(--c-border);"
+                                            data-modal="change-role"
+                                            data-user="{{ $agent->user_id }}"
+                                            title="Change role">
+                                        🔑
+                                    </button>
+
+                                    <form method="POST" action="/settings/agents/{{ $agent->id }}/toggle" style="display:inline;">
+                                        @csrf
+                                        <button class="btn-small" title="Toggle active">
+                                            {{ $agent->status === 'active' ? '⏸' : '▶' }}
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="/settings/agents/{{ $agent->id }}/reset-load" style="display:inline;"
+                                          onsubmit="return confirm('Recount this agent\'s active leads?');">
+                                        @csrf
+                                        <button class="btn-small" title="Recount active leads">🔄</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            @endif
+        </div>
+    </section>
+
+    {{-- ============================================================
+         CALL OUTCOMES
+         ============================================================ --}}
+    <section class="tab-panel" data-panel="outcomes">
+        <div class="card">
+            <div class="section-head">
+                <h3>🎯 Call Outcomes <span class="muted" style="font-size:12px;font-weight:400;">— this drives the intelligent engine</span></h3>
+                <button type="button" class="btn-small"
+                        data-modal="settings" data-type="outcomes">➕ Add Outcome</button>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <tr>
+                        <th>Order</th><th>Label</th><th>Category</th>
+                        <th>Next Action</th><th>Delay</th><th>Priority</th>
+                        <th>Suggest Status</th><th>Active</th><th>Actions</th>
+                    </tr>
+                    @foreach ($outcomes as $o)
+                        <tr>
+                            <td class="reorder">
+                                <form method="POST" action="/settings/outcomes/{{ $o->id }}/move/up" style="display:inline;">@csrf<button class="reorder-btn">▲</button></form>
+                                <form method="POST" action="/settings/outcomes/{{ $o->id }}/move/down" style="display:inline;">@csrf<button class="reorder-btn">▼</button></form>
+                            </td>
+                            <td>
+                                <strong>{{ $o->label }}</strong>
+                                <br><code style="font-size:11px;">{{ $o->key }}</code>
+                            </td>
+                            <td>
+                                <span class="badge {{ $o->category === 'positive' ? 'green' : ($o->category === 'negative' ? 'red' : 'orange') }}">
+                                    {{ $o->category }}
+                                </span>
+                            </td>
+                            <td>{{ $o->nextActionType?->label ?? '—' }}</td>
+                            <td>
+                                @php
+                                    $h = $o->next_action_delay_hours;
+                                    echo $h < 24 ? "{$h}h" : round($h / 24, 1) . 'd';
+                                @endphp
+                            </td>
+                            <td>{{ $o->priority }}</td>
+                            <td>{{ $o->suggestedStatus?->label ?? '—' }}</td>
+                            <td>{{ $o->is_active ? '✅' : '❌' }}</td>
+                            <td class="row-actions">
+                                <button class="btn-small btn-info"
+                                        data-modal="settings" data-type="outcomes" data-id="{{ $o->id }}">✏️</button>
+                                <form method="POST" action="/settings/outcomes/{{ $o->id }}/toggle" style="display:inline;">
+                                    @csrf <button class="btn-small">{{ $o->is_active ? '⏸' : '▶' }}</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @endforeach
+                </table>
+            </div>
+        </div>
+    </section>
+
+    {{-- ============================================================
+         SOURCES
+         ============================================================ --}}
+    <section class="tab-panel" data-panel="sources">
+        <div class="card">
+            <div class="section-head">
+                <h3>📥 Lead Sources</h3>
+                <button type="button" class="btn-small"
+                        data-modal="settings" data-type="sources">➕ Add Source</button>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <tr>
+                        <th>Order</th><th>Key</th><th>Label</th><th>Active</th><th>Actions</th>
+                    </tr>
+                    @foreach ($sources as $s)
+                        <tr>
+                            <td class="reorder">
+                                <form method="POST" action="/settings/sources/{{ $s->id }}/move/up" style="display:inline;">@csrf<button class="reorder-btn">▲</button></form>
+                                <form method="POST" action="/settings/sources/{{ $s->id }}/move/down" style="display:inline;">@csrf<button class="reorder-btn">▼</button></form>
+                            </td>
+                            <td><code>{{ $s->key }}</code></td>
+                            <td>{{ $s->label }}</td>
+                            <td>{{ $s->is_active ? '✅' : '❌' }}</td>
+                            <td class="row-actions">
+                                <button class="btn-small btn-info"
+                                        data-modal="settings" data-type="sources" data-id="{{ $s->id }}">✏️</button>
+                                <form method="POST" action="/settings/sources/{{ $s->id }}/toggle" style="display:inline;">
+                                    @csrf <button class="btn-small">{{ $s->is_active ? '⏸' : '▶' }}</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @endforeach
+                </table>
+            </div>
+        </div>
+    </section>
+
+    {{-- ============================================================
+         GENERAL
+         ============================================================ --}}
+    <section class="tab-panel" data-panel="general">
+        <div class="card">
+            <div class="section-head">
+                <h3>⚙️ General Settings</h3>
+            </div>
+
+            <form method="POST" action="/settings/general">
+                @csrf
+                <div class="flex">
+                    <div class="flex-item">
+                        <label>Company Name</label>
+                        <input type="text" name="company_name"
+                               value="{{ $settingsMap['company_name'] ?? 'NPO CRM' }}">
+                    </div>
+                    <div class="flex-item">
+                        <label>Activity Log Window (minutes)</label>
+                        <input type="number" name="activity_log_window_minutes" min="1" max="1440"
+                               value="{{ $settingsMap['activity_log_window_minutes'] ?? 15 }}">
+                    </div>
+                </div>
+                <div class="flex">
+                    <div class="flex-item">
+                        <label>First Contact Auto-Follow-up (minutes)</label>
+                        <input type="number" name="first_contact_delay_minutes" min="1" max="1440"
+                               value="{{ $settingsMap['first_contact_delay_minutes'] ?? 15 }}">
+                        <p class="muted" style="font-size:11px;margin-top:4px;">Used for new/revived leads. Automatic time is always moved into the working window.</p>
+                    </div>
+                    <div class="flex-item">
+                        <label>Follow-up Escalation (hours)</label>
+                        <input type="number" name="followup_escalation_hours" min="1" max="72"
+                               value="{{ $settingsMap['followup_escalation_hours'] ?? 2 }}">
+                    </div>
+                    <div class="flex-item">
+                        <label>Default Agent Max Daily Leads</label>
+                        <input type="number" name="default_agent_max_daily_leads" min="1" max="200"
+                               value="{{ $settingsMap['default_agent_max_daily_leads'] ?? 10 }}">
+                    </div>
+                </div>
+                <hr style="border:0;border-top:1px dashed var(--c-border);margin:var(--s-4) 0;">
+
+                <p style="font-weight:700;font-size:13px;margin-bottom:var(--s-2);">📍 Attendance &amp; Office Check-in</p>
+                @if ($officeLocation)
+                    <div class="card" style="margin-bottom:var(--s-4);background:var(--c-surface-2);">
+                        <div style="font-weight:700;">{{ $officeLocation->label }}</div>
+                        @if ($officeLocation->address)
+                            <div class="muted" style="font-size:12px;margin-top:3px;">{{ $officeLocation->address }}</div>
+                        @endif
+                        <div class="flex" style="margin-top:var(--s-3);">
+                            <div class="flex-item">
+                                <label>Check-in radius (meters)</label>
+                                <input type="number" name="attendance_radius_meters" min="100" max="1000" step="10"
+                                       value="{{ old('attendance_radius_meters', $officeLocation->radius_meters) }}">
+                                <p class="muted" style="font-size:11px;margin-top:4px;">
+                                    Agents can check in when their GPS position is within this distance of the active office. Recommended for this office: <strong>300m</strong>.
+                                </p>
+                            </div>
+                            <div class="flex-item" style="display:flex;align-items:flex-end;">
+                                <div class="muted" style="font-size:12px;line-height:1.5;">
+                                    Current radius: <strong>{{ $officeLocation->radius_meters }}m</strong><br>
+                                    Checkout is still allowed from anywhere. Manager manual check-in remains available for exceptions.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                @else
+                    <div class="alert alert-error">No active office location is configured. Attendance check-in cannot be configured from this screen.</div>
+                @endif
+
+                <hr style="border:0;border-top:1px dashed var(--c-border);margin:var(--s-4) 0;">
+                <p style="font-weight:700;font-size:13px;margin-bottom:var(--s-2);">🕒 Automatic Follow-up Working Window</p>
+                <div class="flex">
+                    <div class="flex-item">
+                        <label>Start time</label>
+                        <input type="time" name="followup_work_start"
+                               value="{{ $settingsMap['followup_work_start'] ?? '10:30' }}">
+                    </div>
+                    <div class="flex-item">
+                        <label>End time</label>
+                        <input type="time" name="followup_work_end"
+                               value="{{ $settingsMap['followup_work_end'] ?? '20:00' }}">
+                    </div>
+                </div>
+                @php
+                    $workingDays = array_map('intval', array_filter(explode(',', $settingsMap['followup_working_days'] ?? '0,1,2,3,4,5,6'), 'strlen'));
+                    $dayLabels = [0=>'Sun',1=>'Mon',2=>'Tue',3=>'Wed',4=>'Thu',5=>'Fri',6=>'Sat'];
+                @endphp
+                <div class="field">
+                    <label>Working days for automatic follow-ups</label>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                        @foreach($dayLabels as $day => $label)
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:500;">
+                                <input type="checkbox" name="followup_working_days[]" value="{{ $day }}"
+                                       @checked(in_array($day, $workingDays, true)) style="width:auto;min-height:auto;">
+                                {{ $label }}
+                            </label>
+                        @endforeach
+                    </div>
+                    <p class="muted" style="font-size:11px;margin-top:4px;">Automatic follow-ups are never placed outside this window. Manual scheduling remains an explicit override.</p>
+                </div>
+
+                <div class="field">
+                    <label style="display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" name="intelligent_engine_enabled" value="1"
+                               @checked(($settingsMap['intelligent_engine_enabled'] ?? '0') === '1')
+                               style="width:auto;min-height:auto;">
+                        Enable intelligent follow-up engine
+                    </label>
+                </div>
+
+                @php
+                    $currentVisibility = $settingsMap['contacts_visibility'] ?? 'telecallers_only';
+                @endphp
+
+                <hr style="border:0;border-top:1px dashed var(--c-border);margin:var(--s-4) 0;">
+
+                <p style="font-weight:700;font-size:13px;margin-bottom:var(--s-2);">
+                    📇 Contacts &amp; Dialer Access
+                </p>
+
+                <div class="field">
+                    <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:500;margin-bottom:8px;">
+                        <input type="radio" name="contacts_visibility" value="telecallers_only"
+                               @checked($currentVisibility === 'telecallers_only')
+                               style="width:18px;height:18px;min-height:auto;accent-color:var(--c-primary);margin-top:3px;">
+                        <span>
+                            <strong>Telecaller agents only</strong>
+                            <em class="muted" style="display:block;font-size:11px;font-weight:400;">
+                                Only admins, team managers, and agents flagged as 📞 Telecaller can see Contacts and Dialer.
+                            </em>
+                        </span>
+                    </label>
+
+                    <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:500;">
+                        <input type="radio" name="contacts_visibility" value="everyone"
+                               @checked($currentVisibility === 'everyone')
+                               style="width:18px;height:18px;min-height:auto;accent-color:var(--c-primary);margin-top:3px;">
+                        <span>
+                            <strong>Everyone</strong>
+                            <em class="muted" style="display:block;font-size:11px;font-weight:400;">
+                                All logged-in users can see Contacts and Dialer.
+                            </em>
+                        </span>
+                    </label>
+
+                    <p class="muted" style="font-size:11px;margin-top:6px;">
+                        Admins and team managers always have access regardless of this setting.
+                        Takes effect immediately.
+                    </p>
+                </div>
+
+                <button type="submit" class="btn">💾 Save General Settings</button>
+            </form>
+        </div>
+    </section>
+
+    {{-- ============================================================
+         WEBSITE INTAKE
+         ============================================================ --}}
+    <section class="tab-panel" data-panel="website-intake">
+        <div class="card">
+            <h3>🌐 Website Lead Intake</h3>
+            <p class="muted" style="font-size:13px;margin-bottom:var(--s-3);">
+                Send leads from your website directly into the CRM. Each submission is auto-assigned to the least-loaded agent with a first-contact follow-up.
+            </p>
+
+            <form method="POST" action="{{ url('/settings/website-intake') }}">
+                @csrf
+
+                <div class="field">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" name="enabled" value="1"
+                               @checked($websiteIntake['enabled'])
+                               style="width:auto;min-height:auto;">
+                        <span><strong>Enable website intake</strong></span>
+                    </label>
+                    <p class="muted" style="font-size:11px;margin-left:26px;">
+                        When off, the endpoint returns 503 and no leads are created.
+                    </p>
+                </div>
+
+                <div class="field">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" name="require_api_key" value="1"
+                               @checked($websiteIntake['requireKey'])
+                               style="width:auto;min-height:auto;">
+                        <span><strong>Require API key</strong></span>
+                    </label>
+                    <p class="muted" style="font-size:11px;margin-left:26px;">
+                        Recommended for production. Website must send <code>X-API-Key</code> header or <code>api_key</code> POST field.
+                    </p>
+                </div>
+
+                <div class="flex">
+                    <div class="flex-item">
+                        <label>Default Source</label>
+                        <select name="default_source" class="input">
+                            @foreach ($websiteIntake['sources'] as $src)
+                                <option value="{{ $src->key }}" @selected($websiteIntake['defaultSource'] === $src->key)>
+                                    {{ $src->label }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="flex-item">
+                        <label>Rate Limit (per minute / IP)</label>
+                        <input type="number" name="rate_per_minute" class="input" min="1" max="60"
+                               value="{{ $websiteIntake['rateLimit'] }}">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" style="margin-top:var(--s-3);">💾 Save Settings</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>🔑 API Key</h3>
+            <p class="muted" style="font-size:12px;">
+                Only required if "Require API key" is on.
+            </p>
+
+            <div style="background:var(--c-surface-2);padding:var(--s-3);border-radius:8px;font-family:monospace;font-size:13px;word-break:break-all;margin:var(--s-3) 0;">
+                {{ $websiteIntake['apiKey'] ?: '— not set —' }}
+            </div>
+
+            <form method="POST" action="{{ url('/settings/website-intake/regenerate') }}"
+                  onsubmit="return confirm('Regenerate the API key? Update your website afterward.');">
+                @csrf
+                <button type="submit" class="btn-small btn-ghost"
+                        style="background:transparent;color:var(--c-text);border:1.5px solid var(--c-border);">
+                    🔄 Regenerate Key
+                </button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>🔗 Endpoint</h3>
+            <div style="background:var(--c-surface-2);padding:var(--s-3);border-radius:8px;font-family:monospace;font-size:13px;word-break:break-all;">
+                {{ $websiteIntake['endpoint'] }}
+            </div>
+            <p class="muted" style="font-size:12px;margin-top:var(--s-2);">
+                <strong>Fields:</strong> <code>name*</code>, <code>phone*</code> (or <code>mobile*</code>),
+                <code>email</code>, <code>budget</code>, <code>project</code>, <code>project_id</code>,
+                <code>enquiry</code>, <code>comment</code>, <code>utm_*</code>, <code>click_id</code>.
+            </p>
+        </div>
+    </section>
+
+    {{-- ============================================================
+         FACEBOOK LEADS (System User token pipeline)
+         ============================================================ --}}
+        <section class="tab-panel" data-panel="facebook">
+
+        @php
+            $fbSvc              = app(\App\Services\FacebookLeadService::class);
+            $fbHasToken         = (bool) $fbSvc->getSystemUserToken();
+            $fbPages            = $fbSvc->getPages();
+            $fbPagesSyncedAt    = $fbSvc->getPagesSyncedAt();
+            $fbForms            = $fbSvc->getFormsCachedAll();
+            $fbFormsSyncedAt    = $fbSvc->getFormsSyncedAtAll();
+            $fbFormMap          = $fbSvc->getFormProjectMap();
+            $fbPageStatuses     = $fbHasToken ? $fbSvc->getAllPagesSubscriptionStatus() : [];
+            $fbProjects         = \App\Models\Project::where('status', 'active')->orderBy('name')->get(['id', 'name']);
+            $fbDiag             = $fbSvc->getDiagnostics();
+            $fbMappedCount      = count(array_filter($fbFormMap));
+            $fbSubscribedCount  = count(array_filter($fbPageStatuses, fn ($p) => $p['subscribed']));
+            $fbTotalPages       = count($fbPageStatuses);
+        @endphp
+
+        @php
+            $fbHealthOk = $fbHasToken
+                && $fbTotalPages > 0
+                && $fbSubscribedCount === $fbTotalPages
+                && $fbMappedCount > 0;
+
+            $fbIssues = [];
+            if (! $fbHasToken)                                   $fbIssues[] = 'System User token missing';
+            if ($fbHasToken && $fbTotalPages === 0)              $fbIssues[] = 'No pages loaded — click Refresh Page Tokens';
+            if ($fbHasToken && $fbSubscribedCount < $fbTotalPages) {
+                $fbIssues[] = ($fbTotalPages - $fbSubscribedCount) . ' page(s) not subscribed';
+            }
+            if ($fbMappedCount === 0 && ! empty($fbForms))        $fbIssues[] = 'No forms mapped to projects';
+        @endphp
+
+        <div class="card" style="border-left:4px solid {{ $fbHealthOk ? '#22c55e' : '#f59e0b' }};">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:24px;">{{ $fbHealthOk ? '✅' : '⚠️' }}</span>
+                <div>
+                    <strong>{{ $fbHealthOk ? 'Facebook Lead Ads pipeline is live' : 'Setup incomplete' }}</strong>
+                    @if (! empty($fbIssues))
+                        <div class="muted" style="font-size:12px;margin-top:2px;">
+                            {{ implode(' · ', $fbIssues) }}
+                        </div>
+                    @else
+                        <div class="muted" style="font-size:12px;margin-top:2px;">
+                            {{ $fbSubscribedCount }} page(s) subscribed · {{ $fbMappedCount }} form(s) mapped ·
+                            Leads flow: Facebook → webhook → queue → CRM in ~60 seconds.
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        {{-- 1. SYSTEM USER TOKEN --}}
+        <div class="card">
+            <div class="section-head">
+                <h3>1️⃣ System User Token</h3>
+                @if ($fbHasToken)
+                    <span class="badge green">✅ Set</span>
+                @else
+                    <span class="badge red">❌ Not set</span>
+                @endif
+            </div>
+
+            <p class="muted" style="font-size:12px;margin-bottom:var(--s-3);">
+                Generate in <strong>Business Settings → System Users</strong>. Expiration <strong>Never</strong>.
+                Click <code>leads_retrieval</code> <strong>first</strong>.
+                @if ($fbPagesSyncedAt)
+                    · Last synced: {{ $fbPagesSyncedAt }}
+                @endif
+            </p>
+
+            <form method="POST" action="{{ url('/settings/facebook-leads/token') }}">
+                @csrf
+                <div class="field">
+                    <label>Paste System User token</label>
+                    <textarea name="system_user_token" rows="3" class="input"
+                              style="font-family:ui-monospace,monospace;font-size:12px;"
+                              placeholder="EAAxxxxxx... (paste the full token)"></textarea>
+                </div>
+                <button type="submit" class="btn-small">💾 Save & Verify</button>
+            </form>
+
+            @if ($fbHasToken)
+                <hr style="border:0;border-top:1px dashed var(--c-border);margin:var(--s-3) 0;">
+                <form method="POST" action="{{ url('/settings/facebook-leads/refresh-pages') }}" style="display:inline;">
+                    @csrf
+                    <button type="submit" class="btn-small btn-ghost"
+                            style="background:transparent;color:var(--c-text);border:1.5px solid var(--c-border);">
+                        🔄 Refresh Page Tokens
+                    </button>
+                </form>
+            @endif
+        </div>
+
+        {{-- 2. PAGES --}}
+        @if ($fbHasToken && $fbTotalPages > 0)
+            <div class="card">
+                <div class="section-head">
+                    <h3>2️⃣ Pages ({{ $fbSubscribedCount }} / {{ $fbTotalPages }} subscribed)</h3>
+                    <form method="POST" action="{{ url('/settings/facebook-leads/subscribe-all') }}" style="display:inline;">
+                        @csrf
+                        <button type="submit" class="btn-small">📡 Subscribe All Pages</button>
+                    </form>
+                </div>
+
+                <p class="muted" style="font-size:12px;margin-bottom:var(--s-2);">
+                    Every page here will send its lead ad submissions to this CRM.
+                </p>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Page</th>
+                                <th style="width:60px;">ID</th>
+                                <th style="width:180px;">Webhook</th>
+                                <th style="width:120px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($fbPageStatuses as $pg)
+                                <tr>
+                                    <td><strong>{{ $pg['name'] }}</strong></td>
+                                    <td><code style="font-size:11px;">{{ $pg['id'] }}</code></td>
+                                    <td>
+                                        @if ($pg['subscribed'])
+                                            <span class="badge green">✅ Subscribed</span>
+                                        @else
+                                            <span class="badge red">❌ Not subscribed</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <a href="https://www.facebook.com/{{ $pg['id'] }}/settings/?tab=lead_access"
+                                           target="_blank" rel="noopener"
+                                           class="btn-small btn-ghost"
+                                           style="background:transparent;color:var(--c-text);border:1.5px solid var(--c-border);text-decoration:none;">
+                                            🔗 Access ↗
+                                        </a>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
+
+                {{-- 3. FORM → PROJECT MAPPING --}}
+        @if ($fbHasToken && $fbTotalPages > 0)
+            @php
+                // Projects list (for the picker)
+                $fbProjectsArray = $fbProjects
+                    ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])
+                    ->values()
+                    ->all();
+                $fbProjectsJson = json_encode($fbProjectsArray, JSON_UNESCAPED_UNICODE);
+
+                // Unique pages that have at least one form, with precomputed counts
+                $fbFormsByPage = [];
+                foreach ($fbForms as $f) {
+                    $pid = $f['page_id'] ?? '';
+                    if (! $pid) continue;
+
+                    if (! isset($fbFormsByPage[$pid])) {
+                        $fbFormsByPage[$pid] = [
+                            'name'  => $f['page_name'] ?? '(unnamed)',
+                            'count' => 0,
+                        ];
+                    }
+                    $fbFormsByPage[$pid]['count']++;
+                }
+                uasort($fbFormsByPage, fn ($a, $b) => strcmp($a['name'], $b['name']));
+            @endphp
+
+            <div class="card">
+                <div class="section-head">
+                    <h3>3️⃣ Lead Forms → Project Mapping</h3>
+                    <form method="POST" action="{{ url('/settings/facebook-leads/refresh-forms') }}" style="display:inline;">
+                        @csrf
+                        <button type="submit" class="btn-small">🔄 Refresh Forms (all pages)</button>
+                    </form>
+                </div>
+
+                @if ($fbFormsSyncedAt)
+                    <p class="muted" style="font-size:11px;margin-bottom:var(--s-2);">
+                        Last synced: {{ $fbFormsSyncedAt }} ·
+                        <strong>{{ $fbMappedCount }} / {{ count($fbForms) }}</strong> forms mapped across all pages.
+                    </p>
+                @endif
+
+                @if (empty($fbForms))
+                    <p class="muted">No forms loaded yet. Click "Refresh Forms (all pages)" above.</p>
+                @else
+
+                    {{-- PAGE SELECTOR --}}
+                    <div class="field" style="margin-bottom:var(--s-3);">
+                        <label style="font-weight:700;">📄 Select a Page</label>
+                                                <select id="fb-page-selector" class="input" style="font-size:14px;padding:10px 12px;">
+                            <option value="">— Choose a page to view its forms —</option>
+                            @foreach ($fbFormsByPage as $pid => $info)
+                                <option value="{{ $pid }}">
+                                    {{ $info['name'] }} ({{ $info['count'] }} forms)
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    {{-- PROMPT WHEN NO PAGE SELECTED --}}
+                    <div id="fb-no-page-prompt"
+                         style="text-align:center;padding:40px 20px;background:var(--c-surface-2);border-radius:8px;">
+                        <div style="font-size:32px;margin-bottom:8px;">📄</div>
+                        <div style="font-weight:600;margin-bottom:4px;">Select a page above</div>
+                        <div class="muted" style="font-size:12px;">
+                            Pick a Facebook page to see its lead forms and map them to projects.
+                        </div>
+                    </div>
+
+                    {{-- FORMS TABLE (hidden until page selected) --}}
+                    <div id="fb-forms-wrapper" style="display:none;">
+                        <div style="display:flex;gap:var(--s-2);align-items:center;flex-wrap:wrap;
+                                    padding:var(--s-2) 0;margin-bottom:var(--s-2);
+                                    border-top:1px dashed var(--c-border);border-bottom:1px dashed var(--c-border);">
+                            <div style="flex:1;min-width:200px;position:relative;">
+                                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;">🔍</span>
+                                <input type="text" id="fb-forms-search" class="input"
+                                       placeholder="Search forms on this page…"
+                                       autocomplete="off" style="padding-left:34px;">
+                            </div>
+                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;">
+                                <span>Min leads:</span>
+                                <input type="number" id="fb-forms-min-leads" value="0" min="0" max="9999"
+                                       style="width:70px;padding:4px 8px;font-size:12px;min-height:auto;">
+                            </label>
+                            <span id="fb-forms-count" class="muted" style="font-size:11px;white-space:nowrap;">
+                                0 forms
+                            </span>
+                        </div>
+
+                        <div class="table-wrap">
+                            <table id="fb-forms-table">
+                                <thead>
+                                    <tr>
+                                        <th>Form</th>
+                                        <th style="width:60px;">Leads</th>
+                                        <th style="width:340px;">Routes to Project</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($fbForms as $form)
+                                        @php
+                                            $fid            = $form['id'] ?? '';
+                                            $fname          = $form['name'] ?? '(unnamed)';
+                                            $fstatus        = $form['status'] ?? '';
+                                            $fleadcount     = (int) ($form['leads_count'] ?? 0);
+                                            $fpageId        = $form['page_id'] ?? '';
+                                            $fpageName      = $form['page_name'] ?? '';
+                                            $current        = $fbFormMap[$fid] ?? null;
+                                            $currentProject = $current
+                                                ? collect($fbProjectsArray)->firstWhere('id', (int) $current)
+                                                : null;
+                                        @endphp
+                                        <tr class="fb-form-row"
+                                            data-page-id="{{ $fpageId }}"
+                                            data-form-name="{{ strtolower($fname) }}"
+                                            data-leads-count="{{ $fleadcount }}"
+                                            data-form-status="{{ $fstatus }}">
+                                            <td>
+                                                <strong>{{ $fname }}</strong>
+                                                <div class="muted" style="font-size:10px;margin-top:2px;">
+                                                    ID: {{ $fid }}
+                                                    @if ($fstatus !== 'ACTIVE')
+                                                        · <span class="badge red" style="font-size:9px;">{{ $fstatus }}</span>
+                                                    @endif
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge {{ $fleadcount > 0 ? 'blue' : '' }}">{{ $fleadcount }}</span>
+                                            </td>
+                                            <td>
+                                                <div class="fb-proj-picker proj-picker"
+                                                     data-form-id="{{ $fid }}">
+                                                    <div class="proj-input-wrap">
+                                                        <span class="proj-icon">🔍</span>
+                                                        <input type="text"
+                                                               class="input proj-search fb-proj-search"
+                                                               placeholder="— Not mapped (falls back to first project) —"
+                                                               autocomplete="off"
+                                                               spellcheck="false"
+                                                               value="{{ $currentProject['name'] ?? '' }}"
+                                                               data-project-id="{{ $current ?? '' }}"
+                                                               readonly>
+                                                        <button type="button" class="proj-clear fb-proj-clear"
+                                                                @if (! $current) hidden @endif
+                                                                aria-label="Clear">✕</button>
+                                                    </div>
+                                                    <div class="proj-results fb-proj-results" hidden></div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div id="fb-projects-json" data-projects="{{ $fbProjectsJson }}"></div>
+
+                        <p id="fb-forms-empty-state" class="muted"
+                           style="text-align:center;padding:24px;display:none;">
+                            No forms match your search or filter on this page.
+                        </p>
+                    </div>
+                @endif
+            </div>
+        @endif
+
+        {{-- 4. DIAGNOSTICS --}}
+        <div class="card">
+            <div class="section-head">
+                <h3>🩺 Diagnostics</h3>
+            </div>
+
+            <div class="flex">
+                <div class="flex-item">
+                    <div class="muted" style="font-size:11px;">Queue pending</div>
+                    <div style="font-size:20px;font-weight:700;">
+                        {{ $fbDiag['pending_jobs'] }}
+                        @if ($fbDiag['pending_jobs'] > 5)
+                            <span class="badge red" style="font-size:10px;">Check cron</span>
+                        @endif
+                    </div>
+                </div>
+                <div class="flex-item">
+                    <div class="muted" style="font-size:11px;">Failed (24h)</div>
+                    <div style="font-size:20px;font-weight:700;color:{{ $fbDiag['failed_jobs_24h'] > 0 ? 'var(--c-danger)' : 'inherit' }};">
+                        {{ $fbDiag['failed_jobs_24h'] }}
+                    </div>
+                </div>
+                <div class="flex-item">
+                    <div class="muted" style="font-size:11px;">Active projects</div>
+                    <div style="font-size:20px;font-weight:700;">{{ $fbDiag['active_projects'] }}</div>
+                </div>
+            </div>
+
+            @if (! empty($fbDiag['recent_leads']))
+                <hr style="border:0;border-top:1px dashed var(--c-border);margin:var(--s-3) 0;">
+                <p style="font-weight:700;font-size:12px;margin-bottom:var(--s-2);">Recent Facebook leads</p>
+                <div class="table-wrap">
+                    <table>
+                        <tr>
+                            <th>ID</th><th>Name</th><th>Phone</th><th>Project</th><th>Created</th>
+                        </tr>
+                        @foreach ($fbDiag['recent_leads'] as $rl)
+                            <tr>
+                                <td><a href="{{ url('/leads/' . $rl['id']) }}">#{{ $rl['id'] }}</a></td>
+                                <td>{{ $rl['name'] }}</td>
+                                <td><code>{{ $rl['phone'] }}</code></td>
+                                <td>{{ $rl['project_id'] ?? '—' }}</td>
+                                <td class="muted" style="font-size:11px;">{{ $rl['created_at'] }}</td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            @endif
+        </div>
+
+    </section>
+
+    {{-- ============================================================
+         PROJECT ROUTING (partial)
+         ============================================================ --}}
+    @include('settings.partials.project-routing')
+
+@endsection
+
+@push('scripts')
+<script>
+(function () {
+    'use strict';
+
+    /* ============================================================
+       TAB SWITCHING
+       ============================================================ */
+    function activateTab(name) {
+        document.querySelectorAll('.settings-tabs .tab').forEach(function (a) {
+            a.classList.toggle('active', a.dataset.tab === name);
+        });
+        document.querySelectorAll('.tab-panel').forEach(function (p) {
+            p.style.display = (p.dataset.panel === name) ? 'block' : 'none';
+        });
+    }
+
+    function currentTab() {
+        var hash    = window.location.hash.replace('#', '');
+        var fromUrl = new URLSearchParams(window.location.search).get('tab');
+        return hash || fromUrl || 'statuses';
+    }
+
+    document.querySelectorAll('.settings-tabs .tab').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+            e.preventDefault();
+            history.replaceState(null, '', '#'.concat(a.dataset.tab));
+            activateTab(a.dataset.tab);
+        });
+    });
+
+    window.addEventListener('hashchange', function () {
+        activateTab(currentTab());
+    });
+
+    activateTab(currentTab());
+
+    /* ============================================================
+       FACEBOOK FORM → PROJECT MAPPING (searchable picker)
+       ============================================================ */
+    (function initFbProjectPickers() {
+        var jsonEl = document.getElementById('fb-projects-json');
+        if (! jsonEl) return;
+
+        var PROJECTS = [];
+        try {
+            PROJECTS = JSON.parse(jsonEl.dataset.projects || '[]');
+        } catch (e) {
+            console.error('Bad projects JSON', e);
+            return;
+        }
+
+        var MAX_RESULTS = 60;
+
+        function renderResults(resultsEl, query) {
+            var q = (query || '').toLowerCase().trim();
+            var matches = [];
+
+            for (var i = 0; i < PROJECTS.length; i++) {
+                if (! q || PROJECTS[i].name.toLowerCase().indexOf(q) !== -1) {
+                    matches.push(PROJECTS[i]);
+                    if (matches.length >= MAX_RESULTS) break;
+                }
+            }
+
+            resultsEl.innerHTML = '';
+
+            if (matches.length === 0) {
+                var empty = document.createElement('div');
+                empty.className = 'op-empty';
+                empty.textContent = 'No matching project';
+                resultsEl.appendChild(empty);
+                resultsEl.hidden = false;
+                return;
+            }
+
+            var totalLabel = document.createElement('div');
+            totalLabel.className = 'op-group-label';
+            totalLabel.textContent = q
+                ? 'Top ' + matches.length + ' matches'
+                : PROJECTS.length + ' projects — type to filter';
+            resultsEl.appendChild(totalLabel);
+
+            matches.forEach(function (p) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'proj-item';
+                btn.dataset.projectId   = p.id;
+                btn.dataset.projectName = p.name;
+                btn.innerHTML = '<span class="proj-item-name">' + p.name + '</span>';
+                resultsEl.appendChild(btn);
+            });
+
+            resultsEl.hidden = false;
+        }
+
+        function saveMapping(formId, projectId, inputEl, clearBtn) {
+            inputEl.disabled = true;
+            inputEl.style.background = '#fff8e6';
+
+            fetch('{{ url('/settings/facebook-leads/map') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ form_id: formId, project_id: projectId })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.ok) {
+                    inputEl.style.background = '#e8f8ef';
+                    setTimeout(function () { inputEl.style.background = ''; }, 900);
+                    clearBtn.hidden = ! projectId;
+                } else {
+                    inputEl.style.background = '#ffe5e5';
+                    alert('Save failed: ' + (data.error || 'unknown'));
+                    setTimeout(function () { inputEl.style.background = ''; }, 2000);
+                }
+            })
+            .catch(function (err) {
+                inputEl.style.background = '#ffe5e5';
+                alert('Save failed: ' + err.message);
+            })
+            .finally(function () {
+                inputEl.disabled = false;
+            });
+        }
+
+        document.querySelectorAll('.fb-proj-picker').forEach(function (picker) {
+            var input    = picker.querySelector('.fb-proj-search');
+            var results  = picker.querySelector('.fb-proj-results');
+            var clearBtn = picker.querySelector('.fb-proj-clear');
+            var formId   = picker.dataset.formId;
+
+            if (! input || ! results) return;
+
+            input.addEventListener('focus', function () {
+                input.removeAttribute('readonly');
+                input.select();
+                renderResults(results, '');
+            });
+
+            input.addEventListener('input', function () {
+                renderResults(results, input.value);
+                clearBtn.hidden = ! input.value;
+            });
+
+            input.addEventListener('blur', function () {
+                setTimeout(function () {
+                    input.setAttribute('readonly', 'readonly');
+                    var savedId = input.dataset.projectId;
+                    if (savedId) {
+                        var saved = null;
+                        for (var i = 0; i < PROJECTS.length; i++) {
+                            if (String(PROJECTS[i].id) === String(savedId)) { saved = PROJECTS[i]; break; }
+                        }
+                        if (saved) input.value = saved.name;
+                    }
+                    results.hidden = true;
+                }, 200);
+            });
+
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    results.hidden = true;
+                    input.blur();
+                }
+            });
+
+            results.addEventListener('click', function (e) {
+                var item = e.target.closest('.proj-item');
+                if (! item) return;
+
+                var pid  = item.dataset.projectId;
+                var name = item.dataset.projectName;
+
+                input.value = name;
+                input.dataset.projectId = pid;
+                clearBtn.hidden = false;
+                results.hidden = true;
+
+                saveMapping(formId, pid, input, clearBtn);
+            });
+
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    input.value = '';
+                    input.dataset.projectId = '';
+                    clearBtn.hidden = true;
+                    results.hidden = true;
+                    saveMapping(formId, '', input, clearBtn);
+                });
+            }
+
+            document.addEventListener('click', function (e) {
+                if (! picker.contains(e.target)) results.hidden = true;
+            });
+        });
+    })();
+        /* ============================================================
+       FORM LIST FILTER — page-first, then search + min-leads
+       ============================================================ */
+    (function initFormFilter() {
+        var pageSelector = document.getElementById('fb-page-selector');
+        var searchBox    = document.getElementById('fb-forms-search');
+        var minLeadsIn   = document.getElementById('fb-forms-min-leads');
+        var counter      = document.getElementById('fb-forms-count');
+        var rows         = document.querySelectorAll('#fb-forms-table .fb-form-row');
+        var prompt       = document.getElementById('fb-no-page-prompt');
+        var wrapper      = document.getElementById('fb-forms-wrapper');
+        var emptyState   = document.getElementById('fb-forms-empty-state');
+
+        if (! pageSelector || ! rows.length) return;
+
+        function applyFilter() {
+            var selectedPage = pageSelector.value || '';
+
+            if (! selectedPage) {
+                if (prompt)  prompt.style.display  = 'block';
+                if (wrapper) wrapper.style.display = 'none';
+                return;
+            }
+
+            if (prompt)  prompt.style.display  = 'none';
+            if (wrapper) wrapper.style.display = 'block';
+
+            var q           = (searchBox.value || '').toLowerCase().trim();
+            var minLeadsVal = parseInt(minLeadsIn.value || '0', 10);
+            if (isNaN(minLeadsVal)) minLeadsVal = 0;
+
+            var visible   = 0;
+            var pageTotal = 0;
+
+            rows.forEach(function (row) {
+                var rowPageId = row.dataset.pageId || '';
+
+                if (rowPageId !== selectedPage) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                pageTotal++;
+
+                var name   = row.dataset.formName    || '';
+                var leads  = parseInt(row.dataset.leadsCount || '0', 10);
+                var status = (row.dataset.formStatus || '').toUpperCase();
+
+                var isActive    = status === 'ACTIVE';
+                var matchSearch = ! q || name.indexOf(q) !== -1;
+                var matchLeads  = leads >= minLeadsVal;
+                var show        = isActive && matchSearch && matchLeads;
+
+                row.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+
+            if (counter) {
+                counter.textContent = visible + ' of ' + pageTotal + ' forms';
+            }
+
+            if (emptyState) {
+                emptyState.style.display = visible === 0 ? 'block' : 'none';
+            }
+        }
+
+        pageSelector.addEventListener('change', applyFilter);
+        searchBox.addEventListener('input', applyFilter);
+        minLeadsIn.addEventListener('input', applyFilter);
+
+        applyFilter();
+    })();
+})();
+</script>
+@endpush

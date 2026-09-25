@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Agent;
 use App\Models\LeadAgent;
 use App\Models\Project;
+use App\Models\ManagedFile;
 use App\Services\AccessService;
 use App\Services\TeamService;
 use Illuminate\Http\Request;
@@ -190,6 +191,40 @@ class ProjectController extends Controller
             ])->values(),
         ]);
     }
+    public function media(int $id)
+    {
+        if (! session('user_id')) return redirect('/login');
+
+        $project = Project::query()
+            ->visibleTo((int) session('user_id'), (string) session('user_role'))
+            ->findOrFail($id);
+
+        $media = ManagedFile::query()
+            ->with(['uploader', 'shareApprover', 'links'])
+            ->whereHas('links', fn ($q) => $q
+                ->where('entity_type', 'project')
+                ->where('entity_id', $project->id)
+                ->where('relationship', 'project_media'))
+            ->orderBy('document_category')
+            ->orderByDesc('version_number')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $canUploadMedia = true;
+        $canManageMedia = $this->access->isUnrestrictedAdmin()
+            || $this->access->can('project_media.manage');
+        $canApproveShare = $this->access->isUnrestrictedAdmin()
+            || $this->access->can('documents.approve_share');
+        $canRemoveOwn = session('user_role') === 'agent'
+            || $this->access->can('documents.remove_own');
+        $canReplaceOwn = session('user_role') === 'agent'
+            || $this->access->can('documents.replace_own');
+        $isSuperAdmin = app(\App\Services\SuperAdminService::class)->isSuperAdmin((int) session('user_id'));
+
+        return view('projects.media', compact('project', 'media', 'canUploadMedia', 'canManageMedia', 'canApproveShare', 'canRemoveOwn', 'canReplaceOwn', 'isSuperAdmin'));
+    }
+
+
     
         /**
      * Update an existing project (name, location, RERA, status).

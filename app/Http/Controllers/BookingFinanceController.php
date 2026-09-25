@@ -13,12 +13,14 @@ use App\Models\BookingPayablePayment;
 use App\Models\BookingPayableType;
 use App\Models\FinancialRule;
 use App\Models\Lead;
+use App\Models\ManagedFile;
 use App\Models\IncentiveDeal;
 use App\Models\IncentivePayout;
 use App\Services\AccessService;
 use App\Services\AuditLogService;
 use App\Services\BookingFinancialService;
 use App\Services\DelegatedAccessService;
+use App\Services\ManagedDocumentService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +33,7 @@ class BookingFinanceController extends Controller
         private DelegatedAccessService $delegated,
         private BookingFinancialService $engine,
         private AuditLogService $audit,
+        private ManagedDocumentService $documents,
     ) {}
 
     private function canManage(): bool
@@ -58,13 +61,29 @@ class BookingFinanceController extends Controller
         $agents=$this->agents();
         $salaryRows=DB::table('salary_history')->join('agents','agents.id','=','salary_history.agent_id')->join('users','users.id','=','agents.user_id')->select('salary_history.*','users.name as employee_name')->orderByDesc('salary_history.effective_from')->paginate(30,['*'],'salary_page')->withQueryString();
         $editBooking=$request->filled('edit_booking')?BookingFinancial::with(['lead.project','allocations.agent.user','payables','brokerageReceipts'])->find((int)$request->input('edit_booking')):null;
+        $receiptEvidence = collect();
+        if ($editBooking && $editBooking->brokerageReceipts->isNotEmpty()) {
+            $receiptIds = $editBooking->brokerageReceipts->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $receiptEvidence = ManagedFile::query()
+                ->with(['uploader', 'links'])
+                ->whereNull('removed_at')
+                ->whereHas('links', fn ($q) => $q
+                    ->where('entity_type', 'booking_brokerage_receipt')
+                    ->whereIn('entity_id', $receiptIds))
+                ->get()
+                ->groupBy(function ($file) {
+                    $link = $file->links->first(fn ($item) => $item->entity_type === 'booking_brokerage_receipt');
+                    return (int) $link->entity_id;
+                });
+        }
+
         $editRule=$request->filled('edit_rule')?FinancialRule::find((int)$request->input('edit_rule')):null;
         $receiptSummary=$editBooking?$this->engine->brokerageReceiptSummary($editBooking):null;
         $receiptDeal=$editBooking && $editBooking->legacy_incentive_deal_id?IncentiveDeal::with('payouts')->find($editBooking->legacy_incentive_deal_id):null;
         $receiptRelease=$receiptDeal?(float)$receiptDeal->payouts->where('type',IncentivePayout::PROVISIONAL_PAID)->sum('amount'):0.0;
         $receiptHeld=$receiptDeal?(float)$receiptDeal->payouts->where('type',IncentivePayout::HELD_ACCRUAL)->sum('amount')-(float)$receiptDeal->payouts->where('type',IncentivePayout::HELD_RELEASE)->sum('amount')-(float)$receiptDeal->payouts->whereIn('type',[IncentivePayout::RECOVERY,IncentivePayout::TRUE_UP_RECOVERY])->sum('amount'):0.0;
         $importBatch=$request->filled('import_batch')?BookingImportBatch::find((int)$request->input('import_batch')):null;
-        return view('admin.booking-finance',compact('tab','bookings','rules','payableTypes','salaryRows','agents','editBooking','editRule','importBatch','receiptSummary','receiptDeal','receiptRelease','receiptHeld'));
+        return view('admin.booking-finance',compact('tab','bookings','rules','payableTypes','salaryRows','agents','editBooking','editRule','importBatch','receiptEvidence','receiptSummary','receiptDeal','receiptRelease','receiptHeld'));
     }
 
     public function saveRule(Request $request, ?int $id=null)
@@ -145,6 +164,7 @@ class BookingFinanceController extends Controller
             'amount'=>'required|numeric|min:0.01',
             'payer_name'=>'nullable|string|max:200',
             'payment_reference'=>'nullable|string|max:200',
+            'receipt_evidence'=>'nullable|file|max:25600',
             'payment_mode'=>'nullable|string|max:60',
             'notes'=>'nullable|string|max:2000',
         ]);
@@ -153,12 +173,31 @@ class BookingFinanceController extends Controller
         if((float)$data['amount']>$remaining+0.01){
             return back()->withErrors(['amount'=>'Receipt exceeds brokerage receivable. Remaining brokerage receivable is ₹'.number_format($remaining,2).'.'])->withInput();
         }
-        $receipt=DB::transaction(function() use($booking,$data){
-            $receipt=BookingBrokerageReceipt::create($data+['booking_financial_id'=>$booking->id,'created_by_user_id'=>(int)session('user_id')]);
+        $receiptData=$data; unset($receiptData['receipt_evidence']);
+        $receipt=DB::transaction(function() use($booking,$receiptData){
+            $receipt=BookingBrokerageReceipt::create($receiptData+['booking_financial_id'=>$booking->id,'created_by_user_id'=>(int)session('user_id')]);
             $this->engine->syncBrokerageReceiptsToIncentive($booking->fresh(['brokerageReceipts','allocations']),(int)session('user_id'));
             $this->engine->audit($booking->fresh(),'brokerage_received',(int)session('user_id'),null,null,$receipt->toArray());
             return $receipt;
         });
+        if ($request->hasFile('receipt_evidence')) {
+            $this->documents->store(
+                $request->file('receipt_evidence'),
+                [
+                    'document_category' => 'brokerage_receipt_evidence',
+                    'context_type' => 'brokerage',
+                    'context_id' => $receipt->id,
+                    'workflow_stage' => 'brokerage_received',
+                    'relationship' => 'evidence',
+                    'source_label' => 'brokerage_receipt',
+                    'visibility' => 'internal',
+                ],
+                'booking_brokerage_receipt',
+                (int) $receipt->id,
+                (int) session('user_id')
+            );
+        }
+
         return back()->with('success','Brokerage receipt recorded. Incentive release entitlement was recalculated from actual brokerage received.');
     }
 

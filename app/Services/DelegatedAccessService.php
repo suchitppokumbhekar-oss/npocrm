@@ -63,6 +63,13 @@ class DelegatedAccessService
         'settings.manage',
         'incentives.view',
         'incentives.manage',
+        'documents.view',
+        'documents.upload',
+        'documents.approve_share',
+        'documents.replace_own',
+        'documents.remove_own',
+        'documents.download',
+        'project_media.manage',
     ];
 
     public function profileForUser(int $userId): ?DelegatedAccessProfile

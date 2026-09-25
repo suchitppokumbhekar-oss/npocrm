@@ -1,0 +1,155 @@
+@extends('layouts.app')
+
+@section('title', $project->name . ' Media — NPO CRM')
+
+@section('content')
+@php
+    $returnTo = trim((string) request('return_to', ''));
+    $safeReturnTo = $returnTo !== '' && str_starts_with($returnTo, url('/')) ? $returnTo : null;
+@endphp
+<div class="page-head">
+    <div>
+        @if($safeReturnTo)
+            <a href="{{ $safeReturnTo }}" class="back-link">← Back to Lead / Project Sharing</a>
+        @else
+            <a href="{{ route('projects.index') }}" class="back-link">← Projects</a>
+        @endif
+        <h1 class="page-title">{{ $project->name }} — Media Library</h1>
+        <p class="page-subtitle">{{ $project->location }} · RERA: {{ $project->rera_number ?: '—' }}</p>
+    </div>
+</div>
+
+@if($canUploadMedia)
+<div class="card">
+    <h3>Upload Project Material</h3>
+    <p class="muted">Upload brochures, floor plans, price/cost sheets, inventory, payment plans, maps, images, approvals and other sales material. Uploading does not automatically approve an asset for customer sharing.</p>
+
+    <form method="POST" action="{{ route('documents.upload') }}" enctype="multipart/form-data">
+        @csrf
+        <input type="hidden" name="entity_type" value="project">
+        <input type="hidden" name="entity_id" value="{{ $project->id }}">
+        <input type="hidden" name="context_type" value="project_media">
+        <input type="hidden" name="return_to" value="{{ url()->current() }}?return_to={{ urlencode($safeReturnTo ?? '') }}#project-media">
+
+        <div class="field">
+            <label>Category</label>
+            <select name="document_category" class="input" required>
+                <option value="brochure">Brochure</option>
+                <option value="floor_plan">Floor Plan</option>
+                <option value="price_sheet">Price Sheet</option>
+                <option value="cost_sheet">Cost Sheet</option>
+                <option value="inventory_sheet">Inventory Sheet</option>
+                <option value="payment_plan">Payment Plan</option>
+                <option value="location_map">Location Map</option>
+                <option value="amenity_gallery">Amenity / Gallery</option>
+                <option value="rera_approval">RERA / Approval</option>
+                <option value="project_video">Project Video</option>
+                <option value="other_sales_material">Other Sales Material</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Title</label>
+            <input name="title" class="input" maxlength="255">
+        </div>
+
+        <div class="field">
+            <label>Description</label>
+            <textarea name="description" class="input" rows="2"></textarea>
+        </div>
+
+        <div class="field">
+            <label>File</label>
+            <input type="file" name="file" class="input" required accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx,video/mp4,video/quicktime">
+            <div class="muted" style="font-size:11px;margin-top:4px;">Maximum 25 MB. Large videos should use the later approved external-video option instead of server upload.</div>
+        </div>
+
+        <label style="display:flex;gap:8px;align-items:center;margin:10px 0;">
+            <input type="checkbox" name="customer_shareable" value="1">
+            Candidate for customer sharing
+        </label>
+
+        <button class="btn btn-primary" type="submit">Upload Material</button>
+    </form>
+</div>
+@endif
+
+<div class="card" id="project-media">
+    <div class="section-head">
+        <h3>Project Media <span class="muted">· {{ $media->count() }}</span></h3>
+    </div>
+
+    @if($media->isEmpty())
+        <p class="muted">No project media has been uploaded yet.</p>
+    @else
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Material</th>
+                        <th>Category</th>
+                        <th>Version</th>
+                        <th>Sharing</th>
+                        <th>Uploaded</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach($media as $file)
+                    <tr id="media-{{ $file->id }}">
+                        <td><strong>{{ $file->title ?: $file->original_name }}</strong><br><span class="muted">{{ $file->original_name }}</span></td>
+                        <td>{{ str_replace('_', ' ', ucfirst($file->document_category)) }}</td>
+                        <td>v{{ $file->version_number }}</td>
+                        <td>
+                            @if($file->removed_at)
+                                <span class="muted">Not shareable</span>
+                            @elseif($file->share_approved)
+                                <span class="badge green">Approved</span>
+                            @elseif($file->customer_shareable)
+                                <span class="badge blue">Awaiting approval</span><br><span class="muted" style="font-size:11px;">Approval required before this appears in Lead → Share Project Details.</span>
+                            @else
+                                <span class="muted">Internal</span>
+                            @endif
+                        </td>
+                        <td>{{ $file->created_at?->format('d M Y H:i') }}<br><span class="muted">{{ $file->uploader?->name ?: 'Unknown' }}</span></td>
+                        <td>
+                            @if($file->removed_at)
+                                <span class="badge red">Removed</span>
+                            @else
+                                <span class="badge green">Active</span>
+                            @endif
+                        </td>
+                        <td class="row-actions">
+                            @if(!$file->removed_at)
+                                <a href="{{ route('documents.view', $file->id) }}" target="_blank" rel="noopener" class="btn-small btn-ghost">View</a>
+                                @if($canApproveShare && $file->customer_shareable && !$file->share_approved)
+                                    <form method="POST" action="{{ route('documents.approveShare', $file->id) }}" style="display:inline">
+                                        @csrf
+                                        <button class="btn-small btn-info" type="submit">Approve Share</button>
+                                    </form>
+                                @endif
+                                @if($isSuperAdmin || $canManageMedia || ($canReplaceOwn && (int)$file->uploaded_by_user_id === (int)session('user_id')))
+                                    <form method="POST" action="{{ route('documents.replace', $file->id) }}" enctype="multipart/form-data" style="display:inline-flex;gap:4px;align-items:center;">
+                                        @csrf
+                                        <input type="file" name="file" required accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx,video/mp4,video/quicktime" style="max-width:180px;">
+                                        <button class="btn-small btn-ghost" type="submit">Replace</button>
+                                    </form>
+                                @endif
+                                @if($isSuperAdmin || ($canRemoveOwn && (int)$file->uploaded_by_user_id === (int)session('user_id')))
+                                    <form method="POST" action="{{ route('documents.remove', $file->id) }}" style="display:inline" onsubmit="return confirm('Remove this project media from active use? Audit history will be preserved.');">
+                                        @csrf
+                                        <input type="hidden" name="reason" value="Removed from project media library">
+                                        <button class="btn-small" type="submit">Remove</button>
+                                    </form>
+                                @endif
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
+</div>
+@endsection
