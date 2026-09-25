@@ -136,6 +136,18 @@
         </div>
     </div>
 
+    <div class="ct-step" id="ct-visit-method-field" style="display:none;">
+        <div class="ct-label-row">
+            <label>How was this site visit scheduled?</label><span>Required</span>
+        </div>
+        <input type="hidden" name="visit_contact_method" id="ct-visit-contact-method-value" value="">
+        <div class="ct-channel-grid">
+            <button type="button" class="ct-channel ct-visit-method" data-visit-method="call">📞 <strong>Call</strong></button>
+            <button type="button" class="ct-channel ct-visit-method" data-visit-method="whatsapp">💬 <strong>WhatsApp</strong></button>
+        </div>
+        <div class="ct-next-preview">This contact method will be recorded in the lead timeline.</div>
+    </div>
+
     <div class="ct-step" id="ct-visit-field" style="display:none;">
         <div class="ct-label-row"><label for="ct-visit-at">Visit date &amp; time</label><span>Required</span></div>
         <input type="datetime-local" name="visit_scheduled_at" id="ct-visit-at" class="input" value="{{ $defaultVisitAt }}" min="{{ $minVisitAt }}">
@@ -221,15 +233,30 @@
 (function(){
     'use strict';
     var requiresMap=@json($requiresOutcomeMap), statusesById=@json($statusesById), statusesByKey=@json($statusesByKey), requiresDateById=@json($requiresDateById), requiresBookingById=@json($requiresBookingById), allowedKeys=@json($allowedTransitionKeys), ALL_OUTCOMES=@json($outcomesJson), LEAD_STATUS=@json($leadStatusKey);
-    var form=document.getElementById('ct-form'), typeSel=document.getElementById('ct-activity-type'), activityPicker=document.getElementById('ct-activity-picker'), outcomeF=document.getElementById('ct-outcome-field'), outcomeSel=document.getElementById('ct-outcome-select'), preview=document.getElementById('ct-outcome-preview'), visitF=document.getElementById('ct-visit-field'), visitAt=document.getElementById('ct-visit-at'), lostF=document.getElementById('ct-lost-reason-field'), lostSel=document.getElementById('ct-lost-reason'), bookingF=document.getElementById('ct-booking-fields'), bookingAmt=document.getElementById('ct-booking-amount'), waF=document.getElementById('ct-wa-field'), waCb=document.getElementById('ct-wa-cb'), waKindF=document.getElementById('ct-wa-kind-field'), waKind=document.getElementById('ct-wa-kind'), customWrap=document.getElementById('ct-custom-time-wrap'), customAt=document.getElementById('ct-custom-next-at'), areaIn=document.getElementById('ct-area'), rateIn=document.getElementById('ct-rate'), pctIn=document.getElementById('ct-pct'), brokIn=document.getElementById('ct-brok'), toggleWrap=document.getElementById('ct-outcome-toggle-wrap'), toggle=document.getElementById('ct-outcome-toggle');
+    var form=document.getElementById('ct-form'), typeSel=document.getElementById('ct-activity-type'), activityPicker=document.getElementById('ct-activity-picker'), outcomeF=document.getElementById('ct-outcome-field'), outcomeSel=document.getElementById('ct-outcome-select'), preview=document.getElementById('ct-outcome-preview'), visitMethodF=document.getElementById('ct-visit-method-field'), visitMethodValue=document.getElementById('ct-visit-contact-method-value'), visitMethodBtns=document.querySelectorAll('.ct-visit-method'), visitF=document.getElementById('ct-visit-field'), visitAt=document.getElementById('ct-visit-at'), lostF=document.getElementById('ct-lost-reason-field'), lostSel=document.getElementById('ct-lost-reason'), bookingF=document.getElementById('ct-booking-fields'), bookingAmt=document.getElementById('ct-booking-amount'), waF=document.getElementById('ct-wa-field'), waCb=document.getElementById('ct-wa-cb'), waKindF=document.getElementById('ct-wa-kind-field'), waKind=document.getElementById('ct-wa-kind'), customWrap=document.getElementById('ct-custom-time-wrap'), customAt=document.getElementById('ct-custom-next-at'), areaIn=document.getElementById('ct-area'), rateIn=document.getElementById('ct-rate'), pctIn=document.getElementById('ct-pct'), brokIn=document.getElementById('ct-brok'), toggleWrap=document.getElementById('ct-outcome-toggle-wrap'), toggle=document.getElementById('ct-outcome-toggle');
     var UNIVERSAL=['ringing_no_answer','not_answered','low_budget','busy','call_later','not_reachable','switched_off','wrong_number','invalid_number','network_issue','customer_hung_up','family_member_answered','language_barrier','not_interested','already_bought','deal_closed_elsewhere','wants_rental','wants_resale','wants_ready_possession','not_ready_to_buy','consult_family','location_issue','interested','asked_details','wa_not_interested','wa_blocked','thanks_referral_promised','already_visited_project'];
     var STATUS_OUTCOMES={'new':['customer_will_call_back','requested_whatsapp_only','site_visit_scheduled'],'attempted':['customer_will_call_back','requested_whatsapp_only','site_visit_scheduled','wants_second_visit','wa_sent_details','wa_delivered_awaiting','wa_read_no_reply','wa_replied_positive'],'external_shared':['customer_will_call_back','requested_whatsapp_only','site_visit_scheduled','wants_second_visit','wa_sent_details','wa_delivered_awaiting','wa_read_no_reply','wa_replied_positive','shared_agent_contacted','site_team_call_done','site_team_visit_done','site_team_negotiating','site_team_booked','site_team_lost'],'contacted':['customer_will_call_back','requested_whatsapp_only','site_visit_scheduled','wants_second_visit','wa_sent_details','wa_delivered_awaiting','wa_read_no_reply','wa_replied_positive'],'visit_scheduled':['visit_booked_spot','visit_interested','visit_needs_family','visit_wants_negotiate','visit_wants_other_project','visit_not_interested','visit_no_show','site_visit_with_family','site_visit_arrived_late','site_visit_cancelled','wants_second_visit','site_visit_scheduled','wa_delivered_awaiting','wa_read_no_reply','wa_replied_positive'],'visit_done':['visit_interested','visit_no_show','visit_booked_spot','visit_not_interested','visit_wants_negotiate','visit_wants_other_project','visit_needs_family','site_visit_with_family','site_visit_arrived_late','wants_second_visit'],'negotiation':['negotiating','booking_confirmed','booking_postponed','loan_denied','loan_in_process','site_visit_with_family','visit_wants_negotiate'],'booking':['booking_amount_paid','booking_kyc_pending','booking_registration_done','brok_received_full','thanks_happy','thanks_referral_won'],'lost':[]};
     var SITE_VISIT_OUTCOMES=['visit_done','visit_on_the_way','visit_booked_spot','visit_interested','visit_needs_family','visit_wants_negotiate','visit_wants_other_project','visit_not_interested','visit_no_show','site_visit_with_family','site_visit_arrived_late','site_visit_cancelled','wants_second_visit'];
     var showAll=false;
     function relevant(){var a=UNIVERSAL.slice(), s=STATUS_OUTCOMES[LEAD_STATUS]||[]; if(typeSel.value==='site_visit')a=a.concat(SITE_VISIT_OUTCOMES); return a.concat(s)}
-    function reset(){preview.hidden=true;preview.textContent='';visitF.style.display='none';visitAt.required=false;lostF.style.display='none';lostSel.required=false;bookingF.style.display='none';bookingAmt.required=false;waF.style.display=typeSel.value==='call'?'block':'none';waCb.checked=false;waKindF.style.display='none';customWrap.hidden=false;customAt.required=false}
+    function reset(){preview.hidden=true;preview.textContent='';visitMethodF.style.display='none';visitMethodValue.value='';visitMethodBtns.forEach(function(b){b.classList.remove('is-selected')});visitF.style.display='none';visitAt.required=false;lostF.style.display='none';lostSel.required=false;bookingF.style.display='none';bookingAmt.required=false;waF.style.display=typeSel.value==='call'?'block':'none';waCb.checked=false;waKindF.style.display='none';customWrap.hidden=false;customAt.required=false}
     function option(o){var x=document.createElement('option');x.value=o.key;x.textContent=o.label;x.dataset.next=o.next||'';x.dataset.delay=o.delay||0;x.dataset.suggestedId=o.suggested_id||'';x.dataset.promptsWa=o.prompts_wa?'1':'0';return x}
     function rebuild(){var candidates=ALL_OUTCOMES.filter(function(o){var f=String(o.activity_filter||'').trim(); if(typeSel.value==='site_visit'&&SITE_VISIT_OUTCOMES.indexOf(o.key)!==-1)return true; if(!f)return true; return f.split(',').map(function(s){return s.trim()}).indexOf(typeSel.value)!==-1});var rel=[],other=[], keys=relevant();candidates.forEach(function(o){(showAll||keys.indexOf(o.key)!==-1?rel:other).push(o)});if(!rel.length&&other.length){rel=other;other=[]}outcomeSel.innerHTML='<option value="">Select outcome…</option>';var groups={positive:[],neutral:[],negative:[]};rel.forEach(function(o){if(groups[o.category])groups[o.category].push(o)});['positive','neutral','negative'].forEach(function(c){if(!groups[c].length)return;var g=document.createElement('optgroup');g.label=c.charAt(0).toUpperCase()+c.slice(1);groups[c].forEach(function(o){g.appendChild(option(o))});outcomeSel.appendChild(g)});toggleWrap.hidden=other.length===0;if(toggle)toggle.textContent=showAll?'Show relevant outcomes':'Show other outcomes'}
+    visitMethodBtns.forEach(function(btn){
+        btn.addEventListener('click',function(){
+            var method=this.dataset.visitMethod||'';
+            visitMethodValue.value=method;
+            visitMethodBtns.forEach(function(b){b.classList.remove('is-selected')});
+            this.classList.add('is-selected');
+            if(method==='call'||method==='whatsapp'){
+                typeSel.value=method;
+                if(activityPicker)activityPicker.value=method;
+                visitF.style.display='block';
+                visitAt.required=true;
+                visitAt.focus();
+            }
+        });
+    });
     function onType(){reset();rebuild();var req=!!requiresMap[typeSel.value] || ['call','whatsapp','email','site_visit'].indexOf(typeSel.value)!==-1;outcomeF.style.display=req?'block':'none'; if(!req){preview.hidden=true} syncChannels(); if(req && outcomeSel.options.length<=1){outcomeF.style.display='block'}}
     function onOutcome(){
         reset();
@@ -242,15 +269,21 @@
         var wa=o.dataset.promptsWa==='1';
         var txt=next?'Next: '+next+(delay?' · '+human:''):'';
         if(sid&&statusesById[sid]){
-            var key=statusesById[sid], can=allowedKeys.indexOf(key)!==-1;
+            var key=statusesById[sid], can=allowedKeys.indexOf(key)!==-1;var uncontactedVisit=['new','external_shared','attempted'].indexOf(LEAD_STATUS)!==-1&&key==='visit_scheduled';var visitViaContact=uncontactedVisit&&((LEAD_STATUS==='attempted'&&allowedKeys.indexOf('contacted')!==-1)||((LEAD_STATUS==='new'||LEAD_STATUS==='external_shared')&&allowedKeys.indexOf('attempted')!==-1));if(visitViaContact)can=true;
             if(key==='lost'){
                 lostF.style.display='block';
                 lostSel.required=true;
             }
             if(can){
                 if(requiresDateById[sid]){
-                    visitF.style.display='block';
-                    visitAt.required=true;
+                    if(uncontactedVisit){
+                        visitMethodF.style.display='block';
+                        visitF.style.display='none';
+                        visitAt.required=false;
+                    }else{
+                        visitF.style.display='block';
+                        visitAt.required=true;
+                    }
                 }
                 if(requiresBookingById[sid]){
                     bookingF.style.display='block';

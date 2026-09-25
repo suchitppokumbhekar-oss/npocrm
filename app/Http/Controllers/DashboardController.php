@@ -167,6 +167,101 @@ class DashboardController extends Controller
 
         $leads = $leadsQuery->get();
 
+        // Personal untouched work: Agents and Team Managers with an Agent identity.
+        // Scope directly through active lead_agents assignments, never manager team scope.
+        $personalUntouchedLeadIds = $agentId
+            ? LeadAgent::where('agent_id', $agentId)
+                ->where('is_active', true)
+                ->pluck('lead_id')
+            : collect();
+
+        $untouchedLeads = $agentId
+            ? Lead::with(['agent.user', 'project', 'followups' => fn ($q) => $q->where('status', 'pending')->orderBy('scheduled_for')->orderBy('id')])
+                ->whereIn('id', $personalUntouchedLeadIds)
+                ->where('status', 'new')
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->get()
+            : collect();
+
+        $untouchedLeadCount = $untouchedLeads->count();
+
+        // Team Manager new-lead scope.
+        // Personal work stays in $untouchedLeads. Team/delegated views exclude self.
+        $managerScopeAgents = collect();
+        $managerScopeUntouchedLeads = collect();
+        $selectedManagerAgentId = null;
+
+        if ($userRole === 'team_manager') {
+            $managerScopeAgentIds = collect($scopedAgentIds ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => $id > 0 && $id !== (int) $agentId)
+                ->unique()
+                ->values();
+
+            // "All Delegated" means only additional delegated agents:
+            // exclude self and everyone already belonging to My Team.
+            if ($workScope === 'delegated') {
+                $directTeamAgentIds = collect(
+                    app(TeamService::class)->agentIdsForManager($userId)
+                )
+                    ->map(fn ($id) => (int) $id)
+                    ->filter(fn ($id) => $id > 0)
+                    ->unique();
+
+                $managerScopeAgentIds = $managerScopeAgentIds
+                    ->reject(fn ($id) => $directTeamAgentIds->contains((int) $id))
+                    ->values();
+            }
+
+            $requestedManagerAgentId = (int) $request->input('agent_id', 0);
+
+            if ($requestedManagerAgentId > 0 && $managerScopeAgentIds->contains($requestedManagerAgentId)) {
+                $selectedManagerAgentId = $requestedManagerAgentId;
+            }
+
+            $agentsWithUntouchedIds = LeadAgent::whereIn('agent_id', $managerScopeAgentIds)
+                ->where('is_active', true)
+                ->whereHas('lead', fn ($lead) => $lead->where('status', 'new'))
+                ->pluck('agent_id')
+                ->unique()
+                ->values();
+
+            $managerScopeAgents = Agent::with('user')
+                ->whereIn('id', $agentsWithUntouchedIds)
+                ->get()
+                ->map(function ($agent) {
+                    $agent->untouched_count = LeadAgent::where('agent_id', $agent->id)
+                        ->where('is_active', true)
+                        ->whereHas('lead', fn ($lead) => $lead->where('status', 'new'))
+                        ->count();
+
+                    return $agent;
+                })
+                ->sortBy(fn ($agent) => strtolower((string) ($agent->user?->name ?? '')))
+                ->values();
+
+            $managerScopeLeadIds = LeadAgent::whereIn(
+                    'agent_id',
+                    $selectedManagerAgentId ? [$selectedManagerAgentId] : $managerScopeAgentIds
+                )
+                ->where('is_active', true)
+                ->pluck('lead_id')
+                ->unique()
+                ->values();
+
+            $managerScopeUntouchedLeads = Lead::with([
+                    'agent.user',
+                    'project',
+                    'activeAgents.user',
+                    'followups' => fn ($q) => $q->where('status', 'pending')->orderBy('scheduled_for')->orderBy('id'),
+                ])
+                ->whereIn('id', $managerScopeLeadIds)
+                ->where('status', 'new')
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->get();
+        }
         /* ============================================================
            PENDING FOLLOWUPS
            ============================================================ */
@@ -178,7 +273,13 @@ class DashboardController extends Controller
             ->where('status', 'pending')
             ->orderBy('scheduled_for', 'asc');
 
-        if ($scopedAgentIds !== null) {
+        if (
+            $userRole === 'team_manager'
+            && in_array($workScope, ['team', 'delegated'], true)
+            && $selectedManagerAgentId
+        ) {
+            $followupsQuery->where('agent_id', $selectedManagerAgentId);
+        } elseif ($scopedAgentIds !== null) {
             $followupsQuery->whereIn('agent_id', $scopedAgentIds);
         }
 
@@ -262,6 +363,129 @@ class DashboardController extends Controller
                 && $t->scheduled_for->greaterThanOrEqualTo($startOfTomorrow)
                 && $t->scheduled_for->lessThanOrEqualTo($endOfTomorrow)
         )->values();
+
+        /* ============================================================
+           TEAM MANAGER ATTENTION SUMMARY
+
+           Dashboard-only management scope. Authorization remains based
+           on the normal scopedAgentIds above, but the manager's own work
+           is excluded here because it belongs in MY WORK.
+           ============================================================ */
+
+        $managerAttentionSummary = collect();
+
+        if (
+            $userRole === 'team_manager'
+            && in_array($workScope, ['team', 'delegated'], true)
+        ) {
+            $managerAttentionAgentIds = collect($scopedAgentIds ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => $id > 0 && $id !== (int) $agentId)
+                ->unique()
+                ->values();
+
+            // Delegated means additional staff only, not direct-team members.
+            if ($workScope === 'delegated') {
+                $directTeamAgentIds = collect(
+                    app(TeamService::class)->agentIdsForManager($userId)
+                )
+                    ->map(fn ($id) => (int) $id)
+                    ->filter(fn ($id) => $id > 0)
+                    ->unique();
+
+                $managerAttentionAgentIds = $managerAttentionAgentIds
+                    ->reject(fn ($id) => $directTeamAgentIds->contains((int) $id))
+                    ->values();
+            }
+
+            $managerAttentionTasks = $pendingFollowups
+                ->filter(fn ($t) =>
+                    $managerAttentionAgentIds->contains((int) $t->agent_id)
+                )
+                ->values();
+
+            $managerAttentionAgents = Agent::with('user')
+                ->whereIn('id', $managerAttentionAgentIds)
+                ->get()
+                ->keyBy('id');
+
+            $managerNewCounts = LeadAgent::whereIn(
+                    'agent_id',
+                    $managerAttentionAgentIds
+                )
+                ->where('is_active', true)
+                ->whereHas('lead', fn ($lead) => $lead->where('status', 'new'))
+                ->selectRaw('agent_id, COUNT(*) as total')
+                ->groupBy('agent_id')
+                ->pluck('total', 'agent_id');
+
+            $managerAttentionSummary = $managerAttentionAgentIds
+                ->map(function ($aId) use (
+                    $managerAttentionTasks,
+                    $managerAttentionAgents,
+                    $managerNewCounts
+                ) {
+                    $agent = $managerAttentionAgents->get($aId);
+
+                    $items = $managerAttentionTasks
+                        ->where('agent_id', $aId)
+                        ->values();
+
+                    $overdue = $items->filter(fn ($t) =>
+                        $t->scheduled_for
+                        && $t->scheduled_for->isPast()
+                    );
+
+                    $today = $items->filter(fn ($t) =>
+                        $t->scheduled_for
+                        && $t->scheduled_for->isToday()
+                        && $t->scheduled_for->isFuture()
+                    );
+
+                    $dueSoon = $items->filter(fn ($t) =>
+                        $t->scheduled_for
+                        && $t->scheduled_for->isFuture()
+                        && $t->scheduled_for->lessThanOrEqualTo(now()->addHours(2))
+                    );
+
+                    $escalated = $items->filter(
+                        fn ($t) => $t->escalated_flag
+                    );
+
+                    return (object) [
+                        'agent_id'      => (int) $aId,
+                        'name'          => $agent?->user?->name ?? 'Unassigned',
+                        'phone'         => $agent?->phone,
+                        'overdue'       => $overdue->count(),
+                        'today'         => $today->count(),
+                        'due_soon'      => $dueSoon->count(),
+                        'new'           => (int) ($managerNewCounts[$aId] ?? 0),
+                        'escalated'     => $escalated->count(),
+                        'total'         => $items->count(),
+                        'overdue_items' => $overdue
+                            ->sortBy(fn ($t) => $t->scheduled_for?->timestamp ?? PHP_INT_MAX)
+                            ->values(),
+                        'today_items'   => $today
+                            ->sortBy(fn ($t) => $t->scheduled_for?->timestamp ?? PHP_INT_MAX)
+                            ->values(),
+                        'nudge_count'   => app(NudgeService::class)
+                            ->countForAgent((int) $aId),
+                    ];
+                })
+                ->filter(fn ($a) =>
+                    $a->overdue > 0
+                    || $a->today > 0
+                    || $a->new > 0
+                    || $a->escalated > 0
+                )
+                ->sortByDesc(fn ($a) =>
+                    ($a->overdue * 1000000)
+                    + ($a->escalated * 10000)
+                    + ($a->today * 100)
+                    + $a->new
+                )
+                ->values();
+        }
 
         /* ============================================================
            AGENT-WISE OVERDUE SUMMARY
@@ -478,6 +702,27 @@ class DashboardController extends Controller
             ->orderBy('visit_scheduled_at')
             ->get();
 
+        // Attach structured outcomes recorded on each scheduled visit date.
+        // A lead may have multiple actual outings on the same day, so preserve
+        // all matching records rather than assuming a one-to-one appointment.
+        if ($todayVisits->isNotEmpty()) {
+            $todayVisitOutcomes = DB::table('site_visits')
+                ->whereIn('lead_id', $todayVisits->pluck('id'))
+                ->whereBetween('visit_at', [$todayStart, $todayEnd])
+                ->orderBy('visit_at')
+                ->get()
+                ->groupBy('lead_id');
+
+            $todayVisits->each(function ($lead) use ($todayVisitOutcomes) {
+                $outcomes = $todayVisitOutcomes->get($lead->id, collect());
+                $lead->today_visit_outcomes = $outcomes;
+                $lead->today_visit_recorded = $outcomes->isNotEmpty();
+                $lead->today_visit_attended = $outcomes->contains(
+                    fn ($visit) => (bool) $visit->client_attended
+                );
+            });
+        }
+
         /* ============================================================
            RECENT LEADS
            ============================================================ */
@@ -555,34 +800,31 @@ class DashboardController extends Controller
             ->whereNotNull('visit_scheduled_at')
             ->count();
 
-        // Actually done = a human recorded a real Site Visit outcome.
-        // Count distinct leads so repeated edits/logs for one visit do not inflate the metric.
-        $actualVisitOutcomeKeys = [
-            'visit_booked_spot', 'visit_interested', 'visit_needs_family',
-            'visit_wants_negotiate', 'visit_wants_other_project',
-            'visit_not_interested', 'visit_no_show', 'site_visit_with_family',
-            'site_visit_arrived_late', 'site_visit_cancelled', 'wants_second_visit',
-        ];
+        // Actual visits come from structured site visit records.
+        // Only attended customer outings count as completed visits.
+        $structuredVisits = DB::table('site_visits')
+            ->where('client_attended', true);
 
-        $actualVisitLeads = function ($query) use ($actualVisitOutcomeKeys) {
-            return $query->whereHas('activities', function ($activityQuery) use ($actualVisitOutcomeKeys) {
-                $activityQuery
-                    ->where('type', 'site_visit')
-                    ->whereIn('outcome_key', $actualVisitOutcomeKeys);
-            });
-        };
+        if ($scopedLeadIds !== null) {
+            $structuredVisits->whereIn('lead_id', $scopedLeadIds);
+        }
 
-        $statVisitsDoneActual = $actualVisitLeads($scoped(Lead::query()))->count();
+        $statVisitsDoneActual = (clone $structuredVisits)->count();
 
-        $statVisitsDoneActualWeek = $actualVisitLeads($scoped(Lead::query()))
-            ->whereHas('activities', function ($activityQuery) use ($actualVisitOutcomeKeys) {
-                $activityQuery
-                    ->where('type', 'site_visit')
-                    ->whereIn('outcome_key', $actualVisitOutcomeKeys)
-                    ->whereBetween('logged_at', [now()->startOfWeek(), now()]);
-            })
+        $statVisitsDoneActualWeek = (clone $structuredVisits)
+            ->whereBetween('visit_at', [now()->startOfWeek(), now()->endOfWeek()])
             ->count();
 
+        // Every physical project visited during an attended outing counts once
+        // through its site_visit_projects row.
+        $statVisitProjectsDone = DB::table('site_visit_projects as svp')
+            ->join('site_visits as sv', 'sv.id', '=', 'svp.site_visit_id')
+            ->where('sv.client_attended', true)
+            ->when(
+                $scopedLeadIds !== null,
+                fn ($q) => $q->whereIn('sv.lead_id', $scopedLeadIds)
+            )
+            ->count();
         $statVisitsNext7d = $scoped(Lead::query())
             ->whereNotNull('visit_scheduled_at')
             ->whereBetween(
@@ -643,6 +885,11 @@ class DashboardController extends Controller
             'projects',
             'sources',
             'leads',
+            'untouchedLeads',
+            'untouchedLeadCount',
+            'managerScopeAgents',
+            'managerScopeUntouchedLeads',
+            'selectedManagerAgentId',
             'recentLeads',
             'pendingFollowups',
             'overdueTasks',
@@ -664,12 +911,14 @@ class DashboardController extends Controller
             'statusCounts',
             'todayVisits',
             'agentOverdueSummary',
+            'managerAttentionSummary',
             'businessPulse',
             'statNewToday',
             'statNewWeek',
             'statActive',
             'statVisitsScheduled',
             'statVisitsDoneActual',
+            'statVisitProjectsDone',
             'statVisitsDoneActualWeek',
             'statVisitsNext7d',
             'statVisitsToday',

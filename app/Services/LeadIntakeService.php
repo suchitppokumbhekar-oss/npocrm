@@ -259,18 +259,7 @@ class LeadIntakeService
             ]);
 
             if ($revivable->agent_id) {
-                $delayMinutes = max(1, (int) $this->settings->get('first_contact_delay_minutes', 15));
-
-                Followup::create([
-                    'lead_id'        => $revivable->id,
-                    'agent_id'       => $revivable->agent_id,
-                    'scheduled_for'  => app(\App\Services\BusinessHoursService::class)->clamp(now()->addMinutes($delayMinutes)),
-                    'action_type'    => 'followup_call',
-                    'priority'       => 'high',
-                    'status'         => 'pending',
-                    'escalated_flag' => false,
-                    'auto_created'   => true,
-                ]);
+                app(\App\Services\FollowupService::class)->scheduleNewLeadCall($revivable);
             }
 
             try {
@@ -316,18 +305,7 @@ class LeadIntakeService
         $agent = $this->assignment->assign($lead);
 
         if ($lead->agent_id) {
-            $delayMinutes = max(1, (int) $this->settings->get('first_contact_delay_minutes', 15));
-
-            Followup::create([
-                'lead_id'        => $lead->id,
-                'agent_id'       => $lead->agent_id,
-                'scheduled_for'  => app(\App\Services\BusinessHoursService::class)->clamp(now()->addMinutes($delayMinutes)),
-                'action_type'    => 'followup_call',
-                'priority'       => 'high',
-                'status'         => 'pending',
-                'escalated_flag' => false,
-                'auto_created'   => true,
-            ]);
+            app(\App\Services\FollowupService::class)->scheduleNewLeadCall($lead);
         }
 
         try {

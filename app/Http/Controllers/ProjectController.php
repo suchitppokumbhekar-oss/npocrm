@@ -122,7 +122,9 @@ class ProjectController extends Controller
 
         $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
 
-        $query = \App\Models\Project::query()
+        // Lead intake project search: every active project is selectable.
+        // Routing controls assignment, not project selection.
+        $query = \App\Models\Project::active()
             ->where(function ($qq) use ($like) {
                 $qq->where('name', 'like', $like)
                    ->orWhere('location', 'like', $like)

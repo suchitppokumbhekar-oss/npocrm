@@ -46,6 +46,51 @@
 @endphp
 
 @section('content')
+@php
+    /*
+     * Compact operational snapshot.
+     * Reuses the controlled labels and customer-information evidence
+     * already available to the Customer section.
+     */
+    $snapshotLabels = $lead->labels
+        ->sortBy(fn ($label) => ($label->group_key ?? '') . '|' . ($label->sort_order ?? 0))
+        ->values();
+
+    $snapshotProfile = $customerInformationProfile ?? [];
+
+    $snapshotEntryFields = collect($snapshotProfile['customer_information'] ?? [])
+        ->keyBy('key')
+        ->all();
+
+    $snapshotFieldMeta = [
+        'budget' => 'Budget',
+        'location' => 'Preferred area',
+        'possession' => 'Possession',
+        'timeline' => 'Timeline',
+        'decision_criteria' => 'Decision criteria',
+        'objections' => 'Concerns',
+    ];
+
+    $snapshotKnown = [];
+
+    foreach ($snapshotFieldMeta as $key => $label) {
+        $item = $snapshotEntryFields[$key] ?? [];
+        $value = is_array($item) ? trim((string) ($item['value'] ?? '')) : '';
+        $state = is_array($item) ? (string) ($item['state'] ?? 'UNKNOWN') : 'UNKNOWN';
+
+        if ($value !== '' && !in_array($state, ['NEEDS_CONFIRMATION','ASKED_NO_RESPONSE','AMBIGUOUS'], true)) {
+            $snapshotKnown[$key] = [
+                'label' => $label,
+                'value' => $value,
+            ];
+        }
+    }
+
+    $leadSourceRaw = trim((string) ($lead->source ?: $lead->intake_source ?: ''));
+    $leadSourceLabel = $leadSourceRaw !== ''
+        ? ucwords(str_replace(['_', '-'], ' ', $leadSourceRaw))
+        : 'Not specified';
+@endphp
 <div class="lead-workbench-v2">
     <div class="lead-workbench-topbar">
         <a href="{{ $backUrl }}" class="lead-wb-back" onclick="if (window.history.length > 1) { event.preventDefault(); window.history.back(); }" aria-label="{{ $backLabel }}">←</a>
@@ -53,7 +98,12 @@
             <div class="lead-wb-name">{{ $lead->customer_name }}</div>
             <div class="lead-wb-subline"><span>{{ $lead->project?->name ?? 'No project' }}</span></div>
         </div>
-        <button type="button" class="lead-wb-more" data-lead-wb-more aria-expanded="false" aria-controls="lead-wb-more-actions" title="Lead actions">Lead actions <span aria-hidden="true">⋯</span></button>
+        <button type="button"
+                class="lead-wb-more"
+                data-lead-wb-section="more"
+                title="Manage lead">
+            Manage lead <span aria-hidden="true">⋯</span>
+        </button>
     </div>
 
     <div class="lead-wb-hero card">
@@ -70,23 +120,63 @@
                 <div><span>LAST ACTIVITY</span><strong>{{ $lead->last_activity_at?->diffForHumans() ?? 'Never' }}</strong></div>
             </div>
         </div>
-        <div class="lead-wb-primary-work {{ $dueTasks->isNotEmpty() ? 'is-hot' : '' }}">
-            <div class="lead-wb-primary-copy"><div class="lead-wb-kicker">{{ $dueTasks->isNotEmpty() ? 'ACTION REQUIRED' : 'CURRENT STATE' }}</div><strong>{{ $primaryActionLabel }}</strong><span>{{ $primaryActionSub }}</span></div>
-            @if ($dueTasks->isNotEmpty())
-                <button type="button" class="lead-wb-go" data-lead-wb-scroll="pending-tasks">Open task →</button>
-            @elseif ($futureTasks->isNotEmpty())
-                <button type="button" class="lead-wb-go" data-lead-wb-scroll="pending-tasks">See plan →</button>
-            @elseif (!$isClosed && $canWorkThisLead && $isAdminUser)
-                <button type="button" class="lead-wb-go" data-modal="schedule-followup" data-lead="{{ $lead->id }}">Plan next →</button>
+        <div class="lead-wb-snapshot">
+            <div class="lead-wb-snapshot-head">
+                <div>
+                    <div class="lead-wb-kicker">LEAD SNAPSHOT</div>
+                    <strong>What matters before you act</strong>
+                </div>
+
+                @if ($canWorkThisLead)
+                    <button type="button"
+                            class="lead-wb-snapshot-manage"
+                            data-modal="edit-tags"
+                            data-lead="{{ $lead->id }}">
+                        🏷️ Manage tags &amp; labels
+                    </button>
+                @endif
+            </div>
+
+            @if ($snapshotLabels->isNotEmpty())
+                <div class="lead-wb-snapshot-labels">
+                    <x-lead-labels-row :labels="$snapshotLabels" :max="8" />
+                </div>
+            @endif
+
+            @if ($snapshotKnown)
+                <div class="lead-wb-snapshot-facts">
+                    @foreach ($snapshotKnown as $fact)
+                        <span>
+                            <strong>{{ $fact['label'] }}:</strong>
+                            {{ $fact['value'] }}
+                        </span>
+                    @endforeach
+                </div>
+            @endif
+
+            @if ($snapshotLabels->isEmpty() && !$snapshotKnown)
+                <div class="lead-wb-snapshot-empty">
+                    No customer requirements or labels recorded yet.
+                    @if ($canWorkThisLead)
+                        Add only information actually learned from the customer.
+                    @endif
+                </div>
             @endif
         </div>
     </div>
 
-    <div id="lead-wb-more-actions" class="lead-wb-more-actions" hidden>
-        <div class="lead-wb-more-actions-title">Lead actions</div>
-        @if ($canManageThisLead)<button type="button" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assignment</button>@endif
-        @if ($isAdminUser)<button type="button" data-modal="change-status" data-lead="{{ $lead->id }}">📊 Change status</button>@endif
-        @if (session('user_role') !== 'agent')<button type="button" data-modal="share-lead" data-lead="{{ $lead->id }}">📤 Share lead</button><button type="button" data-modal="external-share" data-lead="{{ $lead->id }}">↗️ External share</button>@endif
+    <div class="lead-wb-quick-context" aria-label="Lead context">
+        <span class="lead-wb-quick-context-item">
+            <strong>📥 Source</strong>
+            <span>{{ $leadSourceLabel }}</span>
+        </span>
+
+        @if ($lead->project)
+            <span class="lead-wb-quick-context-item lead-wb-quick-context-project">
+                <strong>🏗️ Project</strong>
+                <span>{{ $lead->project->name }}</span>
+            </span>
+        @endif
     </div>
 
     @if (! $lead->agent_id)
@@ -1457,12 +1547,12 @@
                 <div id="site-visit-projects" style="display:grid;gap:9px;">
                     <div class="site-visit-project-row" style="border:1px solid #dbeafe;border-radius:9px;padding:10px;background:#f8fcff;">
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
-                            <strong style="font-size:13px;">Project shown #1</strong>
+                            <strong style="font-size:13px;">Project visited #1</strong>
                             <button type="button" class="btn-small" onclick="removeSiteVisitProject(this)" style="display:none;">Remove</button>
                         </div>
                         <div style="display:grid;gap:7px;">
                             <select name="projects[0][project_id]" required style="width:100%;">
-                                <option value="">Select project shown…</option>
+                                <option value="">Select project visited…</option>
                                 @foreach ($siteVisitProjectOptions as $projectOption)
                                     <option value="{{ $projectOption->id }}">{{ $projectOption->name }} — {{ $projectOption->location }}</option>
                                 @endforeach
@@ -1478,7 +1568,7 @@
                     </div>
                 </div>
 
-                <button type="button" class="btn-small btn-info" style="margin-top:9px;" onclick="addSiteVisitProject()">＋ Add another project shown</button>
+                <button type="button" class="btn-small btn-info" style="margin-top:9px;" onclick="addSiteVisitProject()">＋ Add another project visited</button>
 
                 <div style="margin-top:9px;">
                     <label for="site-visit-notes" style="display:block;font-size:12px;font-weight:800;margin-bottom:5px;">Overall visit notes</label>
@@ -1511,7 +1601,7 @@
                 el.value = '';
             });
             var title = row.querySelector('strong');
-            if (title) title.textContent = 'Project shown #' + (projectIndex + 1);
+            if (title) title.textContent = 'Project visited #' + (projectIndex + 1);
             var remove = row.querySelector('button');
             if (remove) remove.style.display = 'inline-flex';
             projectContainer.appendChild(row);
@@ -1547,7 +1637,7 @@
         <div class="lead-admin-tools-head"><strong>⚙️ Manage</strong><span>Only actions available to your role are shown.</span></div>
     <div class="card lead-manage-panel lead-mobile-section" data-mobile-section="manage" style="margin:0 0 18px;">
         <div class="lead-manage-summary" style="padding:0 0 10px;">
-            ⚙️ <strong>Manage lead</strong><span>Assignment, sharing &amp; admin actions</span>
+            ⚙️ <strong>Manage lead</strong><span>Assignment &amp; administrative actions</span>
         </div>
 
         @if ($canChangeProject)
@@ -1580,10 +1670,6 @@
             <button type="button" class="btn-small btn-agent" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assign Lead</button>
             @endif
 
-            @if (session('user_role') !== 'agent')
-            <button type="button" class="btn-small" style="background:#25D366;color:#fff;" data-modal="share-lead" data-lead="{{ $lead->id }}">📤 Share on WhatsApp</button>
-            <button type="button" class="btn-small" style="background:#0ea5e9;color:#fff;" data-modal="external-share" data-lead="{{ $lead->id }}">📤 Share Externally</button>
-            @endif
 
             <div style="flex:1;text-align:right;align-self:center;color:var(--c-muted);font-size:12px;">
                 ⚠️ Lead is Lost — revive to enable full actions.
@@ -1606,10 +1692,6 @@
             <button type="button" class="btn-small btn-agent" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assign Lead</button>
             @endif
 
-            @if (session('user_role') !== 'agent')
-            <button type="button" class="btn-small" style="background:#25D366;color:#fff;" data-modal="share-lead" data-lead="{{ $lead->id }}">📤 Share on WhatsApp</button>
-            <button type="button" class="btn-small" style="background:#0ea5e9;color:#fff;" data-modal="external-share" data-lead="{{ $lead->id }}">📤 Share Externally</button>
-            @endif
 
             <div style="flex:1;text-align:right;align-self:center;color:var(--c-primary);font-size:12px;">
                 🎉 Booked — manage referrals &amp; brokerage.
@@ -1631,10 +1713,6 @@
             <button type="button" class="btn-small btn-agent" data-modal="assign-agent" data-lead="{{ $lead->id }}">👥 Assign Lead</button>
             @endif
 
-            @if (session('user_role') !== 'agent')
-            <button type="button" class="btn-small" style="background:#25D366;color:#fff;" data-modal="share-lead" data-lead="{{ $lead->id }}">📤 Share on WhatsApp</button>
-            <button type="button" class="btn-small" style="background:#0ea5e9;color:#fff;" data-modal="external-share" data-lead="{{ $lead->id }}">📤 Share Externally</button>
-            @endif
         </div>
     @endif
 
@@ -2072,7 +2150,19 @@
         <script>
         document.addEventListener('DOMContentLoaded', function () {
             var work = document.getElementById('pending-tasks');
-            if (work) setTimeout(function () { work.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+            if (!work) return;
+
+            setTimeout(function () {
+                var context = document.querySelector('.lead-wb-quick-context');
+                var target = context || work;
+                var stickyOffset = 82;
+                var top = target.getBoundingClientRect().top + window.pageYOffset - stickyOffset;
+
+                window.scrollTo({
+                    top: Math.max(0, top),
+                    behavior: 'auto'
+                });
+            }, 120);
         });
         </script>
     @endif
@@ -2095,15 +2185,7 @@
 <script>
 (function(){
     function initLeadWorkbench(){
-        var more=document.querySelector('[data-lead-wb-more]'), panel=document.getElementById('lead-wb-more-actions');
-        if(more&&panel&&more.dataset.bound!=='1'){
-            more.dataset.bound='1';
-            more.addEventListener('click',function(){var open=panel.hidden;panel.hidden=!open;more.setAttribute('aria-expanded',open?'true':'false');});
-            document.addEventListener('click',function(e){if(!panel.hidden&&!e.target.closest('[data-lead-wb-more]')&&!e.target.closest('#lead-wb-more-actions')){panel.hidden=true;more.setAttribute('aria-expanded','false');}});
-            function closeLeadActions(){if(!panel.hidden){panel.hidden=true;more.setAttribute('aria-expanded','false');}}
-            window.addEventListener('scroll',closeLeadActions,{passive:true});
-            window.addEventListener('resize',closeLeadActions,{passive:true});
-        }
+
         document.querySelectorAll('[data-lead-wb-scroll]').forEach(function(btn){if(btn.dataset.bound==='1')return;btn.dataset.bound='1';btn.addEventListener('click',function(){var el=document.getElementById(btn.dataset.leadWbScroll);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});});
         document.querySelectorAll('[data-lead-wb-section]').forEach(function(btn){if(btn.dataset.bound==='1')return;btn.dataset.bound='1';btn.addEventListener('click',function(){var item=document.querySelector('details[data-accordion="'+btn.dataset.leadWbSection+'"]');if(item){item.open=true;setTimeout(function(){item.scrollIntoView({behavior:'smooth',block:'start'});},20);}document.querySelectorAll('[data-lead-wb-section]').forEach(function(b){b.classList.toggle('is-active',b===btn);});});});
         var requestedTab=new URL(window.location.href).searchParams.get('lead_tab');

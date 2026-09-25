@@ -127,6 +127,18 @@
         </p>
     </div>
 
+    <div class="field" id="la-visit-method-field" style="display:none;">
+        <label>How was this site visit scheduled? *</label>
+        <input type="hidden" name="visit_contact_method" id="la-visit-contact-method" value="">
+        <div class="flex" style="gap:8px;">
+            <button type="button" class="btn la-visit-method" data-visit-method="call">📞 Call</button>
+            <button type="button" class="btn la-visit-method" data-visit-method="whatsapp">💬 WhatsApp</button>
+        </div>
+        <p class="muted" style="font-size:11px;margin-top:5px;">
+            This contact method will be recorded in the lead timeline.
+        </p>
+    </div>
+
     <div class="field" id="la-visit-field" style="display:none;">
         <label>Visit Date &amp; Time *</label>
         <input type="datetime-local" name="visit_scheduled_at" class="input"
@@ -242,6 +254,7 @@
     var isLost              = @json($isLost);
     var isWon               = @json($isWon);
     var ALL_OUTCOMES        = @json($outcomesJson);
+    var LEAD_STATUS         = @json($lead->statusKey());
 
     var typeSel    = document.getElementById('la-type');
     var outcomeF   = document.getElementById('la-outcome-field');
@@ -251,8 +264,11 @@
     var waCb       = document.getElementById('la-wa-cb');
     var waKindF    = document.getElementById('la-wa-kind-field');
     var waKind     = document.getElementById('la-wa-kind');
-    var visitF     = document.getElementById('la-visit-field');
-    var visitInput = document.getElementById('la-visit-input');
+    var visitMethodF     = document.getElementById('la-visit-method-field');
+    var visitMethodValue = document.getElementById('la-visit-contact-method');
+    var visitMethodBtns  = document.querySelectorAll('.la-visit-method');
+    var visitF           = document.getElementById('la-visit-field');
+    var visitInput       = document.getElementById('la-visit-input');
     var lostF      = document.getElementById('la-lost-field');
     var lostInput  = document.getElementById('la-lost-input');
     var bookingF   = document.getElementById('la-booking-fields');
@@ -265,7 +281,40 @@
 
     function resetConditionals() {
         preview.textContent = '';
+        visitMethodF.style.display = 'none';
+        visitMethodValue.value = '';
+        visitMethodBtns.forEach(function (btn) { btn.classList.remove('is-selected'); });
         visitF.style.display = 'none';      visitInput.required = false;
+OLD;
+if (substr_count($s,$old)!==1) { fwrite(STDERR,"REFUSED: reset mismatch\n"); exit(23); }
+$s=str_replace($old,$new,$s);
+
+$old=<<<'OLD'
+            var suggestedKey = statusesById[suggId];
+            var canAdvance   = allowedKeys.indexOf(suggestedKey) !== -1;
+
+            if (canAdvance) {
+OLD;
+$new=<<<'NEW'
+            var suggestedKey = statusesById[suggId];
+            var canAdvance   = allowedKeys.indexOf(suggestedKey) !== -1;
+
+            var uncontactedVisit =
+                ['new', 'external_shared', 'attempted'].indexOf(LEAD_STATUS) !== -1
+                && suggestedKey === 'visit_scheduled';
+
+            var visitViaContact =
+                uncontactedVisit
+                && (
+                    (LEAD_STATUS === 'attempted' && allowedKeys.indexOf('contacted') !== -1)
+                    ||
+                    ((LEAD_STATUS === 'new' || LEAD_STATUS === 'external_shared')
+                        && allowedKeys.indexOf('attempted') !== -1)
+                );
+
+            if (visitViaContact) canAdvance = true;
+
+            if (canAdvance) {
         lostF.style.display = 'none';       lostInput.required = false;
         bookingF.style.display = 'none';    bookingAmt.required = false;
         waF.style.display = typeSel.value === 'call' ? 'block' : 'none'; waCb.checked = false; waKindF.style.display = 'none';
@@ -345,8 +394,14 @@
                     lostF.style.display = 'block';
                     lostInput.required = true;
                 } else if (requiresDateById[suggId]) {
-                    visitF.style.display = 'block';
-                    visitInput.required = true;
+                    if (uncontactedVisit) {
+                        visitMethodF.style.display = 'block';
+                        visitF.style.display = 'none';
+                        visitInput.required = false;
+                    } else {
+                        visitF.style.display = 'block';
+                        visitInput.required = true;
+                    }
                 } else if (requiresBookingById[suggId]) {
                     bookingF.style.display = 'block';
                     bookingAmt.required = true;
@@ -375,6 +430,19 @@
         var p = parseFloat(pctIn.value || '0');
         if (v && p) brokIn.value = Math.round(v * p / 100 * 100) / 100;
     }
+
+    visitMethodBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var method = this.dataset.visitMethod || '';
+            if (method !== 'call' && method !== 'whatsapp') return;
+            visitMethodValue.value = method;
+            visitMethodBtns.forEach(function (other) { other.classList.remove('is-selected'); });
+            this.classList.add('is-selected');
+            visitF.style.display = 'block';
+            visitInput.required = true;
+            visitInput.focus();
+        });
+    });
 
     waCb.addEventListener('change', function () {
         waKindF.style.display = waCb.checked ? 'block' : 'none';

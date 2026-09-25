@@ -114,6 +114,7 @@ class FollowupController extends Controller
             'whatsapp_sent_kind'    => 'nullable|in:intro,details',
             'custom_next_at'        => 'nullable|date|after:now',
             'visit_scheduled_at'    => 'nullable|date|after:now',
+            'visit_contact_method'  => 'nullable|in:call,whatsapp',
             'lost_reason'           => 'nullable|string|max:2000',
             'lost_reason_key'       => 'nullable|string|max:80',
             'property_area_sqft'    => 'nullable|numeric|min:0',

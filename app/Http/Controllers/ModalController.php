@@ -700,7 +700,15 @@ class ModalController extends Controller
 
             $data['agentsByTeam'] =
                 $assignable->groupBy(function ($a) {
-                    $team = $a->teams->first();
+                    // An agent may retain historical/inactive team memberships.
+                    // Assignment UI must display the agent under an active membership,
+                    // not simply the first historical team relationship returned.
+                    $team = $a->teams->first(function ($team) {
+                        $memberActive = $team->pivot->is_active ?? true;
+
+                        return (bool) $team->is_active
+                            && (bool) $memberActive;
+                    });
 
                     return $team
                         ? $team->name

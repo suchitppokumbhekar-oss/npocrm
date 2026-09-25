@@ -18,10 +18,8 @@ class SendFollowupReminders extends Command
         // The scheduler runs every five minutes. Keep a tight occurrence window
         // so a follow-up gets at most one reminder for each scheduled occurrence.
         $due = Followup::where('status', 'pending')
-            ->whereBetween('scheduled_for', [
-                $now->copy()->addMinutes(25),
-                $now->copy()->addMinutes(35),
-            ])
+            ->whereNotNull('scheduled_for')
+            ->where('scheduled_for', '<=', $now)
             ->with(['lead', 'agent.user'])
             ->get();
 

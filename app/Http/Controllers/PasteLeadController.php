@@ -234,21 +234,9 @@ class PasteLeadController extends Controller
                 'logged_at'   => now(),
             ]);
 
-            // Schedule first-contact followup
+            // A genuinely new assigned lead starts with an immediate Call.
             if ($lead->agent_id) {
-                $delayMinutes = max(1, (int) app(SettingsService::class)
-                    ->get('first_contact_delay_minutes', 15));
-
-                Followup::create([
-                    'lead_id'        => $lead->id,
-                    'agent_id'       => $lead->agent_id,
-                    'scheduled_for'  => now()->addMinutes($delayMinutes),
-                    'action_type'    => 'followup_call',
-                    'priority'       => 'high',
-                    'status'         => 'pending',
-                    'escalated_flag' => false,
-                    'auto_created'   => true,
-                ]);
+                app(\App\Services\FollowupService::class)->scheduleNewLeadCall($lead);
             }
 
             return $lead;

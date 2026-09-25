@@ -153,9 +153,12 @@
 
 
     {{-- ACTION: preserve canonical CRM work workflow --}}
+    @php
+        $leadCardReturnTo = request()->getRequestUri() ?: '/my-leads';
+    @endphp
     <div class="lead-glimpse-actions">
 
-        <a href="{{ url('/leads/' . $lead->id) }}#pending-tasks"
+        <a href="{{ url('/leads/' . $lead->id) }}?focus_work=1&return_to={{ urlencode($leadCardReturnTo) }}#pending-tasks"
            class="lead-glimpse-work">
 
             <span>{{ $isClosed ? '👁' : '▶' }}</span>
