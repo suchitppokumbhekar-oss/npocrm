@@ -32,9 +32,9 @@
     // On My Work/Tasks the current request is the origin; when this card is
     // rendered on the Lead Workbench, the controller/view supplies the original
     // Tasks URL through the returnTo prop.
-    $workReturnTo = (string) ($returnTo ?: '');
+    $workReturnTo = (string) ($returnTo ?: request()->query('return_to', ''));
     if ($workReturnTo === '' && (request()->is('/') || request()->is('tasks*'))) {
-        $workReturnTo = request()->getRequestUri() ?: '/tasks';
+        $workReturnTo = request()->getRequestUri() ?: '/';
     }
     $hasWorkReturnTo = $workReturnTo !== '';
 $workReturnTo = $workReturnTo ?: '/';

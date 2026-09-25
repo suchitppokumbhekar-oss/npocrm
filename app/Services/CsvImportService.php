@@ -393,6 +393,11 @@ class CsvImportService
 
                 // Auto-assign using the same rules as the Add Lead form
                 $this->assignment->assignLeastLoaded($lead);
+                $lead->refresh();
+
+                if ($lead->agent_id) {
+                    app(\App\Services\FollowupService::class)->scheduleNewLeadCall($lead);
+                }
 
                 // Optional: append the CSV notes to the first activity
                 if (! empty($row['notes'])) {

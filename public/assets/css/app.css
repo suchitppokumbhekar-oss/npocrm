@@ -3377,6 +3377,26 @@ body.task-execution-active .lead-wb-sections,
 
 
 /* MANAGER PROBLEM → PERSON — 2026-09-25 */
+.manager-team-activity{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    padding:10px 16px;
+    border-top:1px solid var(--c-border);
+    background:#f8fafc;
+    font-size:11px;
+}
+.manager-team-activity > span{
+    font-weight:800;
+    color:var(--c-muted);
+    margin-right:auto;
+}
+.manager-team-activity > b{
+    font-size:11px;
+    white-space:nowrap;
+}
+
 .manager-problem-tabs{
     display:grid;
     grid-template-columns:repeat(3,1fr);
@@ -3619,4 +3639,347 @@ body.task-execution-active .lead-wb-sections,
     font-size:11px;
     font-weight:800;
     color:#2563eb;
+}
+
+/* ============================================================
+   LEAD WORKBENCH — QUICK CONTEXT
+   Additive only: does not alter task/action control layout.
+   ============================================================ */
+
+.lead-wb-quick-context{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin:10px 0 12px;
+}
+
+.lead-wb-quick-context-item{
+    display:flex;
+    align-items:center;
+    gap:5px;
+    min-width:0;
+    padding:7px 10px;
+    border:1px solid var(--c-border);
+    border-radius:9px;
+    background:var(--c-surface);
+    font-size:12px;
+    line-height:1.25;
+}
+
+.lead-wb-quick-context-item strong{
+    white-space:nowrap;
+}
+
+.lead-wb-quick-context-item span{
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+@media (max-width: 640px){
+    .lead-wb-quick-context{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:6px;
+        margin:8px 0 10px;
+    }
+
+    .lead-wb-quick-context-item{
+        padding:7px 8px;
+    }
+
+    .lead-wb-quick-context-item:first-child{
+        grid-column:1 / -1;
+    }
+}
+
+/* Lead workbench context refinement — source compact, project readable */
+@media (max-width: 640px){
+    .lead-wb-quick-context{
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+    }
+
+    .lead-wb-quick-context-item{
+        width:100%;
+        box-sizing:border-box;
+    }
+
+    .lead-wb-quick-context-project{
+        align-items:flex-start;
+        padding:9px 10px;
+    }
+
+    .lead-wb-quick-context-project span{
+        white-space:normal;
+        overflow:visible;
+        text-overflow:clip;
+        font-size:14px;
+        line-height:1.35;
+        font-weight:700;
+    }
+}
+
+/* ============================================================
+   MOBILE LEAD WORKBENCH — compact heading
+   Keep task/actions unchanged; recover vertical screen space.
+   ============================================================ */
+@media (max-width: 640px){
+    .lead-wb-section-head p{
+        white-space:nowrap;
+        font-size:12px;
+        line-height:1.2;
+        margin-top:3px;
+    }
+
+    .lead-wb-section-head{
+        margin-bottom:8px;
+    }
+}
+
+/* ============================================================
+   MOBILE LEAD WORKBENCH — compact context v3
+   Preserve all existing task/action controls and tab controls.
+   ============================================================ */
+@media (max-width: 640px){
+
+    /* Source + Project become one compact information strip */
+    .lead-wb-quick-context{
+        display:flex;
+        flex-direction:row;
+        align-items:center;
+        gap:10px;
+        width:100%;
+        margin:5px 0 7px;
+        padding:7px 10px;
+        box-sizing:border-box;
+        border:1px solid var(--c-border);
+        border-radius:10px;
+        background:var(--c-surface);
+        overflow:hidden;
+    }
+
+    .lead-wb-quick-context-item,
+    .lead-wb-quick-context-project{
+        display:flex;
+        align-items:center;
+        gap:4px;
+        width:auto;
+        min-width:0;
+        padding:0;
+        margin:0;
+        border:0;
+        border-radius:0;
+        background:transparent;
+        font-size:12px;
+        line-height:1.2;
+    }
+
+    .lead-wb-quick-context-item:first-child{
+        flex:0 0 auto;
+    }
+
+    .lead-wb-quick-context-project{
+        flex:1 1 auto;
+        overflow:hidden;
+    }
+
+    .lead-wb-quick-context-item strong{
+        flex:0 0 auto;
+        white-space:nowrap;
+        font-size:12px;
+    }
+
+    .lead-wb-quick-context-item span,
+    .lead-wb-quick-context-project span{
+        min-width:0;
+        padding:0;
+        margin:0;
+        font-size:12px;
+        line-height:1.2;
+        font-weight:600;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+    }
+
+    /* WORK header: compact but keep the full instruction readable */
+    .lead-wb-section-head{
+        position:relative;
+        padding-right:82px;
+        margin-bottom:7px;
+    }
+
+    .lead-wb-section-head h2{
+        margin-bottom:2px;
+    }
+
+    .lead-wb-section-head p{
+        white-space:nowrap;
+        font-size:11px;
+        line-height:1.2;
+        margin:2px 0 0;
+    }
+
+    /* Keep overdue/due badge fully inside the card */
+    .lead-wb-section-head .lead-wb-count{
+        position:absolute;
+        top:0;
+        right:0;
+        max-width:76px;
+        box-sizing:border-box;
+        white-space:nowrap;
+        font-size:11px;
+        padding:6px 8px;
+    }
+}
+
+/* ============================================================
+   LEAD WORKBENCH — LEAD SNAPSHOT
+   Replaces redundant action-summary panel with useful context.
+   Does not alter WORK/task controls.
+   ============================================================ */
+
+.lead-wb-snapshot{
+    margin-top:12px;
+    padding:12px 14px;
+    border:1px solid var(--c-border);
+    border-radius:10px;
+    background:var(--c-surface);
+}
+
+.lead-wb-snapshot-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+}
+
+.lead-wb-snapshot-head > div > strong{
+    display:block;
+    margin-top:2px;
+    font-size:14px;
+}
+
+.lead-wb-snapshot-manage{
+    flex:0 0 auto;
+    border:1px solid var(--c-border);
+    border-radius:8px;
+    background:var(--c-surface);
+    padding:7px 10px;
+    font:inherit;
+    font-size:11px;
+    font-weight:800;
+    cursor:pointer;
+}
+
+.lead-wb-snapshot-labels{
+    margin-top:9px;
+}
+
+.lead-wb-snapshot-facts{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px 14px;
+    margin-top:9px;
+    padding-top:8px;
+    border-top:1px solid var(--c-border);
+    font-size:11px;
+    line-height:1.35;
+}
+
+.lead-wb-snapshot-facts span{
+    min-width:0;
+}
+
+.lead-wb-snapshot-facts strong{
+    font-weight:800;
+}
+
+.lead-wb-snapshot-empty{
+    margin-top:7px;
+    font-size:11px;
+    color:var(--c-text-2);
+}
+
+@media (max-width:640px){
+    .lead-wb-snapshot{
+        margin-top:7px;
+        padding:8px 10px;
+    }
+
+    .lead-wb-snapshot-head{
+        gap:7px;
+    }
+
+    .lead-wb-snapshot-head > div > strong{
+        font-size:12px;
+    }
+
+    .lead-wb-snapshot-manage{
+        padding:6px 8px;
+        font-size:10px;
+    }
+
+    .lead-wb-snapshot-labels{
+        margin-top:6px;
+    }
+
+    .lead-wb-snapshot-facts{
+        gap:4px 10px;
+        margin-top:6px;
+        padding-top:6px;
+        font-size:10px;
+    }
+
+    .lead-wb-snapshot-empty{
+        margin-top:5px;
+        font-size:10px;
+    }
+}
+
+/* ============================================================
+   LEAD WORKBENCH — overdue badge breathing room
+   ============================================================ */
+
+#pending-tasks{
+    position:relative;
+}
+
+#pending-tasks .work-overdue-badge,
+#pending-tasks .lead-wb-overdue,
+#pending-tasks > .badge.red,
+#pending-tasks > .badge.danger{
+    top:14px;
+    right:14px;
+}
+
+@media (max-width:640px){
+    #pending-tasks .work-overdue-badge,
+    #pending-tasks .lead-wb-overdue,
+    #pending-tasks > .badge.red,
+    #pending-tasks > .badge.danger{
+        top:18px;
+        right:16px;
+    }
+}
+
+/* ============================================================
+   LEAD WORKBENCH — WORK count final mobile positioning
+   ============================================================ */
+@media (max-width:640px){
+    #pending-tasks .lead-wb-section-head{
+        position:relative;
+        padding-top:6px;
+        padding-right:92px;
+    }
+
+    #pending-tasks .lead-wb-section-head .lead-wb-count{
+        position:absolute;
+        top:10px;
+        right:10px;
+        margin:0;
+    }
 }

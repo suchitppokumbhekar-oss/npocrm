@@ -112,7 +112,7 @@ class ProjectController extends Controller
 
         $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
 
-        $query = \App\Models\Project::query()
+        $query = \App\Models\Project::active()
             ->where(function ($qq) use ($like) {
                 $qq->where('name', 'like', $like)
                    ->orWhere('location', 'like', $like)
@@ -120,7 +120,8 @@ class ProjectController extends Controller
             });
 
         // Respect role scoping — agents see only their visible projects
-        $query->visibleTo(session('user_id'), session('user_role'));
+        // Lead intake project search: every active project is selectable.
+        // Routing controls assignment, not project selection.
 
         $rows = $query->orderBy('name')->limit(20)->get(['id', 'name', 'location']);
 

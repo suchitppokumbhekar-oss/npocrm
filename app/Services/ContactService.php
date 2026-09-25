@@ -246,19 +246,7 @@ class ContactService
             // A telecaller handoff deliberately suppresses this because the
             // telecaller gets a controlled supporting task instead.
             if ($lead->agent_id && $createInitialFollowup) {
-                $delay = max(1, (int) app(\App\Services\SettingsService::class)
-                    ->get('first_contact_delay_minutes', 15));
-
-                \App\Models\Followup::create([
-                    'lead_id'        => $lead->id,
-                    'agent_id'       => $lead->agent_id,
-                    'scheduled_for'  => now()->addMinutes($delay),
-                    'action_type'    => 'followup_call',
-                    'priority'       => 'high',
-                    'status'         => 'pending',
-                    'escalated_flag' => false,
-                    'auto_created'   => true,
-                ]);
+                app(\App\Services\FollowupService::class)->scheduleNewLeadCall($lead);
             }
 
             // Log a note about the promotion even when the normal first task is

@@ -447,7 +447,7 @@ class NotificationService
                 $followup->lead_id,
                 $userId,
                 User::find($userId)?->name,
-                User::find($userId)?->role,
+                User::find($userId)?->role?->value ?? User::find($userId)?->role,
             );
             return true;
         }
@@ -472,21 +472,16 @@ class NotificationService
         if ($followup->status !== 'pending') return;
         if (! $followup->scheduled_for) return;
 
-        // One reminder per scheduled occurrence. The scheduler may run every
-        // five minutes, so only allow the reminder when the follow-up is in the
-        // 25–35 minute-before window. Using the occurrence window rather than
-        // a generic recent check means a legitimately rescheduled follow-up can
-        // receive a fresh reminder without flooding the user.
-        $windowStart = $followup->scheduled_for->copy()->subMinutes(35);
-        $windowEnd   = $followup->scheduled_for->copy()->subMinutes(25);
-        $now         = now();
-        if ($now->lt($windowStart) || $now->gt($windowEnd)) return;
+        // Creation and future scheduling are silent. Alert only once the
+        // scheduled time has actually arrived.
+        $now = now();
+        if ($followup->scheduled_for->gt($now)) return;
 
         $alreadySent = AppNotification::where('user_id', $agent->user_id)
             ->where('type', 'followup_due_soon')
             ->where('related_type', 'followup')
             ->where('related_id', $followup->id)
-            ->whereBetween('created_at', [$windowStart, $windowEnd])
+            ->where('created_at', '>=', $followup->scheduled_for)
             ->exists();
 
         if ($alreadySent) return;
@@ -495,7 +490,7 @@ class NotificationService
         $taskLabel = $this->actionLabel($followup->action_type);
         $when      = $followup->scheduled_for->format('h:i A');
 
-        $this->notify($agent->user_id, 'followup_due_soon', '⏰ Follow-up due in 30 minutes', [
+        $this->notify($agent->user_id, 'followup_due_soon', '⏰ Follow-up due now', [
             'body'         => $leadName . ' · ' . $taskLabel . ' · ' . $when,
             'icon'         => '⏰',
             'action_url'   => '/leads/' . $followup->lead_id,
@@ -667,7 +662,7 @@ class NotificationService
                         $decision['lead_id'] ?: $notification->id,
                         $userId,
                         $actor?->name,
-                        $actor?->role,
+                        $actor?->role?->value ?? $actor?->role,
                     );
                 }
             });

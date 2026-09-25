@@ -715,6 +715,25 @@ class DashboardController extends Controller
             ->orderBy('visit_scheduled_at')
             ->get();
 
+        // Attach structured outcomes recorded on each scheduled visit date.
+        // A lead may have multiple actual outings on the same day, so preserve
+        // all matching records rather than assuming a one-to-one appointment.
+        if ($todayVisits->isNotEmpty()) {
+            $todayVisitOutcomes = DB::table('site_visits')
+                ->whereIn('lead_id', $todayVisits->pluck('id'))
+                ->whereBetween('visit_at', [$todayStart, $todayEnd])
+                ->orderBy('visit_at')
+                ->get()
+                ->groupBy('lead_id');
+
+            $todayVisits->each(function ($lead) use ($todayVisitOutcomes) {
+                $outcomes = $todayVisitOutcomes->get($lead->id, collect());
+                $lead->today_visit_outcomes = $outcomes;
+                $lead->today_visit_recorded = $outcomes->isNotEmpty();
+                $lead->today_visit_attended = $outcomes->contains(fn ($visit) => (bool) $visit->client_attended);
+            });
+        }
+
         /* ============================================================
            RECENT LEADS
            ============================================================ */
@@ -792,32 +811,27 @@ class DashboardController extends Controller
             ->whereNotNull('visit_scheduled_at')
             ->count();
 
-        // Actually done = a human recorded a real Site Visit outcome.
-        // Count distinct leads so repeated edits/logs for one visit do not inflate the metric.
-        $actualVisitOutcomeKeys = [
-            'visit_booked_spot', 'visit_interested', 'visit_needs_family',
-            'visit_wants_negotiate', 'visit_wants_other_project',
-            'visit_not_interested', 'visit_no_show', 'site_visit_with_family',
-            'site_visit_arrived_late', 'site_visit_cancelled', 'wants_second_visit',
-        ];
 
-        $actualVisitLeads = function ($query) use ($actualVisitOutcomeKeys) {
-            return $query->whereHas('activities', function ($activityQuery) use ($actualVisitOutcomeKeys) {
-                $activityQuery
-                    ->where('type', 'site_visit')
-                    ->whereIn('outcome_key', $actualVisitOutcomeKeys);
-            });
-        };
+        $structuredVisits = DB::table('site_visits')
+            ->where('client_attended', true);
 
-        $statVisitsDoneActual = $actualVisitLeads($scoped(Lead::query()))->count();
+        if ($scopedLeadIds !== null) {
+            $structuredVisits->whereIn('lead_id', $scopedLeadIds);
+        }
 
-        $statVisitsDoneActualWeek = $actualVisitLeads($scoped(Lead::query()))
-            ->whereHas('activities', function ($activityQuery) use ($actualVisitOutcomeKeys) {
-                $activityQuery
-                    ->where('type', 'site_visit')
-                    ->whereIn('outcome_key', $actualVisitOutcomeKeys)
-                    ->whereBetween('logged_at', [now()->startOfWeek(), now()]);
-            })
+        $statVisitsDoneActual = (clone $structuredVisits)->count();
+
+        $statVisitsDoneActualWeek = (clone $structuredVisits)
+            ->whereBetween('visit_at', [now()->startOfWeek(), now()->endOfWeek()])
+            ->count();
+
+        $statVisitProjectsDone = DB::table('site_visit_projects as svp')
+            ->join('site_visits as sv', 'sv.id', '=', 'svp.site_visit_id')
+            ->where('sv.client_attended', true)
+            ->when(
+                $scopedLeadIds !== null,
+                fn ($q) => $q->whereIn('sv.lead_id', $scopedLeadIds)
+            )
             ->count();
 
         $statVisitsNext7d = $scoped(Lead::query())
@@ -908,6 +922,7 @@ class DashboardController extends Controller
             'statActive',
             'statVisitsScheduled',
             'statVisitsDoneActual',
+            'statVisitProjectsDone',
             'statVisitsDoneActualWeek',
             'statVisitsNext7d',
             'statVisitsToday',

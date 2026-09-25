@@ -102,6 +102,8 @@ class LeadIndexController extends Controller
         $searchFilter  = trim((string) $request->input('search'));
         $agentFilter   = $request->input('agent_id');
         $projectFilter = $request->input('project');
+        $sourceFilter  = trim((string) $request->input('source'));
+        $funnelFilter  = trim((string) $request->input('funnel'));
         $tagFilter     = $request->input('tag_id');
         $labelFilter   = $request->input('label_id');
         $dateRange   = $request->input('date_range', 'all');
@@ -171,26 +173,56 @@ class LeadIndexController extends Controller
                       ->whereNotNull('visit_scheduled_at');
                 break;
             case 'visits_done_actual':
-                $query->whereHas('activities', function ($activityQuery) {
-                    $activityQuery->where('type', 'site_visit')
-                        ->whereIn('outcome_key', [
-                            'visit_booked_spot', 'visit_interested', 'visit_needs_family',
-                            'visit_wants_negotiate', 'visit_wants_other_project',
-                            'visit_not_interested', 'visit_no_show', 'site_visit_with_family',
-                            'site_visit_arrived_late', 'site_visit_cancelled', 'wants_second_visit',
-                        ]);
+                $query->where(function ($visitQuery) {
+                    $visitQuery->whereExists(function ($q) {
+                        $q->selectRaw('1')
+                            ->from('site_visits')
+                            ->whereColumn('site_visits.lead_id', 'leads.id')
+                            ->where('site_visits.client_attended', true);
+                    })->orWhere(function ($legacyQuery) {
+                        $legacyQuery
+                            ->whereNotExists(function ($q) {
+                                $q->selectRaw('1')
+                                    ->from('site_visits')
+                                    ->whereColumn('site_visits.lead_id', 'leads.id');
+                            })
+                            ->whereHas('activities', function ($activityQuery) {
+                                $activityQuery->where('type', 'site_visit')
+                                    ->whereIn('outcome_key', [
+                                        'visit_booked_spot', 'visit_interested', 'visit_needs_family',
+                                        'visit_wants_negotiate', 'visit_wants_other_project',
+                                        'visit_not_interested', 'site_visit_with_family',
+                                    ]);
+                            });
+                    });
                 });
                 break;
+
             case 'visits_done_actual_week':
-                $query->whereHas('activities', function ($activityQuery) {
-                    $activityQuery->where('type', 'site_visit')
-                        ->whereIn('outcome_key', [
-                            'visit_booked_spot', 'visit_interested', 'visit_needs_family',
-                            'visit_wants_negotiate', 'visit_wants_other_project',
-                            'visit_not_interested', 'visit_no_show', 'site_visit_with_family',
-                            'site_visit_arrived_late', 'site_visit_cancelled', 'wants_second_visit',
-                        ])
-                        ->whereBetween('logged_at', [now()->startOfWeek(), now()]);
+                $query->where(function ($visitQuery) {
+                    $visitQuery->whereExists(function ($q) {
+                        $q->selectRaw('1')
+                            ->from('site_visits')
+                            ->whereColumn('site_visits.lead_id', 'leads.id')
+                            ->where('site_visits.client_attended', true)
+                            ->whereBetween('site_visits.visit_at', [now()->startOfWeek(), now()->endOfWeek()]);
+                    })->orWhere(function ($legacyQuery) {
+                        $legacyQuery
+                            ->whereNotExists(function ($q) {
+                                $q->selectRaw('1')
+                                    ->from('site_visits')
+                                    ->whereColumn('site_visits.lead_id', 'leads.id');
+                            })
+                            ->whereHas('activities', function ($activityQuery) {
+                                $activityQuery->where('type', 'site_visit')
+                                    ->whereIn('outcome_key', [
+                                        'visit_booked_spot', 'visit_interested', 'visit_needs_family',
+                                        'visit_wants_negotiate', 'visit_wants_other_project',
+                                        'visit_not_interested', 'site_visit_with_family',
+                                    ])
+                                    ->whereBetween('logged_at', [now()->startOfWeek(), now()->endOfWeek()]);
+                            });
+                    });
                 });
                 break;
             case 'visits_next_7d':
@@ -240,6 +272,32 @@ class LeadIndexController extends Controller
         // Project filter
         if ($projectFilter) {
             $query->where('project_id', (int) $projectFilter);
+        }
+
+        $intakePeriod = $request->input('intake_period');
+        if (in_array($intakePeriod, ['1d', '3d', '7d', '1m', 'q', 'y'], true)) {
+            $intakeNow = now();
+            $intakeFrom = match ($intakePeriod) {
+                '1d' => $intakeNow->copy()->startOfDay(),
+                '3d' => $intakeNow->copy()->subDays(2)->startOfDay(),
+                '7d' => $intakeNow->copy()->subDays(6)->startOfDay(),
+                '1m' => $intakeNow->copy()->startOfMonth(),
+                'q'  => $intakeNow->copy()->startOfQuarter(),
+                'y'  => $intakeNow->copy()->startOfYear(),
+            };
+            $query->whereBetween('leads.created_at', [$intakeFrom, $intakeNow->copy()->endOfDay()]);
+        }
+
+        // Intake source drill-down
+        if ($sourceFilter !== '') {
+            $query->where('source', $sourceFilter);
+        }
+
+        // Actual attended site visit drill-down
+        if ($funnelFilter === 'visited') {
+            $query->whereExists(function ($q) {
+                $q->selectRaw('1')->from('site_visits')->whereColumn('site_visits.lead_id', 'leads.id')->where('site_visits.client_attended', true);
+            });
         }
 
         // Tag filter (single-select)
@@ -471,26 +529,56 @@ class LeadIndexController extends Controller
                       ->whereNotNull('visit_scheduled_at');
                 break;
             case 'visits_done_actual':
-                $query->whereHas('activities', function ($activityQuery) {
-                    $activityQuery->where('type', 'site_visit')
-                        ->whereIn('outcome_key', [
-                            'visit_booked_spot', 'visit_interested', 'visit_needs_family',
-                            'visit_wants_negotiate', 'visit_wants_other_project',
-                            'visit_not_interested', 'visit_no_show', 'site_visit_with_family',
-                            'site_visit_arrived_late', 'site_visit_cancelled', 'wants_second_visit',
-                        ]);
+                $query->where(function ($visitQuery) {
+                    $visitQuery->whereExists(function ($q) {
+                        $q->selectRaw('1')
+                            ->from('site_visits')
+                            ->whereColumn('site_visits.lead_id', 'leads.id')
+                            ->where('site_visits.client_attended', true);
+                    })->orWhere(function ($legacyQuery) {
+                        $legacyQuery
+                            ->whereNotExists(function ($q) {
+                                $q->selectRaw('1')
+                                    ->from('site_visits')
+                                    ->whereColumn('site_visits.lead_id', 'leads.id');
+                            })
+                            ->whereHas('activities', function ($activityQuery) {
+                                $activityQuery->where('type', 'site_visit')
+                                    ->whereIn('outcome_key', [
+                                        'visit_booked_spot', 'visit_interested', 'visit_needs_family',
+                                        'visit_wants_negotiate', 'visit_wants_other_project',
+                                        'visit_not_interested', 'site_visit_with_family',
+                                    ]);
+                            });
+                    });
                 });
                 break;
+
             case 'visits_done_actual_week':
-                $query->whereHas('activities', function ($activityQuery) {
-                    $activityQuery->where('type', 'site_visit')
-                        ->whereIn('outcome_key', [
-                            'visit_booked_spot', 'visit_interested', 'visit_needs_family',
-                            'visit_wants_negotiate', 'visit_wants_other_project',
-                            'visit_not_interested', 'visit_no_show', 'site_visit_with_family',
-                            'site_visit_arrived_late', 'site_visit_cancelled', 'wants_second_visit',
-                        ])
-                        ->whereBetween('logged_at', [now()->startOfWeek(), now()]);
+                $query->where(function ($visitQuery) {
+                    $visitQuery->whereExists(function ($q) {
+                        $q->selectRaw('1')
+                            ->from('site_visits')
+                            ->whereColumn('site_visits.lead_id', 'leads.id')
+                            ->where('site_visits.client_attended', true)
+                            ->whereBetween('site_visits.visit_at', [now()->startOfWeek(), now()->endOfWeek()]);
+                    })->orWhere(function ($legacyQuery) {
+                        $legacyQuery
+                            ->whereNotExists(function ($q) {
+                                $q->selectRaw('1')
+                                    ->from('site_visits')
+                                    ->whereColumn('site_visits.lead_id', 'leads.id');
+                            })
+                            ->whereHas('activities', function ($activityQuery) {
+                                $activityQuery->where('type', 'site_visit')
+                                    ->whereIn('outcome_key', [
+                                        'visit_booked_spot', 'visit_interested', 'visit_needs_family',
+                                        'visit_wants_negotiate', 'visit_wants_other_project',
+                                        'visit_not_interested', 'site_visit_with_family',
+                                    ])
+                                    ->whereBetween('logged_at', [now()->startOfWeek(), now()->endOfWeek()]);
+                            });
+                    });
                 });
                 break;
             case 'visits_next_7d':

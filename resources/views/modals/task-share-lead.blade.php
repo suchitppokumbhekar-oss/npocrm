@@ -327,7 +327,7 @@ Please call and follow up with this lead." }}</textarea>
                 // The share is already committed server-side. Keep this CRM
                 // tab as the work surface and open WhatsApp separately.
                 // Returning to CRM must not depend on WhatsApp closing.
-                shareReturnUrl = data.completion_url || data.redirect_url || ('/leads/{{ $lead->id }}?task_completed=1&completed_followup_id={{ $followup->id }}&lead_tab=history#lead-wb-completion');
+                shareReturnUrl = '/leads/{{ $lead->id }}?focus_work=1#pending-tasks';
                 siteBtn.innerHTML = '<span>📲</span> Opening WhatsApp…';
                 window.NpoWhatsApp.choose('', message, function () {
                     if (shareReturnUrl) window.location.href = shareReturnUrl;

@@ -1,6 +1,7 @@
 @props(['lead'])
 
 @php
+    $leadCardReturnTo = request()->getRequestUri() ?: '/my-leads';
     $visitAt   = $lead->visit_scheduled_at;
     $showVisit = $visitAt && $lead->statusKey() === 'visit_scheduled';
     $createdAt = $lead->created_at;
@@ -33,7 +34,7 @@
     <div class="lead-glimpse-head">
 
         <div class="lead-glimpse-identity">
-            <a href="{{ url('/leads/' . $lead->id) }}"
+            <a href="{{ url('/leads/' . $lead->id) }}?return_to={{ urlencode($leadCardReturnTo) }}"
                class="lead-glimpse-name">
                 {{ $lead->customer_name }}
             </a>
@@ -184,7 +185,7 @@
 
         </a>
 
-        <a href="{{ url('/leads/' . $lead->id) }}"
+        <a href="{{ url('/leads/' . $lead->id) }}?return_to={{ urlencode($leadCardReturnTo) }}"
            class="lead-glimpse-open"
            aria-label="Open {{ $lead->customer_name }}">
             Details →

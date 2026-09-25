@@ -107,42 +107,6 @@
 
             <section class="manager-command-centre">
 
-                {{-- MY WORK --}}
-                <div class="manager-command-block manager-my-work">
-                    <div class="manager-command-heading">
-                        <div>
-                            <span class="manager-command-kicker">PERSONAL QUEUE</span>
-                            <h3>⚡ MY WORK</h3>
-                            <p>Your own leads and follow-ups.</p>
-                        </div>
-
-                        <a href="{{ url('/tasks?scope=personal') }}"
-                           class="manager-command-open">
-                            Open →
-                        </a>
-                    </div>
-
-                    <div class="manager-command-metrics">
-                        <a href="{{ url('/tasks?scope=personal') }}"
-                           class="manager-command-metric metric-danger">
-                            <strong>{{ $personalOverdueCount }}</strong>
-                            <span>Overdue</span>
-                        </a>
-
-                        <a href="{{ url('/tasks?scope=personal') }}"
-                           class="manager-command-metric metric-warn">
-                            <strong>{{ $personalTodayCount }}</strong>
-                            <span>Due Today</span>
-                        </a>
-
-                        <a href="{{ url('/?scope=personal#untouched-work') }}"
-                           class="manager-command-metric metric-new">
-                            <strong>{{ $untouchedLeadCount ?? 0 }}</strong>
-                            <span>New Leads</span>
-                        </a>
-                    </div>
-                </div>
-
                 {{-- MANAGEMENT SCOPE --}}
                 <div class="manager-command-scope">
                     <span class="manager-command-scope-label">MANAGE</span>
@@ -172,6 +136,11 @@
                         $commandToday   = $managerAttentionSummary->sum('today');
                         $commandNew     = $managerAttentionSummary->sum('new');
                         $commandPeople  = $managerAttentionSummary->count();
+
+                        $commandActivity = $businessPulse['team_activity'] ?? collect();
+                        $commandActive   = $commandActivity->where('status', 'active')->count();
+                        $commandIdle     = $commandActivity->where('status', 'idle')->count();
+                        $commandSilent   = $commandActivity->where('status', 'silent')->count();
                     @endphp
 
                     <div id="team-attention"
@@ -184,6 +153,13 @@
                                 <h3>👥 {{ $commandScopeLabel }} — ATTENTION</h3>
                                 <p>Choose the problem first, then the person.</p>
                             </div>
+                        </div>
+
+                        <div class="manager-team-activity">
+                            <span>TEAM ACTIVITY TODAY</span>
+                            <b>🟢 {{ $commandActive }} Active</b>
+                            <b>🟡 {{ $commandIdle }} Idle</b>
+                            <b>🔴 {{ $commandSilent }} Silent</b>
                         </div>
 
                         <div class="manager-problem-tabs"
@@ -649,11 +625,169 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
+                    @if ($todayVisits->isNotEmpty())
+                        <details class="dash-section dash-visit manager-today-visits" open>
+                            <summary class="dash-section-head">
+                                <span class="dsh-arrow">▸</span>
+                                <span class="dsh-icon">🏠</span>
+                                <span class="dsh-title">SITE VISITS TODAY</span>
+                                <span class="dsh-count">{{ $todayVisits->count() }}</span>
+                            </summary>
+
+                            <div class="dash-section-body">
+                                <div class="mgmt-section-note">Monitor today's customer commitments. A passed appointment without a recorded visit needs an update.</div>
+
+                                @foreach ($todayVisits->take(8) as $lead)
+                                    @php
+                                        $visitAt = $lead->visit_scheduled_at;
+                                        $visitRecorded = (bool) ($lead->today_visit_recorded ?? false);
+                                        $visitAttended = (bool) ($lead->today_visit_attended ?? false);
+
+                                        if ($visitRecorded) {
+                                            $visitState = $visitAttended ? '✅ Visit recorded' : '⚪ No-show recorded';
+                                            $visitClass = $visitAttended ? 'green' : 'muted';
+                                        } elseif ($visitAt->isPast()) {
+                                            $visitState = '🚨 Needs update';
+                                            $visitClass = 'red';
+                                        } elseif ($visitAt->lte(now()->copy()->addHours(2))) {
+                                            $visitState = '⏰ Due soon';
+                                            $visitClass = 'orange';
+                                        } else {
+                                            $visitState = '📅 Upcoming';
+                                            $visitClass = 'blue';
+                                        }
+                                    @endphp
+
+                                    <a href="{{ url('/leads/' . $lead->id) . '?return_to=' . urlencode(url()->full()) }}"
+                                       class="visit-row visit-row-link">
+                                        <div style="flex:1;min-width:0;">
+                                            <div class="visit-name-row">
+                                                <strong class="visit-name">{{ $lead->customer_name }}</strong>
+                                                <span class="badge {{ $visitClass }}" style="font-size:10px;">{{ $visitState }}</span>
+                                            </div>
+                                            <div class="muted" style="font-size:12px;margin-top:3px;">
+                                                🏗️ {{ $lead->project?->name ?? 'No project' }}
+                                                · 👤 <strong>{{ $lead->agent?->user?->name ?? 'Unassigned' }}</strong>
+                                            </div>
+                                        </div>
+                                        <span class="visit-time-badge">{{ $visitAt->format('h:i A') }}</span>
+                                    </a>
+                                @endforeach
+
+                                @if ($todayVisits->count() > 8)
+                                    <a href="{{ url('/leads?preset=visits_today' . $scopeSuffix) }}" class="mgmt-more-link">View all {{ $todayVisits->count() }} visits →</a>
+                                @endif
+                            </div>
+                        </details>
+                    @endif
+
+                    {{-- TEAM MANAGER — PIPELINE EXCEPTIONS --}}
+                    @php
+                        $controlPipeline = collect($businessPulse['pipeline_aging'] ?? []);
+
+                        $controlStaleCount = $controlPipeline->sum(
+                            fn ($stage) => (int) ($stage->stale_count ?? 0)
+                        );
+
+                        $controlStaleLeads = $controlPipeline
+                            ->flatMap(function ($stage) {
+                                return collect($stage->stale_leads ?? [])->map(function ($lead) use ($stage) {
+                                    return (object) [
+                                        'id' => $lead->id,
+                                        'name' => $lead->name,
+                                        'age_days' => $lead->age_days,
+                                        'status_label' => $stage->label,
+                                    ];
+                                });
+                            })
+                            ->sortByDesc('age_days')
+                            ->values();
+
+                        $controlNegotiationCount = (int) ($statNegotiation ?? 0);
+
+                        $controlTomorrowCount = $tomorrowTasks->count();
+                    @endphp
+
+                    <details class="dash-section manager-pipeline-control"
+                             @if($controlStaleCount > 0) open @endif>
+                        <summary class="dash-section-head">
+                            <span class="dsh-arrow">▸</span>
+                            <span class="dsh-icon">🎯</span>
+                            <span class="dsh-title">PIPELINE CONTROL</span>
+
+                            @if ($controlStaleCount > 0)
+                                <span class="dsh-count">{{ $controlStaleCount }}</span>
+                            @endif
+                        </summary>
+
+                        <div class="dash-section-body">
+                            <div class="mgmt-section-note">
+                                Exceptions that may need manager intervention. Detailed pipeline analysis remains in Business Pulse.
+                            </div>
+
+                            <div class="manager-command-metrics">
+                                <a href="#pipeline-aging"
+                                   class="manager-command-metric {{ $controlStaleCount > 0 ? 'metric-danger' : '' }}">
+                                    <strong>{{ $controlStaleCount }}</strong>
+                                    <span>Stale 7d+</span>
+                                </a>
+
+                                <a href="{{ url('/leads?status=negotiation' . $scopeSuffix) }}"
+                                   class="manager-command-metric {{ $controlNegotiationCount > 0 ? 'metric-warn' : '' }}">
+                                    <strong>{{ $controlNegotiationCount }}</strong>
+                                    <span>Negotiation</span>
+                                </a>
+
+                                <a href="#tomorrow-work"
+                                   class="manager-command-metric {{ $controlTomorrowCount > 0 ? 'metric-warn' : '' }}">
+                                    <strong>{{ $controlTomorrowCount }}</strong>
+                                    <span>Tomorrow</span>
+                                </a>
+                            </div>
+
+                            @if ($controlStaleCount > 0)
+                                <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+                                    @foreach ($controlStaleLeads->take(5) as $staleLead)
+                                        <a href="{{ url('/leads/' . $staleLead->id . '?return_to=' . urlencode(url()->full())) }}"
+                                           class="pulse-link-row"
+                                           style="display:flex;align-items:center;justify-content:space-between;gap:10px;text-decoration:none;">
+                                            <span style="min-width:0;">
+                                                <strong style="font-size:12px;">{{ $staleLead->name }}</strong>
+                                                <span class="muted" style="font-size:11px;">
+                                                    · {{ $staleLead->status_label }}
+                                                </span>
+                                            </span>
+
+                                            <span class="badge red" style="font-size:10px;white-space:nowrap;">
+                                                {{ $staleLead->age_days }}d
+                                            </span>
+                                        </a>
+                                    @endforeach
+
+                                    @if ($controlStaleCount > 5)
+                                        <div class="muted" style="font-size:11px;">
+                                            + {{ $controlStaleCount - 5 }} more stale pipeline lead{{ ($controlStaleCount - 5) === 1 ? '' : 's' }} in Business Pulse.
+                                        </div>
+                                    @endif
+                                </div>
+                            @else
+                                <div style="margin-top:10px;font-size:12px;">
+                                    ✅ No lead has been stuck in its current pipeline stage for 7+ days.
+                                </div>
+                            @endif
+                        </div>
+                    </details>
+
+
+                    @include('partials.manager-my-work')
+
                     {{-- Management work is now handled by the command centre above.
                          Legacy manager sections remain preserved as partials but are
                          intentionally not rendered here. --}}
 
                 @else
+
+                    @include('partials.manager-my-work')
 
                     {{-- PERSONAL FIRST-TOUCH QUEUE --}}
                     @if ($agentId)
@@ -704,31 +838,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
 
         @endif
-        @if ($todayVisits->isNotEmpty())
-            <details class="dash-section dash-visit">
-                <summary class="dash-section-head">
-                    <span class="dsh-arrow">▸</span>
-                    <span class="dsh-icon">🏠</span>
-                    <span class="dsh-title">SITE VISITS TODAY</span>
-                    <span class="dsh-count">{{ $todayVisits->count() }}</span>
-                </summary>
-                <div class="dash-section-body">
-                    <div class="mgmt-section-note">Today's visits are shown as a quick check. Use the lead record for full details.</div>
-                    @foreach ($todayVisits->take(8) as $lead)
-                        <a href="{{ url('/leads/' . $lead->id) . '?return_to=' . urlencode(url()->full()) }}" class="visit-row visit-row-link">
-                            <div style="flex:1;min-width:0;">
-                                <div class="visit-name-row"><strong class="visit-name">{{ $lead->customer_name }}</strong></div>
-                                <div class="muted" style="font-size:12px;margin-top:3px;">🏗️ {{ $lead->project?->name ?? 'No project' }} · 👤 <strong>{{ $lead->agent?->user?->name ?? 'Unassigned' }}</strong></div>
-                            </div>
-                            <span class="visit-time-badge">{{ $lead->visit_scheduled_at->format('h:i A') }}</span>
-                        </a>
-                    @endforeach
-                    @if ($todayVisits->count() > 8)
-                        <a href="{{ url('/leads?preset=visits_today' . $scopeSuffix) }}" class="mgmt-more-link">View all {{ $todayVisits->count() }} visits →</a>
-                    @endif
-                </div>
-            </details>
-        @endif
+
 
         @if ($reactivationTasks->isNotEmpty())
             <details class="dash-section">
@@ -1409,14 +1519,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         <span class="bt-count">{{ number_format($statVisitsScheduled) }}</span>
                         <span class="bt-label">Scheduled (current)</span>
                     </a>
-                    <a href="{{ url('/leads?preset=visits_done_actual' . $scopeSuffix) }}" class="biz-tile bt-visitdone">
+                    <div class="biz-tile bt-visitdone">
                         <span class="bt-count">{{ number_format($statVisitsDoneActual) }}</span>
-                        <span class="bt-label">Actually Done (all)</span>
-                    </a>
-                    <a href="{{ url('/leads?preset=visits_done_actual_week' . $scopeSuffix) }}" class="biz-tile">
+                        <span class="bt-label">Completed Outings</span>
+                    </div>
+                    <div class="biz-tile bt-visitdone">
+                        <span class="bt-count">{{ number_format($statVisitProjectsDone) }}</span>
+                        <span class="bt-label">Projects Visited</span>
+                    </div>
+                    <div class="biz-tile">
                         <span class="bt-count">{{ number_format($statVisitsDoneActualWeek) }}</span>
-                        <span class="bt-label">Actually Done This Week</span>
-                    </a>
+                        <span class="bt-label">Outings This Week</span>
+                    </div>
                     <a href="{{ url('/leads?preset=visits_next_7d' . $scopeSuffix) }}" class="biz-tile bt-next">
                         <span class="bt-count">{{ number_format($statVisitsNext7d) }}</span>
                         <span class="bt-label">Next 7 Days</span>

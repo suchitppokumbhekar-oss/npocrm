@@ -25,6 +25,7 @@ class ActivityController extends Controller
             'whatsapp_sent_kind'    => 'nullable|in:intro,details',
             'custom_next_at'        => 'nullable|date|after:now',
             'visit_scheduled_at'    => 'nullable|date',
+            'visit_contact_method'  => 'nullable|in:call,whatsapp',
             'lost_reason'           => 'nullable|string|max:2000',
             'property_area_sqft'    => 'nullable|numeric|min:0',
             'rate_per_sqft'         => 'nullable|numeric|min:0',

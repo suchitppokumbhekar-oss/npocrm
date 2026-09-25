@@ -42,25 +42,9 @@ class Followup extends Model
             $followup->scheduled_for = app(BusinessHoursService::class)->automatic($when);
         });
 
-        // Deliver the immediate work-handoff notification only after the
-        // surrounding transaction commits. This prevents a rolled-back task
-        // from leaving a phantom notification on the agent's phone.
-        static::created(function (self $followup): void {
-            if ($followup->status !== 'pending' || ! $followup->agent_id) {
-                return;
-            }
-
-            $send = function () use ($followup): void {
-                try {
-                    app(\App\Services\NotificationService::class)
-                        ->notifyFollowupAssigned($followup);
-                } catch (\Throwable $e) {
-                    report($e);
-                }
-            };
-
-            \Illuminate\Support\Facades\DB::afterCommit($send);
-        });
+        // Follow-up creation is intentionally silent.
+        // Alerts are delivered by the scheduled notification process only
+        // when a pending follow-up becomes due or overdue.
     }
 
     public function lead()           { return $this->belongsTo(Lead::class); }

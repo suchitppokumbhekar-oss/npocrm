@@ -65,12 +65,27 @@ class LeadActivityProcessor
         $shouldAdvance = false;
         $advanceToKey  = null;
         $firstTouchNeedsContacted = false;
+        $visitSchedulingNeedsContacted = false;
+        $visitContactMethod = null;
 
         if ($outcome && $outcome->suggestedStatus) {
             $suggestedKey = $outcome->suggestedStatus->key;
             $validationFrom = $firstTouchStage ? 'attempted' : $currentKey;
             if ($firstTouchStage && ! in_array($suggestedKey, ['attempted', 'lost', 'contacted'], true)) {
                 $firstTouchNeedsContacted = true;
+            }
+
+            $isUncontactedVisitScheduling = in_array($currentKey, ['new', 'external_shared', 'attempted'], true)
+                && $suggestedKey === 'visit_scheduled';
+
+            if ($isUncontactedVisitScheduling) {
+                $visitContactMethod = $payload['visit_contact_method'] ?? null;
+                if (! in_array($visitContactMethod, ['call', 'whatsapp'], true)) {
+                    throw new \DomainException('Please select how this site visit was scheduled: Call or WhatsApp.');
+                }
+
+                $type = $visitContactMethod;
+                $visitSchedulingNeedsContacted = true;
             }
 
             // A first human action always leaves New/Shared Externally. If the
@@ -80,7 +95,7 @@ class LeadActivityProcessor
             if ($suggestedKey !== $currentKey) {
                 $allowed = $this->settings->allowedTransitionsFrom($validationFrom);
                 $validPath = in_array($suggestedKey, $allowed, true);
-                if ($firstTouchNeedsContacted) {
+                if ($firstTouchNeedsContacted || $visitSchedulingNeedsContacted) {
                     $validPath = in_array('contacted', $allowed, true)
                         && in_array($suggestedKey, $this->settings->allowedTransitionsFrom('contacted'), true);
                 }
@@ -181,7 +196,7 @@ class LeadActivityProcessor
         /* ---- 7. Atomic write ---- */
         $result = DB::transaction(function () use (
             $lead, $followup, $payload, $outcome, $type,
-            $shouldAdvance, $advanceToKey, $firstTouchNeedsContacted,
+            $shouldAdvance, $advanceToKey, $firstTouchNeedsContacted, $visitSchedulingNeedsContacted,
             $bookingDetails, $brokerageDetails,
             $alsoWhatsapp, $whatsappKind, $customNextAt
         ) {
@@ -239,6 +254,13 @@ class LeadActivityProcessor
                         true
                     );
                 }
+            }
+
+            if (! $firstTouchStage && $visitSchedulingNeedsContacted) {
+                $lead = $this->statusService->change(
+                    $lead, 'contacted', null, null, null, true,
+                    null, null, [], [], 'automated', true
+                );
             }
 
             // 7c. If completing a specific task, mark it done

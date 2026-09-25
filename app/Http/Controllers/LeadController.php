@@ -249,7 +249,7 @@ class LeadController extends Controller
         $siteVisitProjectOptions = $projects;
         $hasConfirmedSiteVisit = (bool) $lead->visit_scheduled_at
             || $activities->contains(fn ($a) => in_array((string) $a->outcome_key, ['site_visit_scheduled', 'visit_scheduled'], true));
-        $canRecordSiteVisit = $this->access->canViewLead($lead) && $hasConfirmedSiteVisit;
+        $canRecordSiteVisit = $this->access->canWorkLead($lead) && $hasConfirmedSiteVisit;
 
         // Preserve the existing lead-management capability for the view.
         // Individual management actions still enforce their own permissions.
@@ -349,7 +349,8 @@ class LeadController extends Controller
         // Schedule the first-contact follow-up for the assigned agent
         $this->scheduleFirstContact($lead);
 
-        return redirect('/')->with('success', '✅ Lead saved! First-contact follow-up scheduled.');
+        return redirect('/leads/' . $lead->id . '?focus_work=1&return_to=' . rawurlencode('/') . '#pending-tasks')
+            ->with('success', '✅ Lead saved! First-contact follow-up scheduled.');
     }
 
     /**
@@ -443,13 +444,7 @@ class LeadController extends Controller
             ->where('auto_created', true)
             ->update(['status' => 'cancelled', 'updated_at' => now()]);
 
-        $delayMinutes = (int) $this->settings->get('first_contact_delay_minutes', 15);
-        $delayMinutes = max(1, $delayMinutes);
-
-        $this->followups->scheduleForAgent(
-            $lead, (int) $lead->agent_id, now()->addMinutes($delayMinutes),
-            'followup_call', 'high', true
-        );
+        $this->followups->scheduleNewLeadCall($lead);
     }
 
     /* ============================================================
@@ -842,7 +837,7 @@ public function unshareAgent(Request $request)
      * Record one actual site visit. A lead may have unlimited visits and each
      * visit may contain multiple projects, with one independent outcome per
      * project. This does not overwrite the lead's project or scheduled-visit
-     * field and does not independently change pipeline status.
+     * field; an attended visit advances a currently scheduled lead to Visit Done.
      */
     public function recordSiteVisit(Request $request)
     {
@@ -862,8 +857,8 @@ public function unshareAgent(Request $request)
         ]);
 
         $lead = Lead::with(['project', 'agent.user'])->findOrFail((int) $validated['lead_id']);
-        if (! $this->access->canViewLead($lead)) {
-            return back()->with('error', '🚫 You are not allowed to view this lead.');
+        if (! $this->access->canWorkLead($lead)) {
+            return back()->with('error', '🚫 You are not allowed to record a site visit for this lead.');
         }
 
         // An actual site visit may only be recorded after the lead has reached
@@ -977,6 +972,26 @@ public function unshareAgent(Request $request)
             'updated_at' => now(),
             'action_source' => 'manual',
         ]);
+
+        // An attended actual visit completes the scheduled-visit pipeline stage.
+        // Only advance from visit_scheduled; never move a later-stage lead
+        // backwards because another historical visit was recorded.
+        if ((bool) $validated['client_attended'] && $lead->status === 'visit_scheduled') {
+            $this->statusService->change(
+                $lead->fresh(),
+                'visit_done',
+                null,          // lostReason
+                null,          // visitScheduledAt
+                null,          // revivalReason
+                true,          // skipActivityCheck: site_visit_recorded was just logged
+                null,          // nurtureScheduledAt
+                null,          // lostReasonKey
+                [],            // bookingDetails
+                [],            // brokerageDetails
+                'manual',      // actionSource
+                false          // keep normal visit_done automation/follow-up
+            );
+        }
 
         return redirect('/leads/' . $lead->id . '#site-visits')
             ->with('success', '🏠 Site visit #' . $visitId . ' recorded with ' . $projects->count() . ' project outcome' . ($projects->count() === 1 ? '' : 's') . '.');

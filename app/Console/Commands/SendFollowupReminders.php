@@ -9,19 +9,18 @@ use Illuminate\Console\Command;
 class SendFollowupReminders extends Command
 {
     protected $signature   = 'followup:remind';
-    protected $description = 'Send one reminder about 30 minutes before a follow-up is due.';
+    protected $description = 'Send one reminder when a pending follow-up becomes due.';
 
     public function handle(NotificationService $notifications): int
     {
         $now = now();
 
-        // The scheduler runs every five minutes. Keep a tight occurrence window
-        // so a follow-up gets at most one reminder for each scheduled occurrence.
+        // Never notify before the scheduled time. Include all pending work
+        // whose due time has arrived so scheduler downtime cannot cause a
+        // missed due alert. Per-follow-up deduplication below prevents repeats.
         $due = Followup::where('status', 'pending')
-            ->whereBetween('scheduled_for', [
-                $now->copy()->addMinutes(25),
-                $now->copy()->addMinutes(35),
-            ])
+            ->whereNotNull('scheduled_for')
+            ->where('scheduled_for', '<=', $now)
             ->with(['lead', 'agent.user'])
             ->get();
 
@@ -31,10 +30,7 @@ class SendFollowupReminders extends Command
                 ->where('type', 'followup_due_soon')
                 ->where('related_type', 'followup')
                 ->where('related_id', $followup->id)
-                ->whereBetween('created_at', [
-                    $followup->scheduled_for->copy()->subMinutes(35),
-                    $followup->scheduled_for->copy()->subMinutes(25),
-                ])
+                ->where('created_at', '>=', $followup->scheduled_for)
                 ->exists();
 
             if ($before) {
@@ -45,7 +41,7 @@ class SendFollowupReminders extends Command
             $count++;
         }
 
-        $this->info("✅ Sent {$count} due-soon reminder(s).");
+        $this->info("✅ Sent {$count} due reminder(s).");
         return self::SUCCESS;
     }
 }

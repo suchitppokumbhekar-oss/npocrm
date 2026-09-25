@@ -115,6 +115,32 @@ class FollowupService
         ]);
     }
 
+    /**
+     * A genuinely new assigned lead must always start with one immediately
+     * actionable Call. This is intentionally not business-hours-normalized:
+     * the lead has just arrived and must enter the owner's work queue now.
+     */
+    public function scheduleNewLeadCall(Lead $lead): ?Followup
+    {
+        if (! $lead->agent_id) {
+            return null;
+        }
+
+        Followup::where('lead_id', $lead->id)
+            ->where('status', 'pending')
+            ->where('auto_created', true)
+            ->update(['status' => 'cancelled', 'updated_at' => now()]);
+
+        return $this->scheduleForAgent(
+            $lead,
+            (int) $lead->agent_id,
+            now(),
+            'call',
+            'high',
+            false
+        );
+    }
+
     public function scheduleForAgent(
         Lead $lead,
         int $agentId,
