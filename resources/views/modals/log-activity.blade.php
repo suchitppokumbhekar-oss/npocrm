@@ -285,39 +285,11 @@
         visitMethodValue.value = '';
         visitMethodBtns.forEach(function (btn) { btn.classList.remove('is-selected'); });
         visitF.style.display = 'none';      visitInput.required = false;
-OLD;
-if (substr_count($s,$old)!==1) { fwrite(STDERR,"REFUSED: reset mismatch\n"); exit(23); }
-$s=str_replace($old,$new,$s);
-
-$old=<<<'OLD'
-            var suggestedKey = statusesById[suggId];
-            var canAdvance   = allowedKeys.indexOf(suggestedKey) !== -1;
-
-            if (canAdvance) {
-OLD;
-$new=<<<'NEW'
-            var suggestedKey = statusesById[suggId];
-            var canAdvance   = allowedKeys.indexOf(suggestedKey) !== -1;
-
-            var uncontactedVisit =
-                ['new', 'external_shared', 'attempted'].indexOf(LEAD_STATUS) !== -1
-                && suggestedKey === 'visit_scheduled';
-
-            var visitViaContact =
-                uncontactedVisit
-                && (
-                    (LEAD_STATUS === 'attempted' && allowedKeys.indexOf('contacted') !== -1)
-                    ||
-                    ((LEAD_STATUS === 'new' || LEAD_STATUS === 'external_shared')
-                        && allowedKeys.indexOf('attempted') !== -1)
-                );
-
-            if (visitViaContact) canAdvance = true;
-
-            if (canAdvance) {
         lostF.style.display = 'none';       lostInput.required = false;
         bookingF.style.display = 'none';    bookingAmt.required = false;
-        waF.style.display = typeSel.value === 'call' ? 'block' : 'none'; waCb.checked = false; waKindF.style.display = 'none';
+        waF.style.display = typeSel.value === 'call' ? 'block' : 'none';
+        waCb.checked = false;
+        waKindF.style.display = 'none';
     }
 
     function rebuildOutcomes() {
@@ -387,6 +359,21 @@ $new=<<<'NEW'
             var suggestedKey = statusesById[suggId];
             var canAdvance   = allowedKeys.indexOf(suggestedKey) !== -1;
 
+            var uncontactedVisit =
+                ['new', 'external_shared', 'attempted'].indexOf(LEAD_STATUS) !== -1
+                && suggestedKey === 'visit_scheduled';
+
+            var visitViaContact =
+                uncontactedVisit
+                && (
+                    (LEAD_STATUS === 'attempted' && allowedKeys.indexOf('contacted') !== -1)
+                    ||
+                    ((LEAD_STATUS === 'new' || LEAD_STATUS === 'external_shared')
+                        && allowedKeys.indexOf('attempted') !== -1)
+                );
+
+            if (visitViaContact) canAdvance = true;
+
             if (canAdvance) {
                 txt += '  ·  💡 Suggest: ' + (statusesByKey[suggestedKey] || suggestedKey);
 
@@ -395,9 +382,11 @@ $new=<<<'NEW'
                     lostInput.required = true;
                 } else if (requiresDateById[suggId]) {
                     if (uncontactedVisit) {
-                        visitMethodF.style.display = 'block';
-                        visitF.style.display = 'none';
-                        visitInput.required = false;
+                        visitMethodValue.value =
+                            typeSel.value === 'whatsapp' ? 'whatsapp' : 'call';
+                        visitMethodF.style.display = 'none';
+                        visitF.style.display = 'block';
+                        visitInput.required = true;
                     } else {
                         visitF.style.display = 'block';
                         visitInput.required = true;
