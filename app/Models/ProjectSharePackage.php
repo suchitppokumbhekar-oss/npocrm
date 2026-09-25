@@ -1,0 +1,66 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class ProjectSharePackage extends Model
+{
+    public $timestamps = false;
+
+    protected $fillable = [
+        'token_hash',
+        'lead_id',
+        'project_id',
+        'created_by_user_id',
+        'channel',
+        'recipient_phone',
+        'message',
+        'share_status',
+        'confirmed_at',
+        'confirmed_by_user_id',
+        'failure_reason',
+        'expires_at',
+        'revoked_at',
+        'revoked_by_user_id',
+        'last_viewed_at',
+        'view_count',
+        'created_at',
+    ];
+
+    protected $casts = [
+        'share_status' => 'string',
+        'confirmed_at' => 'datetime',
+        'confirmed_by_user_id' => 'integer',
+        'expires_at' => 'datetime',
+        'revoked_at' => 'datetime',
+        'last_viewed_at' => 'datetime',
+        'view_count' => 'integer',
+        'created_at' => 'datetime',
+    ];
+
+    public function lead()
+    {
+        return $this->belongsTo(Lead::class);
+    }
+
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    public function files()
+    {
+        return $this->hasMany(ProjectSharePackageFile::class);
+    }
+
+    public function isAvailable(): bool
+    {
+        return ! $this->revoked_at && $this->expires_at && $this->expires_at->isFuture();
+    }
+}

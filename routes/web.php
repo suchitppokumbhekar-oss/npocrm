@@ -861,3 +861,41 @@ Route::post('/admin/booking-finance/salary/{agentId}', [\App\Http\Controllers\Bo
 Route::post('/admin/booking-finance/import/preview', [\App\Http\Controllers\BookingFinanceController::class, 'importPreview'])->name('admin.booking-finance.import.preview');
 Route::post('/admin/booking-finance/import/{batchId}/commit', [\App\Http\Controllers\BookingFinanceController::class, 'importCommit'])->where('batchId','[0-9]+')->name('admin.booking-finance.import.commit');
 Route::post('/admin/booking-finance/simulate', [\App\Http\Controllers\BookingFinanceController::class, 'simulate'])->name('admin.booking-finance.simulate');
+
+
+/* Project media, managed documents and customer project sharing */
+Route::get('/share/project/{token}/file/{fileId}', [\App\Http\Controllers\ProjectShareController::class, 'file'])
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->where('fileId', '[0-9]+')
+    ->name('project-share.file');
+// ============================================================
+// PASSWORD RESET (public)
+// ============================================================
+
+Route::get('/share/project/{token}/file/{fileId}', [\App\Http\Controllers\ProjectShareController::class, 'file'])
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->where('fileId', '[0-9]+')
+    ->name('project-share.file');
+// ============================================================
+// PASSWORD RESET (public)
+// ============================================================
+
+Route::post('/leads/{leadId}/project-share/{packageId}/confirm', [\App\Http\Controllers\ProjectShareController::class, 'confirm'])->where(['leadId' => '[0-9]+', 'packageId' => '[0-9]+'])->name('project-share.confirm');
+
+Route::post('/leads/{leadId}/project-share/{packageId}/confirm', [\App\Http\Controllers\ProjectShareController::class, 'confirm'])->where(['leadId' => '[0-9]+', 'packageId' => '[0-9]+'])->name('project-share.confirm');
+
+Route::get('/projects/{id}/media', [\App\Http\Controllers\ProjectController::class, 'media'])->where('id','[0-9]+')->name('projects.media');
+
+Route::post('/documents/upload', [\App\Http\Controllers\ManagedDocumentController::class, 'upload'])->name('documents.upload');
+
+Route::get('/documents/{id}/view', [\App\Http\Controllers\ManagedDocumentController::class, 'view'])->where('id', '[0-9]+')->name('documents.view');
+
+Route::get('/documents/{id}/download', [\App\Http\Controllers\ManagedDocumentController::class, 'download'])->where('id', '[0-9]+')->name('documents.download');
+
+Route::post('/documents/{id}/replace', [\App\Http\Controllers\ManagedDocumentController::class, 'replace'])->where('id', '[0-9]+')->name('documents.replace');
+
+Route::post('/documents/{id}/metadata', [\App\Http\Controllers\ManagedDocumentController::class, 'updateMetadata'])->where('id', '[0-9]+')->name('documents.updateMetadata');
+
+Route::post('/documents/{id}/approve-share', [\App\Http\Controllers\ManagedDocumentController::class, 'approveShare'])->where('id', '[0-9]+')->name('documents.approveShare');
+
+Route::post('/documents/{id}/remove', [\App\Http\Controllers\ManagedDocumentController::class, 'remove'])->where('id', '[0-9]+')->name('documents.remove');

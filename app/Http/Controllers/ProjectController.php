@@ -2,11 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Agent;
+use App\Models\LeadAgent;
 use App\Models\Project;
+use App\Models\ManagedFile;
+use App\Services\AccessService;
+use App\Services\TeamService;
 use Illuminate\Http\Request;
 
 class ProjectController extends Controller
 {
+    public function __construct(
+        private AccessService $access,
+        private TeamService $teams,
+    ) {}
+
     /**
      * Project master list. Agents/managers see only projects routed to their scope.
      * Admins see all projects.
@@ -112,6 +122,8 @@ class ProjectController extends Controller
 
         $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
 
+        // Lead intake project search: every active project is selectable.
+        // Routing controls assignment, not project selection.
         $query = \App\Models\Project::active()
             ->where(function ($qq) use ($like) {
                 $qq->where('name', 'like', $like)
@@ -119,9 +131,57 @@ class ProjectController extends Controller
                    ->orWhere('rera_number', 'like', $like);
             });
 
-        // Respect role scoping — agents see only their visible projects
-        // Lead intake project search: every active project is selectable.
-        // Routing controls assignment, not project selection.
+        $context = (string) $request->input('context', '');
+        $source = (string) $request->input('source', '');
+
+        if ($context === 'lead_filter') {
+            $userId = (int) session('user_id');
+            $role = (string) session('user_role');
+            $agentIds = [];
+
+            if ($source === 'mine') {
+                $selfAgentId = Agent::where('user_id', $userId)->value('id');
+                $agentIds = $selfAgentId ? [(int) $selfAgentId] : [];
+            } elseif ($role === 'admin' && $this->access->hasDelegatedProfile()) {
+                $agentIds = $this->access->visibleAgentIds();
+            } elseif ($role === 'team_manager') {
+                $scope = $request->input('scope') === 'delegated' ? 'delegated' : 'team';
+
+                if ($scope === 'delegated') {
+                    $agentIds = $this->access->visibleAgentIds();
+                } else {
+                    $agentIds = $this->teams->agentIdsForManager($userId);
+                    $agentIds = array_values(array_intersect(
+                        $agentIds,
+                        $this->access->visibleAgentIds()
+                    ));
+                }
+            } elseif ($role === 'agent') {
+                $selfAgentId = Agent::where('user_id', $userId)->value('id');
+                $agentIds = $selfAgentId ? [(int) $selfAgentId] : [];
+            } elseif ($role === 'admin') {
+                $agentIds = null;
+            }
+
+            if ($agentIds !== null) {
+                $leadIds = empty($agentIds)
+                    ? []
+                    : LeadAgent::query()
+                        ->whereIn('agent_id', $agentIds)
+                        ->where('is_active', true)
+                        ->pluck('lead_id')
+                        ->unique()
+                        ->values()
+                        ->all();
+
+                $query->whereHas('leads', function ($leadQuery) use ($leadIds) {
+                    $leadQuery->whereIn('id', ! empty($leadIds) ? $leadIds : [-1]);
+                });
+            }
+        } else {
+            // Default picker behavior remains routing-based.
+            $query->visibleTo(session('user_id'), session('user_role'));
+        }
 
         $rows = $query->orderBy('name')->limit(20)->get(['id', 'name', 'location']);
 
@@ -133,6 +193,40 @@ class ProjectController extends Controller
             ])->values(),
         ]);
     }
+    public function media(int $id)
+    {
+        if (! session('user_id')) return redirect('/login');
+
+        $project = Project::query()
+            ->visibleTo((int) session('user_id'), (string) session('user_role'))
+            ->findOrFail($id);
+
+        $media = ManagedFile::query()
+            ->with(['uploader', 'shareApprover', 'links'])
+            ->whereHas('links', fn ($q) => $q
+                ->where('entity_type', 'project')
+                ->where('entity_id', $project->id)
+                ->where('relationship', 'project_media'))
+            ->orderBy('document_category')
+            ->orderByDesc('version_number')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $canUploadMedia = true;
+        $canManageMedia = $this->access->isUnrestrictedAdmin()
+            || $this->access->can('project_media.manage');
+        $canApproveShare = $this->access->isUnrestrictedAdmin()
+            || $this->access->can('documents.approve_share');
+        $canRemoveOwn = session('user_role') === 'agent'
+            || $this->access->can('documents.remove_own');
+        $canReplaceOwn = session('user_role') === 'agent'
+            || $this->access->can('documents.replace_own');
+        $isSuperAdmin = app(\App\Services\SuperAdminService::class)->isSuperAdmin((int) session('user_id'));
+
+        return view('projects.media', compact('project', 'media', 'canUploadMedia', 'canManageMedia', 'canApproveShare', 'canRemoveOwn', 'canReplaceOwn', 'isSuperAdmin'));
+    }
+
+
     
         /**
      * Update an existing project (name, location, RERA, status).
