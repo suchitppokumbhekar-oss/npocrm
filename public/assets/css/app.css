@@ -909,6 +909,7 @@ body{padding:var(--s-5);font-size:16px}
 .tag-option.tag-slate.is-selected  { background: #64748b; }
 .tag-option.tag-purple.is-selected { background: #8b5cf6; }
 .tag-option.tag-teal.is-selected   { background: #14b8a6; }
+.tag-option.tag-green.is-selected  { background: #15803d; }
 
 /* Fallback for browsers without :has — checked radios still style */
 .tag-option:has(input:checked) {
@@ -922,6 +923,7 @@ body{padding:var(--s-5);font-size:16px}
 .tag-option.tag-slate:has(input:checked)  { background: #64748b; }
 .tag-option.tag-purple:has(input:checked) { background: #8b5cf6; }
 .tag-option.tag-teal:has(input:checked)   { background: #14b8a6; }
+.tag-option.tag-green:has(input:checked) { background: #15803d; }
 
 /* Label group accordion */
 .label-group {
@@ -1116,6 +1118,7 @@ body{padding:var(--s-5);font-size:16px}
 .tag-slate  { background: #64748b; }
 .tag-purple { background: #8b5cf6; }
 .tag-teal   { background: #14b8a6; }
+.tag-green  { background: #15803d; }
 
 /* ============================================================
    LEAD DETAIL — bigger, more prominent chips
@@ -1319,6 +1322,7 @@ a.lead-label-chip:focus-visible {
 .tag-filter-chip.tag-slate.active  { background: #64748b; border-color: #64748b; }
 .tag-filter-chip.tag-purple.active { background: #8b5cf6; border-color: #8b5cf6; }
 .tag-filter-chip.tag-teal.active   { background: #14b8a6; border-color: #14b8a6; }
+.tag-filter-chip.tag-green.active  { background: #15803d; border-color: #15803d; }
 
 /* ============================================================
    DASHBOARD — lead rows with chips

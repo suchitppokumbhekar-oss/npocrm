@@ -8,8 +8,8 @@
         str_contains($key, 'whatsapp')      => ['💬', 'WhatsApp', 'wa'],
 
         $key === 'visit_reminder'           => ['🏠', 'Confirm Visit', 'visit'],
-        $key === 'visit_feedback_call'      => ['🏠', 'Post-Visit Feedback', 'visit'],
-        $key === 'visit_outcome_call'       => ['🏠', 'Visit Outcome', 'visit'],
+        $key === 'visit_feedback_call'      => ['🏠', 'Visit Outcome', 'visit'],
+        $key === 'visit_outcome_call'       => ['🏠', 'Post-Visit Feedback', 'visit'],
         $key === 'confirm_site_visit'       => ['🏠', 'Confirm Visit', 'visit'],
         $key === 'post_visit_call'          => ['🏠', 'Post-Visit Call', 'visit'],
 
