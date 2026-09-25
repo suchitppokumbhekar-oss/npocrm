@@ -6,6 +6,7 @@ use App\Models\Activity;
 use App\Models\Agent;
 use App\Models\Followup;
 use App\Models\Lead;
+use App\Models\ManagedFile;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\LeadAssignmentService;
@@ -271,6 +272,49 @@ class LeadController extends Controller
             $canRecordSiteVisit = $canRecordSiteVisit && in_array(session('user_role'), ['admin', 'team_manager'], true);
         }
 
+        /*
+         * Managed lead documents.
+         *
+         * Communication evidence and payment receipts may have many active
+         * documents. Booking forms and site-visit forms use replacement
+         * versions instead of accumulating duplicate current documents.
+         */
+        $leadDocuments = ManagedFile::query()
+            ->with(['links', 'uploader'])
+            ->active()
+            ->whereHas('links', function ($query) use ($lead) {
+                $query->where('entity_type', 'lead')
+                    ->where('entity_id', $lead->id)
+                    ->where('relationship', 'evidence');
+            })
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
+
+        $communicationDocuments = $leadDocuments
+            ->filter(fn ($file) => $file->document_category === 'communication_evidence')
+            ->values();
+
+        $paymentReceiptDocuments = $leadDocuments
+            ->filter(fn ($file) => $file->document_category === 'payment_receipt')
+            ->values();
+
+        $bookingDocuments = $leadDocuments
+            ->filter(fn ($file) => $file->document_category === 'booking_form')
+            ->values();
+
+        $siteVisitDocuments = $leadDocuments
+            ->filter(fn ($file) => $file->document_category === 'site_visit_form')
+            ->groupBy(function ($file) {
+                $link = $file->links->first(fn ($link) =>
+                    $link->entity_type === 'lead'
+                    && $link->relationship === 'evidence'
+                    && $link->context_type === 'site_visit_project'
+                );
+
+                return $link?->context_id;
+            });
+
         return view('leads.show', compact(
             'lead', 'activities', 'pendingTasks', 'projects', 'requiresProjectChange',
             'completionContext', 'focusedFollowup', 'focusHistory', 'focusWork',
@@ -279,7 +323,9 @@ class LeadController extends Controller
             'rootLead', 'relatedProjectLeads', 'canAddProjectWorkstream',
             'siteVisits', 'siteVisitProjectRows', 'siteVisitOutcomeOptions',
             'siteVisitProjectOptions', 'canRecordSiteVisit', 'canManageLead', 'canChangeProject', 'returnTo',
-            'customerInformationProfile'
+            'customerInformationProfile',
+            'leadDocuments', 'communicationDocuments', 'paymentReceiptDocuments',
+            'bookingDocuments', 'siteVisitDocuments'
         ));
     }
 

@@ -34,7 +34,7 @@ class ManagedDocumentController extends Controller
             'title' => 'nullable|string|max:255',
             'description' => 'nullable|string|max:50000',
             'workflow_stage' => 'nullable|string|max:60',
-            'context_type' => 'nullable|in:communication,site_visit,booking,brokerage,project_media,general',
+            'context_type' => 'nullable|in:communication,site_visit,site_visit_project,booking,brokerage,project_media,general',
             'context_id' => 'nullable|integer|min:1',
             'customer_shareable' => 'nullable|boolean',
             'return_to' => 'nullable|string|max:2000',
@@ -56,7 +56,101 @@ class ManagedDocumentController extends Controller
             abort_unless($visitBelongsToLead, 422);
         }
 
+        if (($data['context_type'] ?? null) === 'site_visit_project') {
+            abort_unless($data['entity_type'] === 'lead' && ! empty($data['context_id']), 422);
 
+            $visitProject = DB::table('site_visit_projects as svp')
+                ->join('site_visits as sv', 'sv.id', '=', 'svp.site_visit_id')
+                ->where('svp.id', (int) $data['context_id'])
+                ->where('sv.lead_id', (int) $data['entity_id'])
+                ->select('svp.id', 'svp.site_visit_id', 'svp.project_id')
+                ->first();
+
+            abort_unless($visitProject, 422, 'The selected site visit project does not belong to this lead.');
+        }
+
+        if ($data['entity_type'] === 'lead') {
+            $allowedLeadCategories = [
+                'communication_evidence',
+                'site_visit_form',
+                'booking_form',
+                'payment_receipt',
+                'general',
+            ];
+
+            abort_unless(
+                in_array($data['document_category'], $allowedLeadCategories, true),
+                422,
+                'Unsupported lead document category.'
+            );
+
+            if ($data['document_category'] === 'site_visit_form') {
+                abort_unless(
+                    ($data['context_type'] ?? null) === 'site_visit_project'
+                    && ! empty($data['context_id']),
+                    422,
+                    'A site visit form must belong to a project recorded in an actual site visit.'
+                );
+
+                $visitProject = DB::table('site_visit_projects as svp')
+                    ->join('site_visits as sv', 'sv.id', '=', 'svp.site_visit_id')
+                    ->where('svp.id', (int) $data['context_id'])
+                    ->where('sv.lead_id', (int) $data['entity_id'])
+                    ->select('svp.id', 'svp.project_id')
+                    ->first();
+
+                abort_unless($visitProject, 422);
+
+                /*
+                 * Cardinality rule:
+                 * one current Site Visit Form for this Lead + Project,
+                 * regardless of how many actual visit records exist.
+                 *
+                 * context_id stores site_visit_projects.id, which preserves
+                 * the exact visit/project record for audit purposes.
+                 */
+                $duplicate = ManagedFile::query()
+                    ->active()
+                    ->where('document_category', 'site_visit_form')
+                    ->whereHas('links', function ($query) use ($data, $visitProject) {
+                        $query->where('entity_type', 'lead')
+                            ->where('entity_id', (int) $data['entity_id'])
+                            ->where('relationship', 'evidence')
+                            ->where('context_type', 'site_visit_project')
+                            ->whereIn(
+                                'context_id',
+                                DB::table('site_visit_projects')
+                                    ->where('project_id', (int) $visitProject->project_id)
+                                    ->select('id')
+                            );
+                    })
+                    ->exists();
+
+                abort_if(
+                    $duplicate,
+                    422,
+                    'A current site visit form already exists for this lead and project. Replace the existing document instead.'
+                );
+            }
+
+            if ($data['document_category'] === 'booking_form') {
+                $duplicate = ManagedFile::query()
+                    ->active()
+                    ->where('document_category', 'booking_form')
+                    ->whereHas('links', function ($query) use ($data) {
+                        $query->where('entity_type', 'lead')
+                            ->where('entity_id', (int) $data['entity_id'])
+                            ->where('relationship', 'evidence');
+                    })
+                    ->exists();
+
+                abort_if(
+                    $duplicate,
+                    422,
+                    'A current booking form already exists for this lead and project. Replace the existing document instead.'
+                );
+            }
+        }
 
         $file = $this->documents->store(
             $request->file('file'),
@@ -267,16 +361,44 @@ class ManagedDocumentController extends Controller
         abort_if($file->removed_at, 422, 'Removed media cannot be replaced.');
         abort_if($file->valid_until, 422, 'This media version has already been superseded. Replace the current version instead.');
 
-        $projectLink = $file->links->first(fn ($link) =>
-            $link->entity_type === 'project' && $link->relationship === 'project_media'
+        $link = $file->links->first(fn ($link) =>
+            ($link->entity_type === 'project' && $link->relationship === 'project_media')
+            || ($link->entity_type === 'lead' && $link->relationship === 'evidence')
         );
-        abort_unless($projectLink, 422, 'Only project media can be replaced.');
+
+        abort_unless($link, 422, 'This document cannot be replaced here.');
 
         $userId = (int) session('user_id');
+
+        $isProjectMedia =
+            $link->entity_type === 'project'
+            && $link->relationship === 'project_media';
+
+        $isLeadEvidence =
+            $link->entity_type === 'lead'
+            && $link->relationship === 'evidence';
+
         $allowed = $this->superAdmins->isSuperAdmin($userId)
-            || ((int) $file->uploaded_by_user_id === $userId
-                && (session('user_role') === 'agent' || $this->access->can('documents.replace_own')))
-            || $this->access->can('project_media.manage');
+            || (
+                $isProjectMedia
+                && (
+                    (
+                        (int) $file->uploaded_by_user_id === $userId
+                        && (
+                            session('user_role') === 'agent'
+                            || $this->access->can('documents.replace_own')
+                        )
+                    )
+                    || $this->access->can('project_media.manage')
+                )
+            )
+            || (
+                $isLeadEvidence
+                && $this->access->canWorkLead(
+                    Lead::findOrFail((int) $link->entity_id)
+                )
+            );
+
         abort_unless($allowed, 403);
 
         $replacement = $this->documents->store(
@@ -285,25 +407,30 @@ class ManagedDocumentController extends Controller
                 'title' => $file->title,
                 'description' => $file->description,
                 'document_category' => $file->document_category,
-                'context_type' => $projectLink->context_type ?: 'project_media',
-                'context_id' => $projectLink->context_id,
-                'workflow_stage' => $projectLink->workflow_stage,
-                'relationship' => 'project_media',
-                'source_label' => $file->source_label ?: 'project_media',
+                'context_type' => $link->context_type ?: ($isProjectMedia ? 'project_media' : 'general'),
+                'context_id' => $link->context_id,
+                'workflow_stage' => $link->workflow_stage,
+                'relationship' => $link->relationship,
+                'source_label' => $file->source_label ?: ($isProjectMedia ? 'project_media' : 'lead_evidence'),
                 'visibility' => 'internal',
                 'customer_shareable' => $file->customer_shareable,
                 'version_number' => ((int) $file->version_number) + 1,
                 'replaces_file_id' => $file->id,
             ],
-            'project',
-            (int) $projectLink->entity_id,
+            $link->entity_type,
+            (int) $link->entity_id,
             $userId
         );
 
         $this->documents->retireReplacedVersion($file, $replacement, $userId);
 
         return $this->returnAfterAction($request, $replacement->id)
-            ->with('success', 'Replacement uploaded as a new version. Customer sharing requires approval of the new version.');
+            ->with(
+                'success',
+                $isProjectMedia
+                    ? 'Replacement uploaded as a new version. Customer sharing requires approval of the new version.'
+                    : 'Replacement uploaded successfully. The previous version remains in document history.'
+            );
     }
 
 
@@ -321,12 +448,26 @@ class ManagedDocumentController extends Controller
 
         $userId = (int) session('user_id');
 
+        $leadEvidenceLink = $file->links->first(fn ($link) =>
+            $link->entity_type === 'lead'
+            && $link->relationship === 'evidence'
+        );
+
+        $ownsRemovableDocument =
+            (int) $file->uploaded_by_user_id === $userId
+            && (
+                session('user_role') === 'agent'
+                || $this->access->can('documents.remove_own')
+            );
+
         $allowed = $this->superAdmins->isSuperAdmin($userId)
             || (
-                (int) $file->uploaded_by_user_id === $userId
+                $ownsRemovableDocument
                 && (
-                    session('user_role') === 'agent'
-                    || $this->access->can('documents.remove_own')
+                    ! $leadEvidenceLink
+                    || $this->access->canWorkLead(
+                        Lead::findOrFail((int) $leadEvidenceLink->entity_id)
+                    )
                 )
             );
 
