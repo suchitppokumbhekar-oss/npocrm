@@ -152,6 +152,11 @@ class LeadIndexController extends Controller
            Applied AFTER the base query is built
            ============================================================ */
         switch ($preset) {
+            case 'untouched':
+                // New is the protected untouched state. Work oldest first.
+                $query->where('status', 'new');
+                $sort = 'oldest';
+                break;
             case 'new_today':
                 $query->whereDate('created_at', now()->toDateString());
                 break;

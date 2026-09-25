@@ -34,15 +34,9 @@
             </div>
 
         @elseif ($isCheckedIn)
-            <div class="ab-left">
-                <span class="ab-icon">🟢</span>
-                <div>
-                    <div class="ab-title">Checked in at {{ $todayAttendance->checked_in_at->format('H:i') }}</div>
-                    <div class="ab-sub">
-                        {{ $todayAttendance->checked_in_distance_m }}m from office
-                        · Working for {{ $todayAttendance->durationLabel() }}
-                    </div>
-                </div>
+            <div class="ab-left ab-left-compact">
+                <span class="ab-icon">✓</span>
+                <div class="ab-title">Checked in {{ $todayAttendance->checked_in_at->format('H:i') }} · {{ $todayAttendance->durationLabel() }}</div>
             </div>
 
             <form method="POST" action="/attendance/check-out" class="ab-form"

@@ -152,7 +152,25 @@
     @endif
 
 
+    @if (request('preset') === 'untouched')
+        <div class="untouched-lead-context">
+            <div><strong>⏱ Waiting:</strong> {{ $createdAt?->diffForHumans() ?? 'Unknown' }}</div>
+            <div><strong>📣 Source:</strong> {{ $lead->source ?: ($lead->intake_source ?: 'Not specified') }}</div>
+            @if ($lead->budget)
+                <div><strong>💰 Budget:</strong> ₹{{ number_format((float) $lead->budget) }}</div>
+            @endif
+            @if ($lead->origin_note)
+                <div class="untouched-lead-note"><strong>📝 Requirement:</strong> {{ $lead->origin_note }}</div>
+            @endif
+        </div>
+        <div class="untouched-lead-actions">
+            <x-contact-buttons :lead="$lead" size="lg" />
+            <a href="{{ url('/leads/' . $lead->id) }}#pending-tasks" class="untouched-work-lead">▶ Work Lead</a>
+        </div>
+    @endif
+
     {{-- ACTION: preserve canonical CRM work workflow --}}
+    @if (request('preset') !== 'untouched')
     <div class="lead-glimpse-actions">
 
         <a href="{{ url('/leads/' . $lead->id) }}#pending-tasks"
@@ -173,6 +191,7 @@
         </a>
 
     </div>
+    @endif
 
 </article>
 
@@ -426,6 +445,62 @@
      */
     .lead-glimpse-card {
         display: none !important;
+    }
+}
+</style>
+
+<style>
+.untouched-lead-context{
+    display:grid;
+    gap:5px;
+    margin-top:10px;
+    padding:10px;
+    border-radius:9px;
+    background:var(--c-bg);
+    font-size:12px;
+    line-height:1.35;
+}
+.untouched-lead-note{
+    overflow-wrap:anywhere;
+}
+.untouched-lead-actions{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:9px;
+}
+.untouched-work-lead{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:40px;
+    padding:0 13px;
+    border-radius:8px;
+    background:var(--c-primary);
+    color:#fff;
+    text-decoration:none;
+    font-size:13px;
+    font-weight:850;
+    white-space:nowrap;
+}
+@media(max-width:600px){
+    .untouched-lead-actions{
+        position:sticky;
+        bottom:6px;
+        z-index:4;
+        padding:7px;
+        margin:9px -5px -4px;
+        border:1px solid var(--c-border);
+        border-radius:10px;
+        background:var(--c-surface);
+        box-shadow:0 4px 16px rgba(0,0,0,.12);
+    }
+    .untouched-lead-actions .contact-buttons{
+        flex:1;
+    }
+    .untouched-work-lead{
+        flex:1;
+        min-height:44px;
     }
 }
 </style>

@@ -28,12 +28,14 @@
     {{-- 0. ATTENDANCE BANNER (payroll agents only) --}}
     @include('partials.attendance-banner')
 
-    {{-- 1. FOCUS BANNER --}}
+    {{-- 1. FOCUS BANNER — agents/admin only; Team Manager uses command centre --}}
+    @if (! $isManager)
     <div class="card greeting-card">
         <div class="greeting-left">
             <h2>{{ $greeting }}, {{ $firstName }} 👋</h2>
 
-            @if ($isAdminOrMgr)
+
+    @if ($isAdminOrMgr)
                 @if ($teamOverdueTotal > 0)
                     <p class="greeting-sub urgent">
                         🚨 {{ $scopeLabel }} has <strong>{{ $teamOverdueTotal }}</strong> overdue task{{ $teamOverdueTotal === 1 ? '' : 's' }}.
@@ -55,7 +57,12 @@
                     </p>
                 @endif
             @else
-                @if ($overdueCount > 0)
+                @if (($untouchedLeadCount ?? 0) > 0)
+                    <p class="greeting-sub urgent">
+                        🔥 <strong>{{ $untouchedLeadCount }}</strong> new lead{{ $untouchedLeadCount === 1 ? '' : 's' }} untouched.
+                        <strong>Connect immediately.</strong>
+                    </p>
+                @elseif ($overdueCount > 0)
                     <p class="greeting-sub urgent">
                         🚨 <strong>{{ $overdueCount }}</strong> overdue task{{ $overdueCount === 1 ? '' : 's' }}.
                         <strong>Clear these before anything else.</strong>
@@ -89,58 +96,614 @@
             @endif
         </div>
     </div>
+    @endif {{-- /FOCUS BANNER --}}
 
     @if ($isAdminOrMgr)
         @if ($isManager)
-            <nav class="task-scope-tabs" aria-label="Dashboard scope">
-                <a href="{{ url('/?scope=team') }}" class="task-scope-tab {{ ($workScope ?? 'team') === 'team' ? 'active' : '' }}">
-                    <strong>My Team</strong>
-                    <small>Direct team responsibility</small>
-                </a>
-                <a href="{{ url('/?scope=delegated') }}" class="task-scope-tab {{ ($workScope ?? 'team') === 'delegated' ? 'active' : '' }}">
-                    <strong>All Delegated</strong>
-                    <small>Other teams &amp; agents in your scope</small>
-                </a>
-            </nav>
-        @endif
 
-        {{-- MANAGEMENT DASHBOARD: summaries only. Individual task execution belongs in Team Status / Who Needs Help. --}}
-        <div class="mgmt-summary-grid">
-            <a class="mgmt-summary-card mgmt-danger" href="{{ url('/team-status?filter=overdue' . ($isManager ? '&scope=' . ($workScope ?? 'team') : '')) }}">
-                <span class="msc-icon">🚨</span>
-                <span class="msc-label">Overdue</span>
-                <strong>{{ $teamOverdueTotal }}</strong>
-                <small>Open overdue tasks →</small>
-            </a>
-            <a class="mgmt-summary-card mgmt-warn" href="{{ url('/team-status?filter=today' . ($isManager ? '&scope=' . ($workScope ?? 'team') : '')) }}">
-                <span class="msc-icon">📅</span>
-                <span class="msc-label">Due today</span>
-                <strong>{{ $agentOverdueSummary->sum('due_soon') }}</strong>
-                <small>Review today's work →</small>
-            </a>
-            <a class="mgmt-summary-card mgmt-help" href="{{ url('/team-status?filter=help' . ($isManager ? '&scope=' . ($workScope ?? 'team') : '')) }}">
-                <span class="msc-icon">👥</span>
-                <span class="msc-label">Needs help</span>
-                <strong>{{ $teamAgentsBehind }}</strong>
-                <small>Open Team Status →</small>
-            </a>
-            @if ($isManager && $agentId)
-                <a class="mgmt-summary-card mgmt-neutral" href="{{ url('/tasks?scope=personal') }}">
-                    <span class="msc-icon">⚡</span>
-                    <span class="msc-label">My Work</span>
-                    <strong>{{ $personalOverdueCount + $personalTodayCount }}</strong>
-                    <small>Open your work queue →</small>
+            {{-- =========================================================
+                 TEAM MANAGER COMMAND CENTRE
+                 ========================================================= --}}
+
+            <section class="manager-command-centre">
+
+                {{-- MY WORK --}}
+                <div class="manager-command-block manager-my-work">
+                    <div class="manager-command-heading">
+                        <div>
+                            <span class="manager-command-kicker">PERSONAL QUEUE</span>
+                            <h3>⚡ MY WORK</h3>
+                            <p>Your own leads and follow-ups.</p>
+                        </div>
+
+                        <a href="{{ url('/tasks?scope=personal') }}"
+                           class="manager-command-open">
+                            Open →
+                        </a>
+                    </div>
+
+                    <div class="manager-command-metrics">
+                        <a href="{{ url('/tasks?scope=personal') }}"
+                           class="manager-command-metric metric-danger">
+                            <strong>{{ $personalOverdueCount }}</strong>
+                            <span>Overdue</span>
+                        </a>
+
+                        <a href="{{ url('/tasks?scope=personal') }}"
+                           class="manager-command-metric metric-warn">
+                            <strong>{{ $personalTodayCount }}</strong>
+                            <span>Due Today</span>
+                        </a>
+
+                        <a href="{{ url('/?scope=personal#untouched-work') }}"
+                           class="manager-command-metric metric-new">
+                            <strong>{{ $untouchedLeadCount ?? 0 }}</strong>
+                            <span>New Leads</span>
+                        </a>
+                    </div>
+                </div>
+
+                {{-- MANAGEMENT SCOPE --}}
+                <div class="manager-command-scope">
+                    <span class="manager-command-scope-label">MANAGE</span>
+
+                    <nav class="manager-command-tabs" aria-label="Management scope">
+                        <a href="{{ url('/?scope=team') }}"
+                           class="{{ ($workScope ?? 'personal') === 'team' ? 'active' : '' }}">
+                            <strong>My Team</strong>
+                            <small>Direct team</small>
+                        </a>
+
+                        <a href="{{ url('/?scope=delegated') }}"
+                           class="{{ ($workScope ?? 'personal') === 'delegated' ? 'active' : '' }}">
+                            <strong>Other Staff</strong>
+                            <small>Delegated access</small>
+                        </a>
+                    </nav>
+                </div>
+
+                @if (in_array(($workScope ?? 'personal'), ['team', 'delegated'], true))
+                    @php
+                        $commandScopeLabel = ($workScope ?? 'team') === 'delegated'
+                            ? 'OTHER STAFF'
+                            : 'MY TEAM';
+
+                        $commandOverdue = $managerAttentionSummary->sum('overdue');
+                        $commandToday   = $managerAttentionSummary->sum('today');
+                        $commandNew     = $managerAttentionSummary->sum('new');
+                        $commandPeople  = $managerAttentionSummary->count();
+                    @endphp
+
+                    <div id="team-attention"
+                         class="manager-command-block manager-team-attention"
+                         data-manager-attention>
+
+                        <div class="manager-command-heading">
+                            <div>
+                                <span class="manager-command-kicker">COMMAND CENTRE</span>
+                                <h3>👥 {{ $commandScopeLabel }} — ATTENTION</h3>
+                                <p>Choose the problem first, then the person.</p>
+                            </div>
+                        </div>
+
+                        <div class="manager-problem-tabs"
+                             role="tablist"
+                             aria-label="Attention category">
+
+                            <button type="button"
+                                    class="manager-problem-tab active"
+                                    data-attention-problem="overdue">
+                                <strong>{{ $commandOverdue }}</strong>
+                                <span>Overdue</span>
+                            </button>
+
+                            <button type="button"
+                                    class="manager-problem-tab"
+                                    data-attention-problem="today">
+                                <strong>{{ $commandToday }}</strong>
+                                <span>Due Today</span>
+                            </button>
+
+                            <button type="button"
+                                    class="manager-problem-tab"
+                                    data-attention-problem="new">
+                                <strong>{{ $commandNew }}</strong>
+                                <span>New Leads</span>
+                            </button>
+
+                        </div>
+
+                        @if ($managerAttentionSummary->isNotEmpty())
+
+                            <div class="manager-person-selector">
+
+                                <div class="manager-attention-label">
+                                    PEOPLE
+                                </div>
+
+                                @foreach (['overdue', 'today', 'new'] as $problem)
+
+                                    @php
+                                        $problemTotal = $managerAttentionSummary->sum($problem);
+                                    @endphp
+
+                                    <div class="manager-person-pills {{ $problem !== 'overdue' ? 'is-hidden' : '' }}"
+                                         data-attention-people="{{ $problem }}">
+
+                                        <button type="button"
+                                                class="manager-person-pill active"
+                                                data-attention-agent="all">
+                                            All
+                                            <strong>{{ $problemTotal }}</strong>
+                                        </button>
+
+                                        @foreach ($managerAttentionSummary as $summary)
+
+                                            @php
+                                                $problemCount = (int) ($summary->{$problem} ?? 0);
+                                            @endphp
+
+                                            @if ($problemCount > 0)
+                                                <button type="button"
+                                                        class="manager-person-pill"
+                                                        data-attention-agent="{{ $summary->agent_id }}">
+                                                    {{ $summary->name }}
+                                                    <strong>{{ $problemCount }}</strong>
+                                                </button>
+                                            @endif
+
+                                        @endforeach
+
+                                    </div>
+
+                                @endforeach
+
+                            </div>
+
+                            <div class="manager-work-context is-hidden"
+                                 data-manager-work-context>
+                                <div>
+                                    <strong data-context-problem>OVERDUE</strong>
+                                    <span>·</span>
+                                    <b data-context-person>All</b>
+                                    <span>·</span>
+                                    <b data-context-count>{{ $commandOverdue }}</b>
+                                </div>
+                                <button type="button" data-context-change>Change</button>
+                            </div>
+
+                            <div class="manager-work-panel">
+
+                                {{-- OVERDUE WORK --}}
+                                <div data-attention-work="overdue">
+
+                                    @foreach ($managerAttentionSummary as $summary)
+                                        @foreach ($summary->overdue_items as $task)
+                                            @php
+                                                $taskLead = $task->lead;
+                                                $taskWorkUrl = url('/leads/' . $task->lead_id) . '?' . http_build_query([
+                                                    'focus_work' => 1,
+                                                    'focus_followup_id' => $task->id,
+                                                    'return_to' => url()->full(),
+                                                ]) . '#pending-tasks';
+                                            @endphp
+
+                                            <a href="{{ $taskWorkUrl }}"
+                                               class="manager-work-row"
+                                               data-work-agent="{{ $summary->agent_id }}">
+
+                                                <div class="manager-work-info">
+                                                    <strong>{{ $taskLead?->customer_name ?? 'Lead' }}</strong>
+                                                    <span>
+                                                        {{ $summary->name }}
+                                                        · {{ ucwords(str_replace('_', ' ', $task->action_type)) }}
+                                                    </span>
+                                                    <span>
+                                                        🏗️ {{ $taskLead?->project?->name ?? 'No project' }}
+                                                    </span>
+                                                </div>
+
+                                                <div class="manager-work-due danger">
+                                                    <small>
+                                                        {{ $task->scheduled_for?->diffForHumans(null, true) }}
+                                                    </small>
+                                                    <b>OVERDUE</b>
+                                                    <em>WORK →</em>
+                                                </div>
+                                            </a>
+                                        @endforeach
+                                    @endforeach
+
+                                </div>
+
+                                {{-- TODAY WORK --}}
+                                <div class="is-hidden"
+                                     data-attention-work="today">
+
+                                    @foreach ($managerAttentionSummary as $summary)
+                                        @foreach ($summary->today_items as $task)
+                                            @php
+                                                $taskLead = $task->lead;
+                                                $taskWorkUrl = url('/leads/' . $task->lead_id) . '?' . http_build_query([
+                                                    'focus_work' => 1,
+                                                    'focus_followup_id' => $task->id,
+                                                    'return_to' => url()->full(),
+                                                ]) . '#pending-tasks';
+                                            @endphp
+
+                                            <a href="{{ $taskWorkUrl }}"
+                                               class="manager-work-row"
+                                               data-work-agent="{{ $summary->agent_id }}">
+
+                                                <div class="manager-work-info">
+                                                    <strong>{{ $taskLead?->customer_name ?? 'Lead' }}</strong>
+                                                    <span>
+                                                        {{ $summary->name }}
+                                                        · {{ ucwords(str_replace('_', ' ', $task->action_type)) }}
+                                                    </span>
+                                                    <span>
+                                                        🏗️ {{ $taskLead?->project?->name ?? 'No project' }}
+                                                    </span>
+                                                </div>
+
+                                                <div class="manager-work-due">
+                                                    <small>
+                                                        {{ $task->scheduled_for?->format('h:i A') }}
+                                                    </small>
+                                                    <b>DUE TODAY</b>
+                                                    <em>WORK →</em>
+                                                </div>
+                                            </a>
+                                        @endforeach
+                                    @endforeach
+
+                                </div>
+
+                                {{-- NEW LEADS --}}
+                                <div class="is-hidden"
+                                     data-attention-work="new">
+
+                                    @foreach ($managerScopeUntouchedLeads as $lead)
+
+                                        @php
+                                            $firstTask = $lead->followups->first();
+
+                                            $leadAgentIds = $lead->activeAgents
+                                                ->pluck('id')
+                                                ->map(fn ($id) => (int) $id)
+                                                ->intersect(
+                                                    $managerAttentionSummary
+                                                        ->pluck('agent_id')
+                                                        ->map(fn ($id) => (int) $id)
+                                                )
+                                                ->unique()
+                                                ->values();
+
+                                            $newWorkUrl = $firstTask
+                                                ? url('/leads/' . $lead->id) . '?' . http_build_query([
+                                                    'focus_work' => 1,
+                                                    'focus_followup_id' => $firstTask->id,
+                                                    'return_to' => url()->full(),
+                                                ]) . '#pending-tasks'
+                                                : url('/leads/' . $lead->id) . '?' . http_build_query([
+                                                    'return_to' => url()->full(),
+                                                ]) . '#pending-tasks';
+                                        @endphp
+
+                                        <a href="{{ $newWorkUrl }}"
+                                           class="manager-work-row"
+                                           data-work-agent="{{ $leadAgentIds->implode(',') }}">
+
+                                            <div class="manager-work-info">
+                                                <strong>{{ $lead->customer_name }}</strong>
+                                                <span>
+                                                    👤
+                                                    {{ $lead->activeAgents
+                                                        ->pluck('user.name')
+                                                        ->filter()
+                                                        ->implode(', ') ?: 'Unassigned' }}
+                                                </span>
+                                                <span>
+                                                    🏗️ {{ $lead->project?->name ?? 'No project' }}
+                                                    · 📣 {{ $lead->source ?: ($lead->intake_source ?: 'Source not specified') }}
+                                                </span>
+                                            </div>
+
+                                            <div class="manager-work-due new">
+                                                <small>{{ $lead->created_at?->diffForHumans() }}</small>
+                                                <b>NEW</b>
+                                                <em>WORK →</em>
+                                            </div>
+                                        </a>
+
+                                    @endforeach
+
+                                </div>
+
+                                <div class="manager-work-empty is-hidden"
+                                     data-attention-empty>
+                                    Nothing in this selection.
+                                </div>
+
+                            </div>
+
+                            {{-- PERSON-LEVEL NUDGE --}}
+                            <div class="manager-selected-person-actions is-hidden"
+                                 data-selected-person-actions>
+
+                                @foreach ($managerAttentionSummary as $summary)
+                                    @if ($summary->phone)
+                                        <button type="button"
+                                                class="manager-selected-nudge is-hidden"
+                                                data-selected-nudge="{{ $summary->agent_id }}"
+                                                data-npo-nudge
+                                                data-nudge-target-type="agent"
+                                                data-nudge-target-id="{{ $summary->agent_id }}"
+                                                data-whatsapp-phone="{{ preg_replace('/\D/', '', $summary->phone) }}">
+                                            💬 Nudge {{ $summary->name }}
+                                            @if (($summary->nudge_count ?? 0) > 0)
+                                                <small>Previously {{ $summary->nudge_count }}×</small>
+                                            @endif
+                                        </button>
+                                    @endif
+                                @endforeach
+
+                            </div>
+                        @else
+
+                            <div class="manager-command-clear">
+                                ✅ No team attention items right now.
+                            </div>
+
+                        @endif
+
+                    </div>
+
+                    <script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-manager-attention]').forEach(function (root) {
+        const tabs = root.querySelectorAll('[data-attention-problem]');
+        const groups = root.querySelectorAll('[data-attention-people]');
+        const workGroups = root.querySelectorAll('[data-attention-work]');
+        const empty = root.querySelector('[data-attention-empty]');
+        const personActions = root.querySelector('[data-selected-person-actions]');
+        const nudges = root.querySelectorAll('[data-selected-nudge]');
+        const context = root.querySelector('[data-manager-work-context]');
+        const contextProblem = root.querySelector('[data-context-problem]');
+        const contextPerson = root.querySelector('[data-context-person]');
+        const contextCount = root.querySelector('[data-context-count]');
+        const contextChange = root.querySelector('[data-context-change]');
+
+        let problem = 'overdue';
+        let agent = 'all';
+        let personName = 'All';
+        let personCount = 0;
+        const allLimit = 12;
+
+        function refreshWork() {
+            let matching = 0;
+            let shown = 0;
+
+            workGroups.forEach(function (group) {
+                const activeGroup = group.dataset.attentionWork === problem;
+                group.classList.toggle('is-hidden', !activeGroup);
+
+                group.querySelectorAll('[data-work-agent]').forEach(function (row) {
+                    const ids = (row.dataset.workAgent || '')
+                        .split(',')
+                        .filter(Boolean);
+
+                    const matches =
+                        activeGroup &&
+                        (agent === 'all' || ids.includes(agent));
+
+                    if (matches) {
+                        matching++;
+                    }
+
+                    const show =
+                        matches &&
+                        (agent !== 'all' || shown < allLimit);
+
+                    row.classList.toggle('is-hidden', !show);
+
+                    if (show) {
+                        shown++;
+                    }
+                });
+            });
+
+            if (empty) {
+                empty.classList.toggle('is-hidden', matching !== 0);
+            }
+
+            nudges.forEach(function (button) {
+                button.classList.toggle(
+                    'is-hidden',
+                    problem !== 'overdue'
+                    || agent === 'all'
+                    || button.dataset.selectedNudge !== agent
+                );
+            });
+
+            if (personActions) {
+                personActions.classList.toggle(
+                    'is-hidden',
+                    problem !== 'overdue' || agent === 'all'
+                );
+            }
+
+            if (context) {
+                context.classList.toggle('is-hidden', agent === 'all');
+
+                if (agent !== 'all') {
+                    contextProblem.textContent =
+                        problem === 'today'
+                            ? 'DUE TODAY'
+                            : problem === 'new'
+                                ? 'NEW LEADS'
+                                : 'OVERDUE';
+
+                    contextPerson.textContent = personName;
+                    contextCount.textContent = personCount;
+                }
+            }
+        }
+
+        function selectProblem(nextProblem) {
+            problem = nextProblem;
+            agent = 'all';
+            personName = 'All';
+
+            tabs.forEach(function (tab) {
+                tab.classList.toggle(
+                    'active',
+                    tab.dataset.attentionProblem === problem
+                );
+            });
+
+            groups.forEach(function (group) {
+                const active = group.dataset.attentionPeople === problem;
+
+                group.classList.toggle('is-hidden', !active);
+
+                group.querySelectorAll('[data-attention-agent]').forEach(function (pill) {
+                    pill.classList.toggle(
+                        'active',
+                        active && pill.dataset.attentionAgent === 'all'
+                    );
+
+                    if (active && pill.dataset.attentionAgent === 'all') {
+                        personCount =
+                            parseInt(pill.querySelector('strong')?.textContent || '0', 10);
+                    }
+                });
+            });
+
+            refreshWork();
+        }
+
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                selectProblem(tab.dataset.attentionProblem);
+
+                window.setTimeout(function () {
+                    root.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }, 30);
+            });
+        });
+
+        groups.forEach(function (group) {
+            group.querySelectorAll('[data-attention-agent]').forEach(function (pill) {
+                pill.addEventListener('click', function () {
+                    agent = pill.dataset.attentionAgent;
+
+                    const clone = pill.cloneNode(true);
+                    clone.querySelector('strong')?.remove();
+                    personName = clone.textContent.trim();
+
+                    personCount =
+                        parseInt(pill.querySelector('strong')?.textContent || '0', 10);
+
+                    group.querySelectorAll('[data-attention-agent]').forEach(function (item) {
+                        item.classList.toggle('active', item === pill);
+                    });
+
+                    refreshWork();
+
+                    if (agent !== 'all') {
+                        const workPanel = root.querySelector('.manager-work-panel');
+
+                        if (workPanel) {
+                            window.setTimeout(function () {
+                                const headerOffset = 145;
+                                const top =
+                                    workPanel.getBoundingClientRect().top
+                                    + window.pageYOffset
+                                    - headerOffset;
+
+                                window.scrollTo({
+                                    top: Math.max(0, top),
+                                    behavior: 'smooth'
+                                });
+                            }, 40);
+                        }
+                    }
+                });
+            });
+        });
+
+        if (contextChange) {
+            contextChange.addEventListener('click', function () {
+                root.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            });
+        }
+
+        selectProblem('overdue');
+    });
+});
+</script>
+                    {{-- Management work is now handled by the command centre above.
+                         Legacy manager sections remain preserved as partials but are
+                         intentionally not rendered here. --}}
+
+                @else
+
+                    {{-- PERSONAL FIRST-TOUCH QUEUE --}}
+                    @if ($agentId)
+                        @include('partials.untouched-work')
+                    @endif
+
+                @endif
+
+            </section>
+
+        @else
+
+            {{-- ADMIN MANAGEMENT SUMMARY — preserve admin behaviour --}}
+            <div class="mgmt-summary-grid">
+
+                <a class="mgmt-summary-card mgmt-danger"
+                   href="{{ url('/team-status?filter=overdue') }}">
+                    <span class="msc-icon">🚨</span>
+                    <span class="msc-label">Overdue</span>
+                    <strong>{{ $teamOverdueTotal }}</strong>
+                    <small>Open overdue tasks →</small>
                 </a>
-            @else
-                <a class="mgmt-summary-card mgmt-neutral" href="{{ url('/reports') }}">
+
+                <a class="mgmt-summary-card mgmt-warn"
+                   href="{{ url('/team-status?filter=today') }}">
+                    <span class="msc-icon">📅</span>
+                    <span class="msc-label">Due soon</span>
+                    <strong>{{ $agentOverdueSummary->sum('due_soon') }}</strong>
+                    <small>Review work →</small>
+                </a>
+
+                <a class="mgmt-summary-card mgmt-help"
+                   href="{{ url('/team-status?filter=help') }}">
+                    <span class="msc-icon">👥</span>
+                    <span class="msc-label">Needs attention</span>
+                    <strong>{{ $teamAgentsBehind }}</strong>
+                    <small>Open Team Status →</small>
+                </a>
+
+                <a class="mgmt-summary-card mgmt-neutral"
+                   href="{{ url('/reports') }}">
                     <span class="msc-icon">📊</span>
                     <span class="msc-label">Reports</span>
                     <strong>→</strong>
                     <small>Open management reports →</small>
                 </a>
-            @endif
-        </div>
 
+            </div>
+
+        @endif
         @if ($todayVisits->isNotEmpty())
             <details class="dash-section dash-visit">
                 <summary class="dash-section-head">
@@ -182,9 +745,12 @@
             </details>
         @endif
     @else
+    {{-- PERSONAL FIRST-TOUCH WORK --}}
+    @include('partials.untouched-work')
+
     {{-- 3a. OVERDUE --}}
     @if ($overdueTasks->isNotEmpty())
-        <details class="dash-section dash-overdue" open>
+        <details id="overdue-work" class="dash-section dash-overdue">
             <summary class="dash-section-head">
                 <span class="dsh-arrow">▸</span>
                 <span class="dsh-icon">🚨</span>
@@ -336,7 +902,7 @@
     </div>
 
     {{-- 4. TEAM STATUS — compact management snapshot. Full investigation lives on /team-status. --}}
-    @if ($isAdminOrMgr)
+    @if ($isAdmin)
         <details class="dash-section dash-team-status">
             <summary class="dash-section-head">
                 <span class="dsh-arrow">▸</span>
@@ -950,3 +1516,64 @@
 })();
 </script>
 @endpush
+<style>
+.untouched-work-now{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    width:100%;
+    margin:10px 0 6px;
+    padding:13px 14px;
+    border-radius:10px;
+    background:var(--c-primary);
+    color:#fff;
+    text-decoration:none;
+    font-weight:800;
+    line-height:1.25;
+}
+.untouched-work-now-title{
+    min-width:0;
+    flex:1;
+}
+.untouched-work-now-count{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:30px;
+    height:30px;
+    padding:0 8px;
+    border-radius:999px;
+    background:#fff;
+    color:var(--c-primary);
+    font-size:14px;
+    font-weight:900;
+}
+@media(max-width:600px){
+    .untouched-work-now{
+        padding:14px 12px;
+        font-size:14px;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const untouched = document.getElementById('untouched-work');
+    const overdue = document.getElementById('overdue-work');
+
+    if (untouched) {
+        untouched.open = true;
+        if (overdue) overdue.open = false;
+        return;
+    }
+
+    if (window.location.hash === '#untouched-work' && overdue) {
+        overdue.open = true;
+        history.replaceState(null, '', '#overdue-work');
+        requestAnimationFrame(function () {
+            overdue.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    }
+});
+</script>
