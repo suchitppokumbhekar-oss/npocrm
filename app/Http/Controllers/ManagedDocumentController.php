@@ -177,7 +177,7 @@ class ManagedDocumentController extends Controller
 
         return $this->returnAfterAction($request, $file->id)
             ->with('success', $file->customer_shareable
-                ? 'Document uploaded. Approval is required before it can be shared with customers.'
+                ? 'Document uploaded and is available for customer sharing.'
                 : 'Document uploaded successfully.');
     }
 
@@ -265,12 +265,6 @@ class ManagedDocumentController extends Controller
 
         $userId = (int) session('user_id');
 
-        $allowed = $this->superAdmins->isSuperAdmin($userId)
-            || (int) $file->uploaded_by_user_id === $userId
-            || $this->access->can('project_media.manage');
-
-        abort_unless($allowed, 403);
-
         $before = [
             'title' => $file->title,
             'description' => $file->description,
@@ -282,16 +276,6 @@ class ManagedDocumentController extends Controller
         $file->description = $data['description'] ?? null;
         $file->document_category = $data['document_category'];
         $file->customer_shareable = (bool) ($data['customer_shareable'] ?? false);
-
-        $customerContentChanged =
-            $before['description'] !== $file->description
-            || $before['customer_shareable'] !== $file->customer_shareable;
-
-        if ($file->share_approved && $customerContentChanged) {
-            $file->share_approved = false;
-            $file->share_approved_by_user_id = null;
-            $file->share_approved_at = null;
-        }
 
         $file->save();
 
@@ -314,37 +298,10 @@ class ManagedDocumentController extends Controller
         return $this->returnAfterAction($request, $file->id)
             ->with(
                 'success',
-                $file->customer_shareable && ! $file->share_approved
-                    ? 'Project media updated. Approval is required before customer sharing.'
+                $file->customer_shareable
+                    ? 'Project media updated and is available for customer sharing.'
                     : 'Project media updated.'
             );
-    }
-
-    public function approveShare(Request $request, int $id)
-    {
-        $this->requireLogin();
-
-        $userId = (int) session('user_id');
-
-        abort_unless(
-            $this->superAdmins->isSuperAdmin($userId)
-            || $this->access->can('documents.approve_share'),
-            403
-        );
-
-        $file = ManagedFile::with('links')->findOrFail($id);
-        $this->authorizeFile($file);
-
-        $isProjectMedia = $file->links->contains(fn ($link) =>
-            $link->entity_type === 'project'
-            && $link->relationship === 'project_media'
-        );
-        abort_unless($isProjectMedia, 422, 'Only project media can be approved for customer sharing.');
-
-        $this->documents->approveForSharing($file, $userId);
-
-        return $this->returnAfterAction($request, $file->id)
-            ->with('success', 'Document approved for customer sharing.');
     }
 
     public function replace(Request $request, int $id)
@@ -378,20 +335,7 @@ class ManagedDocumentController extends Controller
             $link->entity_type === 'lead'
             && $link->relationship === 'evidence';
 
-        $allowed = $this->superAdmins->isSuperAdmin($userId)
-            || (
-                $isProjectMedia
-                && (
-                    (
-                        (int) $file->uploaded_by_user_id === $userId
-                        && (
-                            session('user_role') === 'agent'
-                            || $this->access->can('documents.replace_own')
-                        )
-                    )
-                    || $this->access->can('project_media.manage')
-                )
-            )
+        $allowed = $isProjectMedia
             || (
                 $isLeadEvidence
                 && $this->access->canWorkLead(
@@ -428,7 +372,9 @@ class ManagedDocumentController extends Controller
             ->with(
                 'success',
                 $isProjectMedia
-                    ? 'Replacement uploaded as a new version. Customer sharing requires approval of the new version.'
+                    ? ($replacement->customer_shareable
+                        ? 'Replacement uploaded as a new version and is available for customer sharing.'
+                        : 'Replacement uploaded as a new version.')
                     : 'Replacement uploaded successfully. The previous version remains in document history.'
             );
     }
@@ -448,6 +394,11 @@ class ManagedDocumentController extends Controller
 
         $userId = (int) session('user_id');
 
+        $projectMediaLink = $file->links->first(fn ($link) =>
+            $link->entity_type === 'project'
+            && $link->relationship === 'project_media'
+        );
+
         $leadEvidenceLink = $file->links->first(fn ($link) =>
             $link->entity_type === 'lead'
             && $link->relationship === 'evidence'
@@ -460,14 +411,13 @@ class ManagedDocumentController extends Controller
                 || $this->access->can('documents.remove_own')
             );
 
-        $allowed = $this->superAdmins->isSuperAdmin($userId)
+        $allowed = (bool) $projectMediaLink
+            || $this->superAdmins->isSuperAdmin($userId)
             || (
                 $ownsRemovableDocument
-                && (
-                    ! $leadEvidenceLink
-                    || $this->access->canWorkLead(
-                        Lead::findOrFail((int) $leadEvidenceLink->entity_id)
-                    )
+                && $leadEvidenceLink
+                && $this->access->canWorkLead(
+                    Lead::findOrFail((int) $leadEvidenceLink->entity_id)
                 )
             );
 

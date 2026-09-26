@@ -107,8 +107,7 @@ class ManagedFile extends Model
     {
         return $query
             ->active()
-            ->where('customer_shareable', true)
-            ->where('share_approved', true);
+            ->where('customer_shareable', true);
     }
 
     public function isRemoved(): bool
@@ -120,7 +119,6 @@ class ManagedFile extends Model
     {
         return ! $this->isRemoved()
             && $this->customer_shareable
-            && $this->share_approved
             && (! $this->valid_from || $this->valid_from->lessThanOrEqualTo(now()))
             && (! $this->valid_until || $this->valid_until->greaterThanOrEqualTo(now()));
     }

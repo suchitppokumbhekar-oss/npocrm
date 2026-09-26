@@ -49,7 +49,7 @@ class ProjectShareController extends Controller
         abort_unless(
             $files->count() === count($fileIds),
             422,
-            'One or more selected files are not approved for sharing.'
+            'One or more selected files are no longer available for customer sharing.'
         );
 
         foreach ($files as $file) {

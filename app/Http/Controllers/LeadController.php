@@ -198,6 +198,33 @@ class LeadController extends Controller
                 && ! $lead->agentHandlesProject($sessionAgentId);
         }
 
+        $projectMedia = collect();
+        if ($lead->project_id) {
+            $projectMedia = ManagedFile::query()
+                ->with(['uploader', 'links'])
+                ->approvedForSharing()
+                ->whereHas('links', function ($q) use ($lead) {
+                    $q->where('entity_type', 'project')
+                        ->where('entity_id', $lead->project_id)
+                        ->where('relationship', 'project_media');
+                })
+                ->orderBy('document_category')
+                ->orderByDesc('version_number')
+                ->get();
+        }
+
+        $projectShareHistory = \App\Models\ProjectSharePackage::query()
+            ->with(['files.file', 'creator'])
+            ->where('lead_id', $lead->id)
+            ->where('project_id', $lead->project_id)
+            ->whereIn('share_status', ['sent', 'not_sent'])
+            ->orderByDesc('confirmed_at')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get();
+
+        $lastSuccessfulProjectShare = $projectShareHistory
+            ->first(fn ($package) => $package->share_status === 'sent');
         $bookingControl = $lead->bookingControl;
         $canChangeBooking = $this->access->canChangeBooking($lead);
         $canAddProjectWorkstream = $this->access->canAddProjectWorkstream($lead)
@@ -319,6 +346,7 @@ class LeadController extends Controller
             'lead', 'activities', 'pendingTasks', 'projects', 'requiresProjectChange',
             'completionContext', 'focusedFollowup', 'focusHistory', 'focusWork',
             'adminCorrectionLostReasonKey', 'adminCorrectionLostReasonLabel',
+            'projectMedia', 'projectShareHistory', 'lastSuccessfulProjectShare',
             'bookingControl', 'canChangeBooking',
             'rootLead', 'relatedProjectLeads', 'canAddProjectWorkstream',
             'siteVisits', 'siteVisitProjectRows', 'siteVisitOutcomeOptions',

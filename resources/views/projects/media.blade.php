@@ -81,7 +81,7 @@
                 <h3 style="margin:0;">Project Material</h3>
                 <div class="muted" style="margin-top:4px;font-size:12px;">
                     {{ $media->count() }} uploaded ·
-                    {{ $media->where('share_approved', true)->whereNull('removed_at')->count() }} ready to share
+                    {{ $media->filter(fn ($file) => $file->isApprovedForSharing())->count() }} ready to share
                 </div>
             </div>
 
@@ -94,8 +94,8 @@
 
         <div style="margin-top:12px;padding:11px 12px;border-radius:9px;background:#f8fafc;font-size:12px;line-height:1.5;">
             <strong>How this works:</strong>
-            Upload the material → mark it for customer sharing → approve it → it becomes available in
-            <strong>Lead → Share Project Details</strong>.
+            Upload the material and enable customer sharing → it becomes immediately available in
+            <strong>Lead → Share Project Details</strong>. Current versions and changes remain auditable.
         </div>
     </div>
 
@@ -129,36 +129,13 @@
                         <div style="flex:0 0 auto;">
                             @if($file->removed_at)
                                 <span class="badge red">Removed</span>
-                            @elseif($file->share_approved)
+                            @elseif($file->isApprovedForSharing())
                                 <span class="badge green">✓ Ready to share</span>
-                            @elseif($file->customer_shareable)
-                                <span class="badge blue">Approval needed</span>
                             @else
                                 <span class="badge">Internal only</span>
                             @endif
                         </div>
                     </div>
-
-                    @if(!$file->removed_at && $file->customer_shareable && !$file->share_approved)
-                        <div style="margin-top:12px;padding:11px;border-radius:9px;background:#fff7ed;border:1px solid #fed7aa;font-size:12px;line-height:1.45;">
-                            <strong>One step left:</strong>
-                            This material will not appear for customer sharing until it is approved.
-
-                            @if($canApproveShare)
-                                <form method="POST" action="{{ route('documents.approveShare', $file->id) }}" style="margin-top:9px;">
-                                    @csrf
-                                    <input type="hidden" name="return_to" value="{{ url()->current() }}?return_to={{ urlencode($safeReturnTo ?? '') }}#media-{{ $file->id }}">
-                                    <button class="btn btn-primary" type="submit" style="width:100%;">
-                                        ✓ Approve for Customer Sharing
-                                    </button>
-                                </form>
-                            @else
-                                <div class="muted" style="margin-top:6px;">
-                                    An authorised approver needs to approve this item.
-                                </div>
-                            @endif
-                        </div>
-                    @endif
 
                     @if($file->description)
                         <details style="margin-top:12px;">
@@ -175,14 +152,14 @@
                                 👁 View
                             </a>
 
-                            @if($isSuperAdmin || $canManageMedia || (int)$file->uploaded_by_user_id === (int)session('user_id'))
+                            @if($canManageMedia)
                                 <button type="button" class="btn-small btn-ghost" style="padding:9px;" onclick="document.getElementById('edit-media-{{ $file->id }}')?.toggleAttribute('open');">
                                     ✏️ Edit
                                 </button>
                             @endif
                         </div>
 
-                        @if($isSuperAdmin || $canManageMedia || (int)$file->uploaded_by_user_id === (int)session('user_id'))
+                        @if($canManageMedia)
                             <details id="edit-media-{{ $file->id }}" style="margin-top:10px;border-top:1px solid #e5e7eb;padding-top:10px;">
                                 <summary style="cursor:pointer;font-weight:700;font-size:12px;">Edit material details</summary>
 
@@ -229,7 +206,7 @@
                                         <span>
                                             <strong>Allow customer sharing</strong>
                                             <span class="muted" style="display:block;font-size:11px;">
-                                                If customer-facing content changes, approval may be required again.
+                                                When enabled, the current active version is immediately available for customer sharing.
                                             </span>
                                         </span>
                                     </label>
@@ -237,7 +214,7 @@
                                     <button type="submit" class="btn btn-primary">Save Changes</button>
                                 </form>
 
-                                @if($isSuperAdmin || $canManageMedia || ($canReplaceOwn && (int)$file->uploaded_by_user_id === (int)session('user_id')))
+                                @if($canManageMedia)
                                     <details style="margin-top:12px;">
                                         <summary style="cursor:pointer;font-size:12px;font-weight:700;">Replace file</summary>
                                         <form method="POST" action="{{ route('documents.replace', $file->id) }}" enctype="multipart/form-data" style="display:grid;gap:8px;margin-top:9px;">
@@ -249,7 +226,7 @@
                                     </details>
                                 @endif
 
-                                @if($isSuperAdmin || ($canRemoveOwn && (int)$file->uploaded_by_user_id === (int)session('user_id')))
+                                @if($canManageMedia)
                                     <form method="POST" action="{{ route('documents.remove', $file->id) }}" style="margin-top:12px;" onsubmit="return confirm('Remove this material from active use? Audit history will be preserved.');">
                                         @csrf
                                         <input type="hidden" name="return_to" value="{{ url()->current() }}?return_to={{ urlencode($safeReturnTo ?? '') }}#media-{{ $file->id }}">

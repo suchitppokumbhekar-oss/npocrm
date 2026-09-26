@@ -214,7 +214,6 @@ Route::get('/documents/{id}/view', [\App\Http\Controllers\ManagedDocumentControl
 Route::get('/documents/{id}/download', [\App\Http\Controllers\ManagedDocumentController::class, 'download'])->where('id', '[0-9]+')->name('documents.download');
 Route::post('/documents/{id}/replace', [\App\Http\Controllers\ManagedDocumentController::class, 'replace'])->where('id', '[0-9]+')->name('documents.replace');
 Route::post('/documents/{id}/metadata', [\App\Http\Controllers\ManagedDocumentController::class, 'updateMetadata'])->where('id', '[0-9]+')->name('documents.updateMetadata');
-Route::post('/documents/{id}/approve-share', [\App\Http\Controllers\ManagedDocumentController::class, 'approveShare'])->where('id', '[0-9]+')->name('documents.approveShare');
 Route::post('/documents/{id}/remove', [\App\Http\Controllers\ManagedDocumentController::class, 'remove'])->where('id', '[0-9]+')->name('documents.remove');
 
 Route::post('/activities',           [\App\Http\Controllers\ActivityController::class, 'store'])->name('activities.store');

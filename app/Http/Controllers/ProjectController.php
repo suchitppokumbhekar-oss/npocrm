@@ -213,17 +213,9 @@ class ProjectController extends Controller
             ->get();
 
         $canUploadMedia = true;
-        $canManageMedia = $this->access->isUnrestrictedAdmin()
-            || $this->access->can('project_media.manage');
-        $canApproveShare = $this->access->isUnrestrictedAdmin()
-            || $this->access->can('documents.approve_share');
-        $canRemoveOwn = session('user_role') === 'agent'
-            || $this->access->can('documents.remove_own');
-        $canReplaceOwn = session('user_role') === 'agent'
-            || $this->access->can('documents.replace_own');
-        $isSuperAdmin = app(\App\Services\SuperAdminService::class)->isSuperAdmin((int) session('user_id'));
+        $canManageMedia = true;
 
-        return view('projects.media', compact('project', 'media', 'canUploadMedia', 'canManageMedia', 'canApproveShare', 'canRemoveOwn', 'canReplaceOwn', 'isSuperAdmin'));
+        return view('projects.media', compact('project', 'media', 'canUploadMedia', 'canManageMedia'));
     }
 
 

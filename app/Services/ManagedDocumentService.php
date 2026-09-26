@@ -119,20 +119,6 @@ class ManagedDocumentService
         }
     }
 
-    public function approveForSharing(ManagedFile $file, int $userId): ManagedFile
-    {
-        $file->forceFill([
-            'customer_shareable' => true,
-            'share_approved' => true,
-            'share_approved_by_user_id' => $userId,
-            'share_approved_at' => now(),
-        ])->save();
-
-        $this->recordEvent($file, 'share_approved', $userId);
-
-        return $file->fresh();
-    }
-
     public function retireReplacedVersion(ManagedFile $file, ManagedFile $replacement, int $userId): ManagedFile
     {
         $file->forceFill([

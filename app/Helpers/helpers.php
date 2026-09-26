@@ -91,3 +91,32 @@ if (! function_exists('phone_wa')) {
         return ltrim(phone_tel($phone), '+');
     }
 }
+
+if (! function_exists('phone_canonical')) {
+    function phone_canonical(?string $phone, ?string $countryCode = null): string
+    {
+        $raw = trim((string) $phone);
+        $digits = preg_replace('/\D/', '', $raw);
+        if ($digits === '') return '';
+        if (str_starts_with($digits, '00')) return substr($digits, 2);
+        if (str_starts_with($raw, '+')) return $digits;
+        $cc = preg_replace('/\D/', '', (string) $countryCode);
+        if ($cc !== '') {
+            $local = ltrim($digits, '0');
+            if (str_starts_with($local, $cc) && strlen($local) > strlen($cc) + 6) return $local;
+            return $cc . $local;
+        }
+        if (strlen($digits) === 10) return '91' . $digits;
+        if (strlen($digits) === 11 && str_starts_with($digits, '0')) return '91' . substr($digits, 1);
+        if (strlen($digits) === 12 && str_starts_with($digits, '91')) return $digits;
+        return ltrim($digits, '0');
+    }
+}
+
+if (! function_exists('phone_display')) {
+    function phone_display(?string $phone, ?string $countryCode = null): string
+    {
+        $canonical = phone_canonical($phone, $countryCode);
+        return $canonical === '' ? '' : '+' . $canonical;
+    }
+}
