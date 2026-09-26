@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Activity;
 use App\Models\Agent;
 use App\Models\AuditLog;
 use App\Models\Followup;
@@ -45,6 +46,74 @@ class NudgeService
         return $this->teams->agentIdsForManager($userId);
     }
 
+    public function buildForLeadAttention(\App\Models\Lead $lead): array
+    {
+        $lead->loadMissing(["project", "agent.user"]);
+        $agent = $lead->agent;
+
+        if (! in_array($lead->status, ['new', 'external_shared'], true)) {
+            throw new \DomainException("This lead no longer requires a first-contact intervention.");
+        }
+
+        $since = $lead->assigned_at ?: $lead->created_at;
+        $hasHumanActivity = $since && Activity::where('lead_id', $lead->id)
+            ->where('logged_at', '>=', $since)
+            ->whereNotIn('type', [
+                'lead_shared',
+                'lead_reassigned',
+                'status_change',
+                'shared_agent_report',
+                'site_team_report',
+            ])
+            ->where(function ($q) {
+                $q->whereNull('action_source')
+                    ->orWhereNotIn('action_source', ['system', 'automation', 'scheduled_job']);
+            })
+            ->exists();
+
+        if ($hasHumanActivity) {
+            throw new \DomainException("This lead already has meaningful human activity and no longer requires a first-contact intervention.");
+        }
+
+        if (! $agent) {
+            throw new \DomainException("This lead no longer has a responsible agent.");
+        }
+
+        if (! in_array((int) $agent->id, $this->visibleAgentIds(), true)) {
+            abort(403, "You do not have access to nudge this agent.");
+        }
+
+        $phone = preg_replace("/\D/", "", (string) $agent->phone);
+        if ($phone === "") {
+            throw new \DomainException("This agent has no WhatsApp number configured.");
+        }
+
+        $first = explode(" ", trim($agent->user?->name ?: "Agent"))[0];
+        $project = $lead->project?->name;
+        $message = "Hi {$first},
+
+"
+            . "Please attend this new lead now. The configured first-contact window has been breached for {$lead->customer_name}"
+            . ($project ? " ({$project})" : "")
+            . ".
+
+Open lead and act: " . url("/leads/" . $lead->id)
+            . "
+
+— " . session("user_name", "Manager");
+
+        return [
+            "phone" => $phone,
+            "message" => $message,
+            "target_type" => "lead_attention",
+            "target_id" => (int) $lead->id,
+            "lead_id" => (int) $lead->id,
+            "lead_name" => (string) $lead->customer_name,
+            "agent_id" => (int) $agent->id,
+            "agent_name" => (string) ($agent->user?->name ?? "Agent"),
+        ];
+    }
+
     public function buildForFollowup(Followup $followup): array
     {
         $followup->loadMissing(['lead.project', 'agent.user']);
@@ -79,7 +148,7 @@ class NudgeService
             . "Please attend this overdue follow-up for {$lead->customer_name}"
             . ($project ? " ({$project})" : '')
             . " — {$when}.\n\n"
-            . "🔗 Open lead and act: " . url('/leads/' . $lead->id) . "\n\n"
+            . "Open lead and act: " . url('/leads/' . $lead->id) . "\n\n"
             . "— " . session('user_name', 'Manager');
 
         return [
