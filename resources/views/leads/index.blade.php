@@ -66,9 +66,12 @@
 
     {{-- FILTERS --}}
         @php
+            $selectedProject = ($projects ?? collect())->firstWhere('id', (int) request('project'));
+
             $activeFilterCount = collect([
                 $searchFilter,
                 $statusFilter,
+                request('project'),
                 request('agent_id'),
                 request('tag_id'),
                 request('label_id'),
@@ -134,6 +137,21 @@
             </div>
 
             <div class="flex" style="margin-top:var(--s-2);">
+                <div class="flex-item">
+                    <label>Project</label>
+                    <x-project-picker
+                        name="project"
+                        :selected-id="request('project')"
+                        :selected-name="$selectedProject?->name"
+                        :allow-all="true"
+                        all-label="All projects"
+                        :auto-submit="true"
+                        search-context="lead_filter"
+                        search-source="all"
+                        :search-scope="$workScope"
+                        placeholder="Search project…" />
+                </div>
+
                 @if (session('user_role') !== 'agent')
                     <div class="flex-item">
                         <label>Agent</label>

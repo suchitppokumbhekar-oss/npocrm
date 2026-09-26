@@ -58,6 +58,10 @@
         </nav>
 
         {{-- SEARCH FIRST. FILTERS ARE SECONDARY. --}}
+        @php
+            $selectedProject = ($projects ?? collect())->firstWhere('id', (int) request('project'));
+        @endphp
+
         <section class="lead-desk-search card">
             <form method="GET" action="{{ url('/my-leads') }}#lead-results">
                 <input type="hidden" name="view" value="{{ $activeMode }}">
@@ -86,6 +90,20 @@
                                 @endforeach
                             </select>
                         </div>
+                        <div class="flex-item">
+                            <label>Project</label>
+                            <x-project-picker
+                                name="project"
+                                :selected-id="request('project')"
+                                :selected-name="$selectedProject?->name"
+                                :allow-all="true"
+                                all-label="All projects"
+                                :auto-submit="true"
+                                search-context="lead_filter"
+                                search-source="mine"
+                                placeholder="Search project…" />
+                        </div>
+
                         <div class="flex-item">
                             <label>Sort</label>
                             <select name="sort" class="input">

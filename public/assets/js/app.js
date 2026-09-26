@@ -1583,6 +1583,12 @@
       var timer    = null;
       var activeIx = -1;
       var items    = [];
+      var controller = null;
+      var autoSubmit = wrap.dataset.autoSubmit === '1';
+      var searchContext = wrap.dataset.searchContext || '';
+      var searchSource  = wrap.dataset.searchSource || '';
+      var searchScope   = wrap.dataset.searchScope || '';
+      var excludeIds = new Set((wrap.dataset.excludeIds || '' ).split(',').filter(Boolean).map(String));
 
       function show(el) { el.hidden = false; }
       function hide(el) { el.hidden = true; }
@@ -1592,6 +1598,11 @@
         else inputWrap.classList.remove('has-value');
       }
 
+      function notifyChange() {
+        hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        if (autoSubmit && hidden.form) hidden.form.requestSubmit();
+      }
+
       function clearAll() {
         hidden.value = '';
         search.value = '';
@@ -1599,6 +1610,7 @@
         hide(results);
         items = [];
         activeIx = -1;
+        notifyChange();
       }
 
       function setActive(ix) {
@@ -1611,8 +1623,9 @@
       function renderResults(list) {
         items = [];
         activeIx = -1;
+        list = (list || []).filter(function (p) { return ! excludeIds.has(String(p.id)); });
 
-        if (! list || list.length === 0) {
+        if (list.length === 0) {
           results.innerHTML = '<div class="pp-empty">No projects found</div>';
           show(results);
           return;
@@ -1631,6 +1644,7 @@
             search.value = p.name + (p.location ? ' · ' + p.location : '');
             markHasValue();
             hide(results);
+            notifyChange();
           });
           results.appendChild(btn);
           items.push(btn);
@@ -1648,12 +1662,22 @@
         results.innerHTML = '<div class="pp-loading">Searching…</div>';
         show(results);
 
-        fetch(url + '?q=' + encodeURIComponent(q), {
-          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        if (controller) controller.abort();
+        controller = new AbortController();
+
+        var params = new URLSearchParams({ q: q });
+        if (searchContext) params.set('context', searchContext);
+        if (searchSource) params.set('source', searchSource);
+        if (searchScope) params.set('scope', searchScope);
+
+        fetch(url + '?' + params.toString(), {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          signal: controller.signal
         })
         .then(function (r) { return r.json(); })
         .then(function (data) { renderResults(data.results || []); })
-        .catch(function () {
+        .catch(function (err) {
+          if (err && err.name === 'AbortError') return;
           results.innerHTML = '<div class="pp-empty">Could not load results</div>';
         });
       }
@@ -2113,4 +2137,23 @@
   if (returnToWork) {
     window.setTimeout(function () { returnToWork.focus({ preventScroll: true }); }, 80);
   }
+})();
+
+/* ============================================================
+   CRM FILTERS — shared immediate filter behaviour
+   ------------------------------------------------------------
+   Select controls marked [data-filter-auto-submit] submit their
+   containing GET filter form immediately after a selection.
+   Search fields remain manual so typing never causes reloads.
+   ============================================================ */
+(function () {
+  document.addEventListener('change', function (e) {
+    var control = e.target.closest('[data-filter-auto-submit]');
+    if (!control) return;
+
+    var form = control.closest('[data-crm-filter-form]');
+    if (!form) return;
+
+    form.requestSubmit();
+  });
 })();

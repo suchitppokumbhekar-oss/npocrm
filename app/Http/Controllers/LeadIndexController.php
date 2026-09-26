@@ -247,7 +247,9 @@ class LeadIndexController extends Controller
             $query->where('status', $statusFilter);
         } elseif ($statusFilter === 'all') {
             // Explicit All view: include terminal/closed leads too.
-        } elseif ($preset === null || $preset === '') {
+        } elseif (($preset === null || $preset === '') && ! $projectFilter) {
+            // A selected project is an explicit directory scope: show the full
+            // project lead book, including final/terminal statuses.
             if (! empty($terminalStatusKeys)) {
                 $query->whereNotIn('status', $terminalStatusKeys);
             }
@@ -349,10 +351,21 @@ class LeadIndexController extends Controller
             $agents = $agentsQuery->get();
         }
 
-        // Projects list — only needed when a project filter is active (for the banner)
+        // Projects list — only expose a banner project represented inside the
+        // current user's permitted lead scope.
         $projects = collect();
         if ($projectFilter) {
-            $projects = Project::where('id', (int) $projectFilter)->get(['id', 'name']);
+            $projectLeadQuery = Lead::query()
+                ->where('project_id', (int) $projectFilter);
+
+            if ($scopedLeadIds !== null) {
+                $projectLeadQuery->whereIn('id', $scopedLeadIds);
+            }
+
+            if ($projectLeadQuery->exists()) {
+                $projects = Project::where('id', (int) $projectFilter)
+                    ->get(['id', 'name']);
+            }
         }
 
         // Tags + labels for filter dropdowns
@@ -599,7 +612,9 @@ class LeadIndexController extends Controller
             $query->where('status', $statusFilter);
         } elseif ($statusFilter === 'all') {
             // Explicit All view: include terminal/closed leads too.
-        } elseif ($preset === null || $preset === '') {
+        } elseif (($preset === null || $preset === '') && ! $projectFilter) {
+            // A selected project is an explicit directory scope: show the full
+            // project lead book, including final/terminal statuses.
             if (! empty($terminalStatusKeys)) {
                 $query->whereNotIn('status', $terminalStatusKeys);
             }
@@ -663,10 +678,14 @@ class LeadIndexController extends Controller
                 ->count(),
         ];
 
-        // Projects list — for the active project banner
+        // Projects list — only expose a banner project represented inside this
+        // agent's active assigned lead scope.
         $projects = collect();
-        if ($projectFilter) {
-            $projects = Project::where('id', (int) $projectFilter)->get(['id', 'name']);
+        if ($projectFilter && Lead::whereIn('id', $leadIds)
+            ->where('project_id', (int) $projectFilter)
+            ->exists()) {
+            $projects = Project::where('id', (int) $projectFilter)
+                ->get(['id', 'name']);
         }
 
         // Tags + labels for filter dropdowns
