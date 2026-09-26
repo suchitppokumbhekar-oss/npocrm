@@ -193,30 +193,51 @@ class LeadController extends Controller
                 && ! $lead->agentHandlesProject($sessionAgentId);
         }
 
-        // Private CRM evidence and approved project collateral linked to this lead.
+        // Private CRM evidence linked to this lead. Only current active versions
+        // are shown here; replaced and removed versions remain in audit history.
         $leadDocuments = ManagedFile::query()
             ->with(['uploader', 'links'])
+            ->active()
             ->whereHas('links', function ($q) use ($lead) {
-                $q->where('entity_type', 'lead')->where('entity_id', $lead->id);
+                $q->where('entity_type', 'lead')
+                    ->where('entity_id', $lead->id)
+                    ->where('relationship', 'evidence');
             })
-            ->whereNull('removed_at')
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->get();
 
-        $documentsByVisit = $leadDocuments
-            ->filter(fn ($file) => $file->links->contains(fn ($link) => $link->context_type === 'site_visit' && $link->context_id))
-            ->groupBy(function ($file) {
-                $link = $file->links->first(fn ($item) => $item->context_type === 'site_visit' && $item->context_id);
-                return (int) $link->context_id;
-            });
+        $communicationDocuments = $leadDocuments
+            ->filter(fn ($file) => $file->document_category === 'communication_evidence')
+            ->values();
 
-        $generalLeadDocuments = $leadDocuments
-            ->reject(fn ($file) => $file->links->contains(fn ($link) => in_array($link->context_type, ['site_visit', 'booking'], true)))
+        $paymentReceiptDocuments = $leadDocuments
+            ->filter(fn ($file) => $file->document_category === 'payment_receipt')
             ->values();
 
         $bookingDocuments = $leadDocuments
-            ->filter(fn ($file) => $file->links->contains(fn ($link) => $link->context_type === 'booking'))
+            ->filter(fn ($file) => $file->document_category === 'booking_form')
             ->values();
+
+        $siteVisitDocuments = $leadDocuments
+            ->filter(fn ($file) => $file->document_category === 'site_visit_form')
+            ->groupBy(function ($file) {
+                $link = $file->links->first(fn ($item) =>
+                    $item->entity_type === 'lead'
+                    && $item->relationship === 'evidence'
+                    && $item->context_type === 'site_visit_project'
+                );
+
+                return $link?->context_id;
+            });
+
+        // Retained for staging sections that still consume general evidence.
+        $generalLeadDocuments = $leadDocuments
+            ->filter(fn ($file) => $file->document_category === 'general')
+            ->values();
+
+        // Compatibility alias for any staging-only visit-document references.
+        $documentsByVisit = $siteVisitDocuments;
 
         $projectMedia = collect();
         if ($lead->project_id) {
@@ -318,7 +339,7 @@ class LeadController extends Controller
             'siteVisits', 'siteVisitProjectRows', 'siteVisitOutcomeOptions',
             'siteVisitProjectOptions', 'canRecordSiteVisit', 'canManageLead', 'canChangeProject', 'returnTo',
             'customerInformationProfile',
-            'leadDocuments', 'generalLeadDocuments', 'documentsByVisit', 'bookingDocuments', 'projectMedia',
+            'leadDocuments', 'generalLeadDocuments', 'documentsByVisit', 'communicationDocuments', 'paymentReceiptDocuments', 'bookingDocuments', 'siteVisitDocuments', 'projectMedia',
             'projectShareHistory', 'lastSuccessfulProjectShare'
         ));
     }

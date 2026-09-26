@@ -10,6 +10,9 @@
     $isAdminUser = session('user_role') === 'admin';
     $canWorkThisLead = $access->canWorkLead($lead);
     $canManageThisLead = $access->canManageLead($lead);
+    $isSuperAdminUser = app(\App\Services\SuperAdminService::class)->isSuperAdmin();
+    $canDownloadLeadDocuments = $isSuperAdminUser
+        || (session('user_role') !== 'team_manager' && $access->can('documents.download'));
 
     $pendingCount = $pendingTasks->count();
     $overdueCount = $pendingTasks->filter(fn ($t) => $t->scheduled_for && now()->greaterThan($t->scheduled_for))->count();
@@ -46,6 +49,74 @@
 @endphp
 
 @section('content')
+
+<style>
+.lead-doc-panel{
+    margin-top:12px;
+    border:1px solid var(--c-border);
+    border-radius:10px;
+    padding:12px;
+    background:var(--c-surface);
+}
+.lead-doc-panel-title{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-bottom:9px;
+}
+.lead-doc-panel-title strong{font-size:13px;}
+.lead-doc-list{display:grid;gap:7px;margin-top:9px;}
+.lead-doc-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:9px 10px;
+    border:1px solid var(--c-border);
+    border-radius:8px;
+    background:#fff;
+}
+.lead-doc-name{min-width:0;font-size:12px;}
+.lead-doc-name strong{display:block;overflow-wrap:anywhere;}
+.lead-doc-meta{color:var(--c-muted);font-size:10px;margin-top:2px;}
+.lead-doc-actions{
+    display:flex;
+    gap:5px;
+    flex-wrap:wrap;
+    flex-shrink:0;
+}
+.lead-doc-upload{
+    display:flex;
+    align-items:end;
+    gap:7px;
+    flex-wrap:wrap;
+}
+.lead-doc-upload input[type=file]{max-width:100%;font-size:12px;}
+.lead-doc-replace{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    margin:0;
+}
+.lead-doc-replace input[type=file]{
+    width:150px;
+    max-width:100%;
+    font-size:10px;
+}
+@media(max-width:640px){
+    .lead-doc-item{display:block;}
+    .lead-doc-actions{margin-top:8px;width:100%;}
+    .lead-doc-actions .btn-small,
+    .lead-doc-actions form{flex:1 1 auto;}
+    .lead-doc-replace{width:100%;display:flex;}
+    .lead-doc-replace input[type=file]{width:100%;flex:1;}
+    .lead-doc-upload{display:block;}
+    .lead-doc-upload input[type=file]{width:100%;margin-bottom:7px;}
+}
+</style>
+
 @php
     /*
      * Compact operational snapshot.
@@ -1470,39 +1541,80 @@
                                         @if ($row->notes)
                                             <div style="font-size:12px;margin-top:4px;color:var(--c-text-2);white-space:pre-wrap;">{{ $row->notes }}</div>
                                         @endif
+
+                                        @php
+                                            $visitProjectDocument = $siteVisitDocuments->get($row->id, collect())->first();
+                                        @endphp
+
+                                        <div class="lead-doc-panel">
+                                            <div class="lead-doc-panel-title">
+                                                <strong>📄 Site Visit Form · {{ $row->project_name }}</strong>
+                                                @if ($visitProjectDocument)
+                                                    <span class="badge green">UPLOADED</span>
+                                                @endif
+                                            </div>
+
+                                            @if ($visitProjectDocument)
+                                                <div class="lead-doc-item" id="media-{{ $visitProjectDocument->id }}">
+                                                    <div class="lead-doc-name">
+                                                        <strong>{{ $visitProjectDocument->original_name }}</strong>
+                                                        <div class="lead-doc-meta">
+                                                            {{ $visitProjectDocument->created_at?->format('d M Y, h:i A') }}
+                                                            · v{{ $visitProjectDocument->version_number }}
+                                                        </div>
+                                                    </div>
+                                                    <div class="lead-doc-actions">
+                                                        <a class="btn-small btn-info"
+                                                           href="{{ route('documents.view', $visitProjectDocument->id) }}"
+                                                           target="_blank" rel="noopener">View</a>
+
+                                                        @if ($canDownloadLeadDocuments)
+                                                            <a class="btn-small"
+                                                               href="{{ route('documents.download', $visitProjectDocument->id) }}">Download</a>
+                                                        @endif
+
+                                                        @if ($canWorkThisLead)
+                                                            <form method="POST"
+                                                                  action="{{ route('documents.replace', $visitProjectDocument->id) }}"
+                                                                  enctype="multipart/form-data"
+                                                                  class="lead-doc-replace">
+                                                                @csrf
+                                                                <input type="hidden" name="return_to"
+                                                                       value="{{ url('/leads/' . $lead->id) }}?lead_tab=visits#media-{{ $visitProjectDocument->id }}">
+                                                                <input type="file" name="file" required>
+                                                                <button type="submit" class="btn-small">Replace</button>
+                                                            </form>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            @elseif ($canWorkThisLead)
+                                                <form method="POST"
+                                                      action="{{ route('documents.upload') }}"
+                                                      enctype="multipart/form-data"
+                                                      class="lead-doc-upload">
+                                                    @csrf
+                                                    <input type="hidden" name="entity_type" value="lead">
+                                                    <input type="hidden" name="entity_id" value="{{ $lead->id }}">
+                                                    <input type="hidden" name="document_category" value="site_visit_form">
+                                                    <input type="hidden" name="context_type" value="site_visit_project">
+                                                    <input type="hidden" name="context_id" value="{{ $row->id }}">
+                                                    <input type="hidden" name="workflow_stage" value="site_visit">
+                                                    <input type="hidden" name="title" value="Site Visit Form — {{ $row->project_name }}">
+                                                    <input type="hidden" name="return_to"
+                                                           value="{{ url('/leads/' . $lead->id) }}?lead_tab=visits#site-visits">
+                                                    <input type="file" name="file" required>
+                                                    <button type="submit" class="btn-small btn-primary">📤 Upload visit form</button>
+                                                </form>
+                                            @else
+                                                <div class="muted" style="font-size:12px;">
+                                                    No site visit form uploaded for this project.
+                                                </div>
+                                            @endif
+                                        </div>
                                     </div>
                                 @endforeach
                             </div>
                         @endif
-
-                        @php $visitDocuments = $documentsByVisit->get((int) $visit->id, collect()); @endphp
-                        <div style="margin-top:10px;padding-top:9px;border-top:1px dashed #dbeafe;">
-                            <div style="font-size:12px;font-weight:800;margin-bottom:6px;">📎 Site Visit Evidence</div>
-                            @foreach ($visitDocuments as $document)
-                                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:5px;flex-wrap:wrap;">
-                                    <a href="{{ route('documents.view', $document->id) }}" target="_blank" rel="noopener" style="font-size:12px;font-weight:700;">{{ $document->title ?: $document->original_name }}</a>
-                                    @if ((int) $document->uploaded_by_user_id === (int) session('user_id') || session('user_role') === 'admin')
-                                        <form method="POST" action="{{ route('documents.remove', $document->id) }}" onsubmit="return confirm('Remove this site visit document from active use?');">
-                                            @csrf
-                                            <input type="hidden" name="reason" value="Removed from site visit evidence">
-                                            <button type="submit" class="btn-small" style="background:#fff;color:var(--c-danger);border:1px solid #fecaca;">Remove</button>
-                                        </form>
-                                    @endif
-                                </div>
-                            @endforeach
-                            @if ($canWorkThisLead)
-                                <form method="POST" action="{{ route('documents.upload') }}" enctype="multipart/form-data" style="display:flex;gap:7px;align-items:end;flex-wrap:wrap;margin-top:7px;">
-                                    @csrf
-                                    <input type="hidden" name="entity_type" value="lead">
-                                    <input type="hidden" name="entity_id" value="{{ $lead->id }}">
-                                    <input type="hidden" name="context_type" value="site_visit">
-                                    <input type="hidden" name="context_id" value="{{ $visit->id }}">
-                                    <input type="hidden" name="document_category" value="site_visit_evidence">
-                                    <input type="file" name="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx" required style="font-size:11px;max-width:280px;">
-                                    <button type="submit" class="btn-small btn-info">⬆ Add Visit File</button>
-                                </form>
-                            @endif
-                        </div>
 
                         @if ($visit->notes)
                             <div style="margin-top:9px;font-size:12px;color:var(--c-text-2);white-space:pre-wrap;"><strong>Visit notes:</strong> {{ $visit->notes }}</div>
@@ -1722,50 +1834,83 @@
 
 
     {{-- ============================================================ --}}
-    <div class="card lead-mobile-section" data-mobile-section="more" style="border-left:4px solid #64748b;">
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
-            <div>
-                <h3 style="margin:0;">📎 Communication Evidence</h3>
-                <div class="muted" style="font-size:12px;margin-top:3px;">Upload screenshots or documents that support customer communication and qualification history.</div>
-            </div>
+    <div id="communication-documents" class="card lead-mobile-section" data-mobile-section="more" style="border-left:4px solid #64748b;">
+        <h3 style="margin-top:0;">📎 Communication Evidence</h3>
+        <div class="muted" style="font-size:12px;margin-bottom:10px;">
+            Upload WhatsApp screenshots, customer messages, call-related evidence or other communication records. Multiple files are allowed.
         </div>
 
-        @if ($generalLeadDocuments->isNotEmpty())
-            <div style="margin-top:12px;display:grid;gap:7px;">
-                @foreach ($generalLeadDocuments as $document)
-                    <div style="border:1px solid var(--c-border);border-radius:8px;padding:8px 10px;background:#fff;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
-                        <div>
-                            <a href="{{ route('documents.view', $document->id) }}" target="_blank" rel="noopener" style="font-weight:800;text-decoration:none;">{{ $document->title ?: $document->original_name }}</a>
-                            <div class="muted" style="font-size:10px;margin-top:2px;">{{ ucfirst(str_replace('_', ' ', $document->document_category)) }} · {{ $document->uploader?->name ?? 'Unknown' }} · {{ $document->created_at?->format('d M Y, h:i A') }}</div>
-                        </div>
-                        @if ((int) $document->uploaded_by_user_id === (int) session('user_id') || session('user_role') === 'admin')
-                            <form method="POST" action="{{ route('documents.remove', $document->id) }}" onsubmit="return confirm('Remove this document from active use? The audit history will be preserved.');">
-                                @csrf
-                                <input type="hidden" name="reason" value="Removed from lead evidence">
-                                <button type="submit" class="btn-small" style="background:#fff;color:var(--c-danger);border:1px solid #fecaca;">Remove</button>
-                            </form>
-                        @endif
-                    </div>
-                @endforeach
-            </div>
-        @endif
-
         @if ($canWorkThisLead)
-            <form method="POST" action="{{ route('documents.upload') }}" enctype="multipart/form-data" style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--c-border);">
+            <form method="POST" action="{{ route('documents.upload') }}"
+                  enctype="multipart/form-data" class="lead-doc-upload">
                 @csrf
                 <input type="hidden" name="entity_type" value="lead">
                 <input type="hidden" name="entity_id" value="{{ $lead->id }}">
-                <input type="hidden" name="context_type" value="communication">
                 <input type="hidden" name="document_category" value="communication_evidence">
-                <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
-                    <div style="flex:1;min-width:220px;">
-                        <label style="display:block;font-size:12px;font-weight:800;margin-bottom:5px;">Screenshot / document</label>
-                        <input type="file" name="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx" required style="width:100%;">
-                    </div>
-                    <button type="submit" class="btn-small btn-primary">⬆ Upload Evidence</button>
-                </div>
+                <input type="hidden" name="context_type" value="communication">
+                <input type="hidden" name="workflow_stage" value="{{ $leadStatusKey }}">
+                <input type="hidden" name="title" value="Communication evidence">
+                <input type="hidden" name="return_to"
+                       value="{{ url('/leads/' . $lead->id) }}?lead_tab=more#communication-documents">
+                <input type="file" name="file" required>
+                <button type="submit" class="btn-small btn-primary">📤 Upload evidence</button>
             </form>
         @endif
+
+        <div class="lead-doc-list">
+            @forelse ($communicationDocuments as $document)
+                <div class="lead-doc-item" id="media-{{ $document->id }}">
+                    <div class="lead-doc-name">
+                        <strong>{{ $document->original_name }}</strong>
+                        <div class="lead-doc-meta">
+                            {{ $document->created_at?->format('d M Y, h:i A') }}
+                            @if ($document->uploader)
+                                · {{ $document->uploader->name }}
+                            @endif
+                            · v{{ $document->version_number }}
+                        </div>
+                    </div>
+
+                    <div class="lead-doc-actions">
+                        <a class="btn-small btn-info"
+                           href="{{ route('documents.view', $document->id) }}"
+                           target="_blank" rel="noopener">View</a>
+
+                        @if ($canDownloadLeadDocuments)
+                            <a class="btn-small"
+                               href="{{ route('documents.download', $document->id) }}">Download</a>
+                        @endif
+
+                        @if ($canWorkThisLead)
+                            <form method="POST"
+                                  action="{{ route('documents.replace', $document->id) }}"
+                                  enctype="multipart/form-data"
+                                  class="lead-doc-replace">
+                                @csrf
+                                <input type="hidden" name="return_to"
+                                       value="{{ url('/leads/' . $lead->id) }}?lead_tab=more#communication-documents">
+                                <input type="file" name="file" required>
+                                <button type="submit" class="btn-small">Replace</button>
+                            </form>
+
+                            @if ($isSuperAdminUser || ((int) $document->uploaded_by_user_id === (int) session('user_id') && (session('user_role') === 'agent' || $access->can('documents.remove_own'))))
+                                <form method="POST"
+                                      action="{{ route('documents.remove', $document->id) }}"
+                                      onsubmit="return confirm('Remove this document from active use?');">
+                                    @csrf
+                                    <input type="hidden" name="return_to"
+                                           value="{{ url('/leads/' . $lead->id) }}?lead_tab=more#communication-documents">
+                                    <button type="submit" class="btn-small"
+                                            style="background:var(--c-danger);color:#fff;">Remove</button>
+                                </form>
+                            @endif
+                        @endif
+                    </div>
+                </div>
+            @empty
+                <div class="muted" style="font-size:12px;">No communication evidence uploaded yet.</div>
+            @endforelse
+        </div>
     </div>
 
     {{-- LOST REASON --}}
@@ -1938,32 +2083,145 @@
                 </div>
             @endif
 
-            @if($bookingDocuments->isNotEmpty())
-                <hr style="border:0;border-top:1px dashed var(--c-border);margin:var(--s-3) 0;">
-                <div>
-                    <strong>📎 Booking Evidence</strong>
-                    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-                        @foreach($bookingDocuments as $document)
-                            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                                <a href="/documents/{{$document->id}}/view"
-                                   target="_blank"
-                                   rel="noopener"
-                                   class="btn-small">
-                                    View {{ $document->title ?: $document->original_name }}
-                                </a>
-                                @if((int)$document->uploaded_by_user_id === (int)session('user_id') || $isAdminUser)
-                                    <form method="POST" action="/documents/{{$document->id}}/remove"
-                                          onsubmit="return confirm('Remove this booking evidence from active use? The audit history will be preserved.');">
+            <div class="lead-doc-panel">
+                <div class="lead-doc-panel-title">
+                    <strong>📄 Booking Form</strong>
+                    @if ($bookingDocuments->isNotEmpty())
+                        <span class="badge green">UPLOADED</span>
+                    @endif
+                </div>
+
+                @php $bookingDocument = $bookingDocuments->first(); @endphp
+
+                @if ($bookingDocument)
+                    <div class="lead-doc-item" id="media-{{ $bookingDocument->id }}">
+                        <div class="lead-doc-name">
+                            <strong>{{ $bookingDocument->original_name }}</strong>
+                            <div class="lead-doc-meta">
+                                {{ $bookingDocument->created_at?->format('d M Y, h:i A') }}
+                                · v{{ $bookingDocument->version_number }}
+                            </div>
+                        </div>
+                        <div class="lead-doc-actions">
+                            <a class="btn-small btn-info"
+                               href="{{ route('documents.view', $bookingDocument->id) }}"
+                               target="_blank" rel="noopener">View</a>
+
+                            @if ($canDownloadLeadDocuments)
+                                <a class="btn-small"
+                                   href="{{ route('documents.download', $bookingDocument->id) }}">Download</a>
+                            @endif
+
+                            @if ($canWorkThisLead)
+                                <form method="POST"
+                                      action="{{ route('documents.replace', $bookingDocument->id) }}"
+                                      enctype="multipart/form-data"
+                                      class="lead-doc-replace">
+                                    @csrf
+                                    <input type="hidden" name="return_to"
+                                           value="{{ url('/leads/' . $lead->id) }}?lead_tab=more#media-{{ $bookingDocument->id }}">
+                                    <input type="file" name="file" required>
+                                    <button type="submit" class="btn-small">Replace</button>
+                                </form>
+                            @endif
+                        </div>
+                    </div>
+                @elseif ($canWorkThisLead)
+                    <form method="POST" action="{{ route('documents.upload') }}"
+                          enctype="multipart/form-data" class="lead-doc-upload">
+                        @csrf
+                        <input type="hidden" name="entity_type" value="lead">
+                        <input type="hidden" name="entity_id" value="{{ $lead->id }}">
+                        <input type="hidden" name="document_category" value="booking_form">
+                        <input type="hidden" name="context_type" value="booking">
+                        <input type="hidden" name="workflow_stage" value="booking">
+                        <input type="hidden" name="title" value="Booking Form">
+                        <input type="hidden" name="return_to"
+                               value="{{ url('/leads/' . $lead->id) }}?lead_tab=more#booking-documents">
+                        <input type="file" name="file" required>
+                        <button type="submit" class="btn-small btn-primary">📤 Upload booking form</button>
+                    </form>
+                @endif
+            </div>
+
+            <div class="lead-doc-panel" id="booking-documents">
+                <div class="lead-doc-panel-title">
+                    <strong>🧾 Payment Receipts</strong>
+                    <span class="muted" style="font-size:11px;">Multiple receipts allowed</span>
+                </div>
+
+                @if ($canWorkThisLead)
+                    <form method="POST" action="{{ route('documents.upload') }}"
+                          enctype="multipart/form-data" class="lead-doc-upload">
+                        @csrf
+                        <input type="hidden" name="entity_type" value="lead">
+                        <input type="hidden" name="entity_id" value="{{ $lead->id }}">
+                        <input type="hidden" name="document_category" value="payment_receipt">
+                        <input type="hidden" name="context_type" value="booking">
+                        <input type="hidden" name="workflow_stage" value="booking">
+                        <input type="hidden" name="title" value="Payment Receipt">
+                        <input type="hidden" name="return_to"
+                               value="{{ url('/leads/' . $lead->id) }}?lead_tab=more#booking-documents">
+                        <input type="file" name="file" required>
+                        <button type="submit" class="btn-small btn-primary">📤 Add receipt</button>
+                    </form>
+                @endif
+
+                <div class="lead-doc-list">
+                    @forelse ($paymentReceiptDocuments as $document)
+                        <div class="lead-doc-item" id="media-{{ $document->id }}">
+                            <div class="lead-doc-name">
+                                <strong>{{ $document->original_name }}</strong>
+                                <div class="lead-doc-meta">
+                                    {{ $document->created_at?->format('d M Y, h:i A') }}
+                                    @if ($document->uploader)
+                                        · {{ $document->uploader->name }}
+                                    @endif
+                                    · v{{ $document->version_number }}
+                                </div>
+                            </div>
+
+                            <div class="lead-doc-actions">
+                                <a class="btn-small btn-info"
+                                   href="{{ route('documents.view', $document->id) }}"
+                                   target="_blank" rel="noopener">View</a>
+
+                                @if ($canDownloadLeadDocuments)
+                                    <a class="btn-small"
+                                       href="{{ route('documents.download', $document->id) }}">Download</a>
+                                @endif
+
+                                @if ($canWorkThisLead)
+                                    <form method="POST"
+                                          action="{{ route('documents.replace', $document->id) }}"
+                                          enctype="multipart/form-data"
+                                          class="lead-doc-replace">
                                         @csrf
-                                        <input type="hidden" name="reason" value="Removed from lead booking">
-                                        <button type="submit" class="btn-small">Remove</button>
+                                        <input type="hidden" name="return_to"
+                                               value="{{ url('/leads/' . $lead->id) }}?lead_tab=more#booking-documents">
+                                        <input type="file" name="file" required>
+                                        <button type="submit" class="btn-small">Replace</button>
                                     </form>
+
+                                    @if ($isSuperAdminUser || ((int) $document->uploaded_by_user_id === (int) session('user_id') && (session('user_role') === 'agent' || $access->can('documents.remove_own'))))
+                                        <form method="POST"
+                                              action="{{ route('documents.remove', $document->id) }}"
+                                              onsubmit="return confirm('Remove this receipt from active use?');">
+                                            @csrf
+                                            <input type="hidden" name="return_to"
+                                                   value="{{ url('/leads/' . $lead->id) }}?lead_tab=more#booking-documents">
+                                            <button type="submit" class="btn-small"
+                                                    style="background:var(--c-danger);color:#fff;">Remove</button>
+                                        </form>
+                                    @endif
                                 @endif
                             </div>
-                        @endforeach
-                    </div>
+                        </div>
+                    @empty
+                        <div class="muted" style="font-size:12px;">No payment receipts uploaded yet.</div>
+                    @endforelse
                 </div>
-            @endif
+            </div>
         </div>
     @endif
 
@@ -2207,7 +2465,43 @@
             focusBar.classList.add('is-visible');
         }
     }
-    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initLeadWorkbench);else initLeadWorkbench();
+    function restoreLeadReturnFocus(){
+        var requestedTab=new URL(window.location.href).searchParams.get('lead_tab');
+
+        if(requestedTab){
+            var accordion=document.querySelector('details[data-accordion="'+requestedTab+'"]');
+            if(accordion) accordion.open=true;
+        }
+
+        if(!window.location.hash) return;
+
+        setTimeout(function(){
+            var target=null;
+            try{
+                target=document.querySelector(window.location.hash);
+            }catch(e){
+                target=null;
+            }
+
+            if(!target) return;
+
+            target.scrollIntoView({
+                behavior:'smooth',
+                block:'center'
+            });
+        },150);
+    }
+
+    function bootLeadWorkbench(){
+        initLeadWorkbench();
+        restoreLeadReturnFocus();
+    }
+
+    if(document.readyState==='loading'){
+        document.addEventListener('DOMContentLoaded',bootLeadWorkbench);
+    }else{
+        bootLeadWorkbench();
+    }
 })();
 </script>
 @endsection
